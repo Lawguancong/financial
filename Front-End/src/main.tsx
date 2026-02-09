@@ -6,7 +6,7 @@ import { ConfigProvider } from '@ant-design/charts';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {/* 定制主题 */}
+    {/* todo 定制主题 */}
     {/* <ConfigProvider common={{ theme: 'dark' }}> */}
       <AppRoutes />
     {/* </ConfigProvider> */}

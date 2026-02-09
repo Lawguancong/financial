@@ -9,9 +9,19 @@
     "lint": "eslint .",
     "preview": "vite preview"
   },
+  "peerDependencies": {
+    "react": ">=16.8.4",
+    "react-dom": ">=16.8.4"
+  },
   "dependencies": {
     "@ant-design/charts": "^2.6.7",
+    "ahooks": "^3.9.6",
     "antd": "^6.2.3",
+    "axios": "^1.13.5",
+    "decimal.js": "^10.6.0",
+    "fecha": "^4.2.3",
+    "lodash": "^4.17.23",
+    "moment": "^2.30.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.13.0"

@@ -1,14 +1,322 @@
 import { Line } from '@ant-design/plots';
 import { DualAxes } from '@ant-design/plots';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import { createRoot } from 'react-dom/client';
 import { format } from 'fecha';
 import moment from 'moment';
 import { useSetState } from 'ahooks';
+import { pick } from 'lodash-es';
 
 
 const today = moment().format('YYYYMMDD'); // 获取当天日期并格式化为YYYYMMDD
+
+
+
+const Stock_buffett_index_lg = () => {
+  interface StockBuffettIndexItemRes {
+    日期: string; //	object	交易日
+    收盘价: number; //: number; //沪深300
+    总市值: number; //: number; //A股收盘价*已发行股票总股本（A股+B股+H股）
+    GDP: number; //: number; //上年度国内生产总值（例如：2019年，则取2018年GDP）
+    近十年分位数: number; //: number; //当前"总市值/GDP"在历史数据上的分位数
+    总历史分位数: number; //: number; //当前"总市值/GDP"在历史数据上的分位数
+  }
+  const [data, setData] = useState<StockBuffettIndexItemRes[]>([]);
+  const fetchData = async () => {
+    try {
+      const response = await axios.get('http://127.0.0.1:8080/api/public/stock_buffett_index_lg')
+      console.log('Stock_buffett_index_lg -> response', response)
+      setData(response?.data?.map((item: StockBuffettIndexItemRes) => ({
+        ...item,
+        ['沪深300']: item['收盘价'],
+        ['总市值/GDP']: Number((item['总市值'] / item['GDP'])?.toFixed(2)),
+      })))
+    } catch (error) {
+      console.log('error', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  console.log('Stock_buffett_index_lg -> data', data)
+  const config = {
+    data,
+    xField: (d: StockBuffettIndexItemRes) => new Date(d['日期']),
+    legend: true,
+    children: [
+      {
+        type: 'line',
+        yField: '沪深300',
+        shapeField: 'smooth',
+        style: {
+          stroke: '#5B8FF9',
+          lineWidth: 2,
+        },
+        axis: {
+          y: {
+            title: '沪深300',
+            style: { titleFill: '#5B8FF9' },
+          },
+        },
+      },
+      {
+        type: 'line',
+        yField: '总市值/GDP',
+        shapeField: 'smooth',
+        style: {
+          stroke: 'darkgreen',
+          lineWidth: 2,
+        },
+        axis: {
+          y: {
+            position: 'right',
+            title: '总市值/GDP',
+            style: { titleFill: '#5AD8A6' },
+            // labelFormatter: (d) => `${d * 100}%`,
+          },
+        },
+        area: {
+          style: {
+            fill: 'linear-gradient(-90deg, white 0%, darkgreen 100%)',
+          },
+        },
+      },
+    ],
+  };
+  const config1 = {
+    xField: (d: StockBuffettIndexItemRes) => new Date(d['日期']),
+    legend: true,
+    scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
+    children: [
+      {
+        data: [...(data || []).map((item: StockBuffettIndexItemRes) => ({
+          ['日期']: item['日期'],
+          value: item['总市值'],
+          type: '总市值'
+        })), ...(data || []).map((item: StockBuffettIndexItemRes) => ({
+          ['日期']: item['日期'],
+          value: item['GDP'],
+          type: 'GDP'
+        }))],
+        type: 'line',
+        shapeField: 'smooth',
+        yField: 'value',
+        colorField: 'type',
+      },
+    ],
+  };
+  return <>
+    <DualAxes {...config} />;
+    <DualAxes {...config1} />;
+  </>
+};
+
+
+
+const Stock_a_ttm_lyr = () => {
+  interface Stock_a_ttm_lyrRes {
+    date: string; //日期
+    close: number; //沪深300指数
+    middlePETTM: number; //全A股滚动市盈率(TTM)中位数
+    averagePETTM: number; //全A股滚动市盈率(TTM)等权平均
+    middlePELYR: number; //全A股静态市盈率(LYR)中位数
+    averagePELYR: number; //全A股静态市盈率(LYR)等权平均
+    quantileInAllHistoryMiddlePeTtm: number; //当前"TTM(滚动市盈率)中位数"在历史数据上的分位数
+    quantileInRecent10YearsMiddlePeTtm: number; //当前"TTM(滚动市盈率)中位数"在最近10年数据上的分位数
+    quantileInAllHistoryAveragePeTtm: number; //当前"TTM(滚动市盈率)等权平均"在历史数据上的分位数
+    quantileInRecent10YearsAveragePeTtm: number; //当前"TTM(滚动市盈率)等权平均"在在最近10年数据上的分位数
+    quantileInAllHistoryMiddlePeLyr: number; //当前"LYR(静态市盈率)中位数"在历史数据上的分位数
+    quantileInRecent10YearsMiddlePeLyr: number; //当前"LYR(静态市盈率)中位数"在最近10年数据上的分位数
+    quantileInAllHistoryAveragePeLyr: number; //当前"LYR(静态市盈率)等权平均"在历史数据上的分位数
+    quantileInRecent10YearsAveragePeLyr: number; //当前"LYR(静态市盈率)等权平均"在最近10年数据上的分位数
+  }
+
+  const labelMap = {
+    close: '沪深300指数',
+    middlePETTM: '全A股滚动市盈率(TTM)中位数',
+    averagePETTM: '全A股滚动市盈率(TTM)等权平均',
+    middlePELYR: '全A股静态市盈率(LYR)中位数',
+    averagePELYR: '全A股静态市盈率(LYR)等权平均',
+  }
+  const [data, setData] = useState<{
+    list1: Stock_a_ttm_lyrRes[];
+    list2: {
+      date: string;
+      key: string;
+      value: number;
+    }[];
+  }>({ list1: [], list2: [] });
+  const fetchData = async () => {
+    try {
+      const response = await axios.get('http://127.0.0.1:8080/api/public/stock_a_ttm_lyr')
+      const dataFormat = response?.data?.filter((_, index: number) => index % 10 === 0)?.map((item: Stock_a_ttm_lyrRes) => Object.keys(pick(item, ['close', 'averagePELYR', 'averagePETTM', 'middlePELYR', 'middlePETTM'])).map((key) => ({
+        date: item['date'],
+        key,
+        label: labelMap[key as keyof typeof labelMap],
+        value: item[key as keyof Stock_a_ttm_lyrRes],
+      }))).flat()
+      setData({
+        list1: dataFormat?.filter((item: { key: string }) => item.key === 'close'),
+        list2: dataFormat?.filter((item: { key: string }) => item.key !== 'close')
+      })
+    } catch (error) {
+      console.log('error', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const config = {
+    xField: (d: Stock_a_ttm_lyrRes) => new Date(d['date']),
+    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
+    children: [
+      {
+        data: data.list1,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        style: {
+          stroke: '#5B8FF9',
+          lineWidth: 2,
+        },
+        axis: {
+          y: {
+            title: '沪深300',
+            style: { titleFill: '#5B8FF9' },
+          },
+        },
+      },
+      {
+        data: data.list2,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        axis: {
+          y: {
+            position: 'right',
+            title: '市盈率',
+            style: { titleFill: '#000' },
+          },
+        },
+      },
+
+
+
+    ],
+  };
+
+  return <>
+    <DualAxes {...config} />;
+  </>
+};
+
+
+const Stock_a_all_pb = () => {
+  interface Stock_a_ttm_lyrRes {
+    date: string; //	日期
+    close: number; //	上证指数
+    middlePB: number; //	全部A股市净率中位数
+    equalWeightAveragePB: number; //	全部A股市净率等权平均
+    quantileInAllHistoryMiddlePB: number; //	当前市净率中位数在历史数据上的分位数
+    quantileInRecent10YearsMiddlePB: number; //	当前市净率中位数在最近10年数据上的分位数
+    quantileInAllHistoryEqualWeightAveragePB: number; //	当前市净率等权平均在历史数据上的分位数
+    quantileInRecent10YearsEqualWeightAveragePB: number; //	当前市净率等权平均在最近10年数据上的分位数
+  }
+
+  const labelMap = {
+    close: '上证指数',
+    middlePB: '全部A股市净率中位数',
+    equalWeightAveragePB: '全部A股市净率等权平均',
+  }
+  const [data, setData] = useState<{
+    list1: Stock_a_ttm_lyrRes[];
+    list2: {
+      date: string;
+      key: string;
+      value: number;
+    }[];
+  }>({ list1: [], list2: [] });
+  const fetchData = async () => {
+    try {
+      const response = await axios.get('http://127.0.0.1:8080/api/public/stock_a_all_pb')
+      console.log('stock_a_all_pb -> response', response)
+      const dataFormat = response?.data?.filter((_, index: number) => index % 10 === 0)?.map((item: Stock_a_ttm_lyrRes) => Object.keys(pick(item, ['close', 'middlePB', 'equalWeightAveragePB'])).map((key) => ({
+        date: item['date'],
+        key,
+        label: labelMap[key as keyof typeof labelMap],
+        value: item[key as keyof Stock_a_ttm_lyrRes],
+      }))).flat()
+      console.log('stock_a_all_pb -> dataFormat', dataFormat)
+      setData({
+        list1: dataFormat?.filter((item: { key: string }) => item.key === 'close'),
+        list2: dataFormat?.filter((item: { key: string }) => item.key !== 'close')
+      })
+    } catch (error) {
+      console.log('error', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  console.log('stock_a_all_pb -> data', data)
+  const config = {
+    xField: (d: Stock_a_ttm_lyrRes) => new Date(d['date']),
+    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
+    children: [
+      {
+        data: data.list1,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        style: {
+          stroke: '#5B8FF9',
+          lineWidth: 2,
+        },
+        axis: {
+          y: {
+            title: '沪深300',
+            style: { titleFill: '#5B8FF9' },
+          },
+        },
+      },
+      {
+        data: data.list2,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        axis: {
+          y: {
+            position: 'right',
+            title: '市净率',
+            style: { titleFill: '#000' },
+          },
+        },
+      },
+
+    ],
+  };
+
+  return <>
+    <DualAxes {...config} />;
+  </>
+};
+
+
+
+
+
+
 
 
 const DemoLine = (props) => {
@@ -248,9 +556,24 @@ const Home = () => {
 
       const responsmacro_china_urban_unemploymente1 = await axios.get(`http://127.0.0.1:8080/api/public/macro_china_urban_unemployment`) // 城镇调查失业率
       setresponsmacro_china_urban_unemploymente1(responsmacro_china_urban_unemploymente1?.data || [])
+      const stock_margin_account_info = await axios.get(`http://127.0.0.1:8080/api/public/stock_margin_account_info`) // 两融账户信息
       const macro_china_ppi_yearly = await axios.get(`http://127.0.0.1:8080/api/public/macro_china_ppi_yearly`) // 中国 PPI 年率报告
       const macro_china_cpi_yearly = await axios.get(`http://127.0.0.1:8080/api/public/macro_china_cpi_yearly`) // 中国 CPI 年率报告
       const macro_china_lpr = await axios.get(`http://127.0.0.1:8080/api/public/macro_china_lpr`) // LPR品种数据
+
+
+      // AKShare 数据接口一览
+      // https://akshare.akfamily.xyz/tutorial.html#id1
+
+
+
+      // 两融账户信息
+      // 接口: stock_margin_account_info
+      // 目标地址: https://data.eastmoney.com/rzrq/zhtjday.html
+      // 描述: 东方财富网-数据中心-融资融券-融资融券账户统计-两融账户信息
+      // 限量: 单次返回所有历史数据
+      // http://127.0.0.1:8080/api/public/stock_margin_account_info
+
 
 
       // todo
@@ -274,12 +597,7 @@ const Home = () => {
 
 
 
-      // 两融账户信息
-      // 接口: stock_margin_account_info
-      // 目标地址: https://data.eastmoney.com/rzrq/zhtjday.html
-      // 描述: 东方财富网-数据中心-融资融券-融资融券账户统计-两融账户信息
-      // 限量: 单次返回所有历史数据
-      // http://127.0.0.1:8080/api/public/stock_margin_account_info
+
 
 
 
@@ -327,10 +645,42 @@ const Home = () => {
       // 限量: 单次返回指定日期的每日概况数据, 当前交易日数据需要在收盘后获取; 注意仅支持获取在 20211227（包含）之后的数据
       // http://127.0.0.1:8080/api/public/stock_sse_deal_daily
 
+
+
+      // "macro_china_gdp"  # 中国-国内生产总值
+
+
+      // A 股等权重与中位数市净率
+      // 接口: stock_a_all_pb
+      // 目标地址: https://www.legulegu.com/stockdata/all-pb
+      // 描述: 乐咕乐股-A 股等权重与中位数市净率
+      // 限量: 单次返回所有数据
+      // http://127.0.0.1:8080/api/public/stock_a_all_pb
+
+      //   # A 股市盈率和市净率
+      //  "stock_market_pe_lg"  # 乐咕乐股-主板市盈率
+      //  "stock_index_pe_lg"  # 乐咕乐股-指数市盈率
+      //  "stock_market_pb_lg"  # 乐咕乐股-主板市净率
+      //  "stock_index_pb_lg"  # 乐咕乐股-指数市净率
+      //  "stock_hk_indicator_eniu"  # 港股股个股市盈率、市净率和股息率指标
+      //  "stock_a_high_low_statistics"  # 创新高和新低的股票数量
+      //  "stock_a_below_net_asset_statistics"  # 破净股统计
+
+
+
+      // A 股股息率
+      // 接口: stock_a_gxl_lg
+
+      // 恒生指数股息率
+      // 接口: stock_hk_gxl_lg
+
+
+
       setState({
         macro_china_ppi_yearly: macro_china_ppi_yearly.data,
         macro_china_cpi_yearly: macro_china_cpi_yearly.data,
         macro_china_lpr: macro_china_lpr.data,
+        stock_margin_account_info: stock_margin_account_info.data,
       })
     } catch (error) {
       console.log('error', error)
@@ -527,22 +877,103 @@ const Home = () => {
   }
 
 
+  const render_stock_margin_account_info = () => {
+    const config = {
+      xField: (d) => new Date(d['日期']),
+      // legend: true,
+      children: [
+        {
+          data: state.stock_margin_account_info || [],
+          type: 'line',
+          yField: '融资余额',
+          shapeField: 'smooth',
+          style: {
+            lineWidth: 1,
+            stroke: '#F6BD16'
+          },
+          axis: {
+            x: {
+              // title: 'LPR品种数据',
+            }
+          }
+        },
+        {
+          data: state.stock_margin_account_info || [],
+          type: 'line',
+          yField: '融券余额',
+          shapeField: 'smooth',
+          style: {
+            lineWidth: 1,
+            stroke: '#5D7092'
+          },
+          axis: {
+            x: {
+              // title: 'LPR品种数据',
+            },
+            y: {
+              position: 'right',
+              // title: 'count',
+              style: { titleFill: '#5AD8A6' },
+            },
+          }
+        },
+        // {
+        //   data: list,
+        //   type: 'line',
+        //   yField: 'close',
+        //   style: {
+        //     stroke: '#5B8FF9',
+        //     lineWidth: 2,
+        //   },
+        //   axis: {
+        //     y: {
+        //       position: 'right',
+        //       title: 'count',
+        //       style: { titleFill: '#5AD8A6' },
+        //     },
+        //   }
+        // },
+
+      ],
+    };
+    return <DualAxes {...config} />;
+  }
+
   useEffect(() => {
     fetchData()
-
   }, []);
 
 
   return <>
-    <DemoDualAxes />
-    <DemoDualAxes1 />
-    {renderPMI()}
+    {/* Demo */}
+    {useMemo(() => <DemoDualAxes />, [])}
+    {useMemo(() => <DemoDualAxes1 />, [])}
+
+
+    {/* 巴菲特指标 */}
+    {useMemo(() => <Stock_buffett_index_lg />, [])}
+
+    {/* A 股等权重与中位数市盈率 */}
+    {useMemo(() => <Stock_a_ttm_lyr />, [])}
+
+    {/* A 股等权重与中位数市净率 */}
+    {useMemo(() => <Stock_a_all_pb />, [])}
+
+
+    {/* 主板市盈率 */}
+    {/* todo */}
+{/* stock_market_pe_lg */}
+
+
+
+    {/* {renderPMI()}
     {renderresponsmacro_china_urban_unemploymente1()}
     {rendermacro_china_ppi_yearly()}
     {rendermacro_china_cpi_yearly()}
     {render_macro_china_lpr()}
     {list?.length > 0 && <DemoLine data={list} />}
     <DemoDualAxes2 data={list} />
+    {render_stock_margin_account_info()} */}
   </>
 };
 

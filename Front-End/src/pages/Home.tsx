@@ -804,6 +804,98 @@ const DemoLine = (props) => {
   return <Line {...config} />;
 };
 
+const Stock_ebs_lg = () => {
+  const chartName = '股债利差'
+  interface DataRes {
+    日期: string;
+    沪深300指数: number;
+    股债利差: number;
+    股债利差均线: number;
+  }
+
+  const labelMap = {
+    日期: '日期',
+    沪深300指数: '沪深300指数',
+    股债利差: '股债利差',
+    股债利差均线: '股债利差均线',
+  }
+  const [data, setData] = useState<{
+    list1: DataRes[];
+    list2: {
+      date: string;
+      key: string;
+      value: number;
+    }[];
+  }>({ list1: [], list2: [] });
+  const fetchData = async () => {
+    try {
+      const response = await axios.get('http://127.0.0.1:8080/api/public/stock_ebs_lg')
+      console.log('stock_a_all_pb -> response', response)
+      const dataFormat = response?.data?.filter((_, index: number) => index % 10 === 0)?.map((item: DataRes) => Object.keys(pick(item, ['沪深300指数', '股债利差', '股债利差均线'])).map((key) => ({
+        ['日期']: item['日期'],
+        key,
+        label: labelMap[key as keyof typeof labelMap],
+        value: item[key as keyof DataRes],
+      }))).flat()
+      console.log('chartName -> dataFormat', dataFormat)
+      setData({
+        list1: dataFormat?.filter((item: { key: string }) => item.key === '沪深300指数'),
+        list2: dataFormat?.filter((item: { key: string }) => item.key !== '沪深300指数')
+      })
+    } catch (error) {
+      console.log('error', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  console.log('stock_a_all_pb -> data', data)
+  const config = {
+    xField: (d: DataRes) => new Date(d['日期']),
+    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
+    children: [
+      {
+        data: data.list1,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        style: {
+          stroke: '#5B8FF9',
+          lineWidth: 2,
+        },
+        axis: {
+          y: {
+            title: '沪深300',
+            style: { titleFill: '#5B8FF9' },
+          },
+        },
+      },
+      {
+        data: data.list2,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        axis: {
+          y: {
+            position: 'right',
+            title: chartName,
+            style: { titleFill: '#6c6868ff' },
+          },
+        },
+      },
+
+    ],
+  };
+
+  return <>
+    <DualAxes {...config} />;
+  </>
+};
+
 
 const DemoDualAxes = () => {
   const uvBillData = [
@@ -1393,6 +1485,11 @@ const Home = () => {
 
     {/* 巴菲特指标 */}
     {/* {useMemo(() => <Stock_buffett_index_lg />, [])} */}
+
+    {/* 股债利差 */}
+    {useMemo(() => <Stock_ebs_lg />, [])}
+
+
 
     {/* A 股等权重与中位数市盈率 */}
     {/* {useMemo(() => <Stock_a_ttm_lyr />, [])} */}

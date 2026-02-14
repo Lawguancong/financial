@@ -431,15 +431,15 @@ const Stock_market_pb_lg = () => {
         const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_market_pb_lg?symbol=${symbol}`)
         console.log('主板市净率 -> response', symbol, response)
         const dataFormat = response?.data?.filter((_, index: number) => index % 10 === 0)?.map((item: DataRes) => Object.keys(pick(item, ['指数', '市净率', '等权市净率', '市净率中位数'])).map((key) => ({
-        ['日期']: item['日期'],
-        key,
-        label: labelMap[key as keyof typeof labelMap],
-        value: item[key as keyof DataRes],
-      }))).flat()
-      setData({
-        list1: dataFormat?.filter((item: { key: string }) => item.key === '指数'),
-        list2: dataFormat?.filter((item: { key: string }) => item.key !== '指数')
-      })
+          ['日期']: item['日期'],
+          key,
+          label: labelMap[key as keyof typeof labelMap],
+          value: item[key as keyof DataRes],
+        }))).flat()
+        setData({
+          list1: dataFormat?.filter((item: { key: string }) => item.key === '指数'),
+          list2: dataFormat?.filter((item: { key: string }) => item.key !== '指数')
+        })
       } catch (error) {
         console.log('error', error)
       }
@@ -452,46 +452,46 @@ const Stock_market_pb_lg = () => {
       fetchData();
     }, []);
 
-   const config = {
-    xField: (d: DataRes) => new Date(d['日期']),
-    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
-    children: [
-      {
-        data: data.list1,
-        type: 'line',
-        yField: 'value',
-        colorField: 'label',
-        shapeField: 'smooth',
-        style: {
-          stroke: '#5B8FF9',
-          lineWidth: 2,
-        },
-        axis: {
-          y: {
-            title: symbol,
-            style: { titleFill: '#5B8FF9' },
+    const config = {
+      xField: (d: DataRes) => new Date(d['日期']),
+      // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
+      children: [
+        {
+          data: data.list1,
+          type: 'line',
+          yField: 'value',
+          colorField: 'label',
+          shapeField: 'smooth',
+          style: {
+            stroke: '#5B8FF9',
+            lineWidth: 2,
+          },
+          axis: {
+            y: {
+              title: symbol,
+              style: { titleFill: '#5B8FF9' },
+            },
           },
         },
-      },
-      {
-        data: data.list2,
-        type: 'line',
-        yField: 'value',
-        colorField: 'label',
-        shapeField: 'smooth',
-        axis: {
-          y: {
-            position: 'right',
-            title: '市净率',
-            style: { titleFill: '#000' },
+        {
+          data: data.list2,
+          type: 'line',
+          yField: 'value',
+          colorField: 'label',
+          shapeField: 'smooth',
+          axis: {
+            y: {
+              position: 'right',
+              title: '市净率',
+              style: { titleFill: '#000' },
+            },
           },
         },
-      },
 
 
 
-    ],
-  };
+      ],
+    };
     return <DualAxes {...config} />;
   }
 
@@ -710,6 +710,68 @@ const Stock_index_pe_lg = () => {
   </>
 }
 
+const Stock_a_gxl_lg = () => {
+
+  const symbols = ["上证A股", "深证A股", "创业板", "科创板"]
+  // const symbols = ["上证A股"]
+  const RenderDualAxes = ({ symbol }: { symbol: string }) => {
+    interface DataRes {
+      日期: string;
+      股息率: number;
+    }
+    const [data, setData] = useState<DataRes[]>([]);
+    const fetchData = async () => {
+      try {
+        const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_a_gxl_lg?symbol=${symbol}`)
+        console.log('A 股股息率 -> response', symbol, response)
+        setData(response.data)
+      } catch (error) {
+        console.log('error', error)
+      }
+    }
+
+    console.log('A 股股息率 -> data', data)
+
+    useEffect(() => {
+      fetchData();
+    }, []);
+
+    const config = {
+      title: {
+        title: symbol, // 主标题的文本新秀丽
+        subtitle: symbol, // 副标题的文本新秀丽
+      },
+      data,
+      xField: (d: DataRes) => new Date(d['日期']),
+      legend: true,
+      children: [
+        {
+          type: 'line',
+          yField: '股息率',
+          shapeField: 'smooth',
+          style: {
+            stroke: '#5B8FF9',
+            lineWidth: 2,
+          },
+          axis: {
+            y: {
+              title: '股息率',
+              style: { titleFill: '#5B8FF9' },
+            },
+          },
+        },
+      ],
+    };
+    return <DualAxes {...config} />;
+  }
+
+
+  return <>
+    {useMemo(() => symbols.map((symbol) => (
+      <RenderDualAxes key={symbol} symbol={symbol} />
+    )), [symbols])}
+  </>
+}
 
 
 const DemoLine = (props) => {
@@ -1043,22 +1105,12 @@ const Home = () => {
       // "macro_china_gdp"  # 中国-国内生产总值
 
 
-      // A 股等权重与中位数市净率
-      // 接口: stock_a_all_pb
-      // 目标地址: https://www.legulegu.com/stockdata/all-pb
-      // 描述: 乐咕乐股-A 股等权重与中位数市净率
-      // 限量: 单次返回所有数据
-      // http://127.0.0.1:8080/api/public/stock_a_all_pb
-
       //   # A 股市盈率和市净率
       //  "stock_hk_indicator_eniu"  # 港股股个股市盈率、市净率和股息率指标
       //  "stock_a_high_low_statistics"  # 创新高和新低的股票数量
       //  "stock_a_below_net_asset_statistics"  # 破净股统计
 
 
-
-      // A 股股息率
-      // 接口: stock_a_gxl_lg
 
       // 恒生指数股息率
       // 接口: stock_hk_gxl_lg
@@ -1354,14 +1406,17 @@ const Home = () => {
     {/* 主板市净率 */}
     {/* {useMemo(() => <Stock_market_pb_lg />, [])} */}
 
-
     {/* 指数市净率 */}
     {/* {useMemo(() => <Stock_index_pb_lg />, [])} */}
 
     {/* 指数市盈率 */}
     {/* {useMemo(() => <Stock_index_pe_lg />, [])} */}
 
+    {/* A 股股息率 */}
+    {/* {useMemo(() => <Stock_a_gxl_lg />, [])} */}
 
+
+    
 
 
     {/* todo */}

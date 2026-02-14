@@ -142,13 +142,13 @@ const Stock_a_ttm_lyr = () => {
     averagePELYR: '全A股静态市盈率(LYR)等权平均',
   }
   const [data, setData] = useState<{
-    list1: DataRes[];
-    list2: {
+    leftData: DataRes[];
+    rightData: {
       date: string;
       key: string;
       value: number;
     }[];
-  }>({ list1: [], list2: [] });
+  }>({ leftData: [], rightData: [] });
   const fetchData = async () => {
     try {
       const response = await axios.get('http://127.0.0.1:8080/api/public/stock_a_ttm_lyr')
@@ -159,8 +159,8 @@ const Stock_a_ttm_lyr = () => {
         value: item[key as keyof DataRes],
       }))).flat()
       setData({
-        list1: dataFormat?.filter((item: { key: string }) => item.key === 'close'),
-        list2: dataFormat?.filter((item: { key: string }) => item.key !== 'close')
+        leftData: dataFormat?.filter((item: { key: string }) => item.key === 'close'),
+        rightData: dataFormat?.filter((item: { key: string }) => item.key !== 'close')
       })
     } catch (error) {
       console.log('error', error)
@@ -176,7 +176,7 @@ const Stock_a_ttm_lyr = () => {
     // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
     children: [
       {
-        data: data.list1,
+        data: data.leftData,
         type: 'line',
         yField: 'value',
         colorField: 'label',
@@ -193,7 +193,7 @@ const Stock_a_ttm_lyr = () => {
         },
       },
       {
-        data: data.list2,
+        data: data.rightData,
         type: 'line',
         yField: 'value',
         colorField: 'label',
@@ -236,13 +236,13 @@ const Stock_a_all_pb = () => {
     equalWeightAveragePB: '全部A股市净率等权平均',
   }
   const [data, setData] = useState<{
-    list1: DataRes[];
-    list2: {
+    leftData: DataRes[];
+    rightData: {
       date: string;
       key: string;
       value: number;
     }[];
-  }>({ list1: [], list2: [] });
+  }>({ leftData: [], rightData: [] });
   const fetchData = async () => {
     try {
       const response = await axios.get('http://127.0.0.1:8080/api/public/stock_a_all_pb')
@@ -255,8 +255,8 @@ const Stock_a_all_pb = () => {
       }))).flat()
       console.log('stock_a_all_pb -> dataFormat', dataFormat)
       setData({
-        list1: dataFormat?.filter((item: { key: string }) => item.key === 'close'),
-        list2: dataFormat?.filter((item: { key: string }) => item.key !== 'close')
+        leftData: dataFormat?.filter((item: { key: string }) => item.key === 'close'),
+        rightData: dataFormat?.filter((item: { key: string }) => item.key !== 'close')
       })
     } catch (error) {
       console.log('error', error)
@@ -273,7 +273,7 @@ const Stock_a_all_pb = () => {
     // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
     children: [
       {
-        data: data.list1,
+        data: data.leftData,
         type: 'line',
         yField: 'value',
         colorField: 'label',
@@ -290,7 +290,7 @@ const Stock_a_all_pb = () => {
         },
       },
       {
-        data: data.list2,
+        data: data.rightData,
         type: 'line',
         yField: 'value',
         colorField: 'label',
@@ -419,13 +419,13 @@ const Stock_market_pb_lg = () => {
       市净率中位数: '市净率中位数',
     }
     const [data, setData] = useState<{
-      list1: DataRes[];
-      list2: {
+      leftData: DataRes[];
+      rightData: {
         ['日期']: string;
         key: string;
         value: number;
       }[];
-    }>({ list1: [], list2: [] });
+    }>({ leftData: [], rightData: [] });
     const fetchData = async () => {
       try {
         const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_market_pb_lg?symbol=${symbol}`)
@@ -437,8 +437,8 @@ const Stock_market_pb_lg = () => {
           value: item[key as keyof DataRes],
         }))).flat()
         setData({
-          list1: dataFormat?.filter((item: { key: string }) => item.key === '指数'),
-          list2: dataFormat?.filter((item: { key: string }) => item.key !== '指数')
+          leftData: dataFormat?.filter((item: { key: string }) => item.key === '指数'),
+          rightData: dataFormat?.filter((item: { key: string }) => item.key !== '指数')
         })
       } catch (error) {
         console.log('error', error)
@@ -457,7 +457,7 @@ const Stock_market_pb_lg = () => {
       // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
       children: [
         {
-          data: data.list1,
+          data: data.leftData,
           type: 'line',
           yField: 'value',
           colorField: 'label',
@@ -474,7 +474,7 @@ const Stock_market_pb_lg = () => {
           },
         },
         {
-          data: data.list2,
+          data: data.rightData,
           type: 'line',
           yField: 'value',
           colorField: 'label',
@@ -523,13 +523,13 @@ const Stock_index_pb_lg = () => {
       市净率中位数: '市净率中位数',
     }
     const [data, setData] = useState<{
-      list1: DataRes[];
-      list2: {
+      leftData: DataRes[];
+      rightData: {
         date: string;
         key: string;
         value: number;
       }[];
-    }>({ list1: [], list2: [] });
+    }>({ leftData: [], rightData: [] });
     const fetchData = async () => {
       try {
         const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_index_pb_lg?symbol=${symbol}`)
@@ -541,8 +541,8 @@ const Stock_index_pb_lg = () => {
           value: item[key as keyof DataRes],
         }))).flat()
         setData({
-          list1: dataFormat?.filter((item: { key: string }) => item.key === '指数'),
-          list2: dataFormat?.filter((item: { key: string }) => item.key !== '指数')
+          leftData: dataFormat?.filter((item: { key: string }) => item.key === '指数'),
+          rightData: dataFormat?.filter((item: { key: string }) => item.key !== '指数')
         })
       } catch (error) {
         console.log('error', error)
@@ -561,7 +561,7 @@ const Stock_index_pb_lg = () => {
       // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
       children: [
         {
-          data: data.list1,
+          data: data.leftData,
           type: 'line',
           yField: 'value',
           colorField: 'label',
@@ -578,7 +578,7 @@ const Stock_index_pb_lg = () => {
           },
         },
         {
-          data: data.list2,
+          data: data.rightData,
           type: 'line',
           yField: 'value',
           colorField: 'label',
@@ -629,13 +629,13 @@ const Stock_index_pe_lg = () => {
       滚动市盈率中位数: '滚动市盈率中位数',
     }
     const [data, setData] = useState<{
-      list1: DataRes[];
-      list2: {
+      leftData: DataRes[];
+      rightData: {
         date: string;
         key: string;
         value: number;
       }[];
-    }>({ list1: [], list2: [] });
+    }>({ leftData: [], rightData: [] });
     const fetchData = async () => {
       try {
         const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_index_pe_lg?symbol=${symbol}`)
@@ -647,8 +647,8 @@ const Stock_index_pe_lg = () => {
           value: item[key as keyof DataRes],
         }))).flat()
         setData({
-          list1: dataFormat?.filter((item: { key: string }) => item.key === '指数'),
-          list2: dataFormat?.filter((item: { key: string }) => item.key !== '指数')
+          leftData: dataFormat?.filter((item: { key: string }) => item.key === '指数'),
+          rightData: dataFormat?.filter((item: { key: string }) => item.key !== '指数')
         })
       } catch (error) {
         console.log('error', error)
@@ -667,7 +667,7 @@ const Stock_index_pe_lg = () => {
       // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
       children: [
         {
-          data: data.list1,
+          data: data.leftData,
           type: 'line',
           yField: 'value',
           colorField: 'label',
@@ -684,7 +684,7 @@ const Stock_index_pe_lg = () => {
           },
         },
         {
-          data: data.list2,
+          data: data.rightData,
           type: 'line',
           yField: 'value',
           colorField: 'label',
@@ -805,52 +805,47 @@ const DemoLine = (props) => {
 };
 
 const Stock_ebs_lg = () => {
-  const chartName = '股债利差'
+  const chartName = '股债利差'; // 图表名称
   const dateKey = '日期' // 日期键名
-  const fieldKeys = { // keyName: labelName
-    沪深300指数: '沪深300指数',
+  const dateName = '日期' // 日期键名
+  const leftKey = '沪深300指数' // 左y轴键名
+  const leftName = '沪深300指数' // 左y轴名称
+  const rightKeys = { // 右y轴键名: 右y轴名称
     股债利差: '股债利差',
     股债利差均线: '股债利差均线',
   }
-  const indexKey = '沪深300指数' // 指数键名
-  const indexName = '沪深300指数' // 指数名称
   const sampleRate = 10; // 抽样率
-
   interface DataRes {
-    日期: string;
-    沪深300指数: number;
-    股债利差: number;
-    股债利差均线: number;
+    [dateKey]: string;
+    [leftKey]: number;
+    // [key in keyof typeof rightKeys]: number;
   }
-
   const labelMap = {
-    日期: '日期',
-    沪深300指数: '沪深300指数',
-    股债利差: '股债利差',
-    股债利差均线: '股债利差均线',
+    [dateKey]: dateName,
+    [leftKey]: leftName,
+    ...rightKeys
   }
   const [data, setData] = useState<{
-    list1: DataRes[];
-    list2: {
+    leftData: DataRes[];
+    rightData: {
       date: string;
       key: string;
       value: number;
     }[];
-  }>({ list1: [], list2: [] });
+  }>({ leftData: [], rightData: [] });
   const fetchData = async () => {
     try {
       const response = await axios.get('http://127.0.0.1:8080/api/public/stock_ebs_lg')
-      console.log('stock_a_all_pb -> response', response)
-      const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys(fieldKeys))).map((key) => ({
+      console.log(`${chartName} -> response`, response)
+      const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
         date: item[dateKey],
         key,
         label: labelMap[key as keyof typeof labelMap],
         value: item[key as keyof DataRes],
       }))).flat()
-      console.log('chartName -> dataFormat', dataFormat)
       setData({
-        list1: dataFormat?.filter((item: { key: string }) => item.key === indexKey),
-        list2: dataFormat?.filter((item: { key: string }) => item.key !== indexKey)
+        leftData: dataFormat?.filter((item: { key: string }) => item.key === leftKey),
+        rightData: dataFormat?.filter((item: { key: string }) => item.key !== leftKey)
       })
     } catch (error) {
       console.log('error', error)
@@ -861,17 +856,17 @@ const Stock_ebs_lg = () => {
     fetchData();
   }, []);
 
-  console.log('stock_a_all_pb -> data', data)
+  console.log(`${chartName} -> data`, data)
   const config = {
     title: {
       title: chartName, // 主标题的文本新秀丽
-      subtitle: `${indexName} 与 ${chartName} `, // 副标题的文本新秀丽
+      subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
     },
     xField: (d: { date: string }) => new Date(d.date),
     // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
     children: [
       {
-        data: data.list1,
+        data: data.leftData,
         type: 'line',
         yField: 'value',
         colorField: 'label',
@@ -882,13 +877,13 @@ const Stock_ebs_lg = () => {
         },
         axis: {
           y: {
-            title: indexName,
+            title: leftName,
             style: { titleFill: '#5B8FF9' },
           },
         },
       },
       {
-        data: data.list2,
+        data: data.rightData,
         type: 'line',
         yField: 'value',
         colorField: 'label',

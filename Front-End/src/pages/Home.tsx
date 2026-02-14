@@ -14,7 +14,7 @@ const today = moment().format('YYYYMMDD'); // 获取当天日期并格式化为Y
 
 
 const Stock_buffett_index_lg = () => {
-  interface StockBuffettIndexItemRes {
+  interface DataRes {
     日期: string; //	object	交易日
     收盘价: number; //: number; //沪深300
     总市值: number; //: number; //A股收盘价*已发行股票总股本（A股+B股+H股）
@@ -22,12 +22,12 @@ const Stock_buffett_index_lg = () => {
     近十年分位数: number; //: number; //当前"总市值/GDP"在历史数据上的分位数
     总历史分位数: number; //: number; //当前"总市值/GDP"在历史数据上的分位数
   }
-  const [data, setData] = useState<StockBuffettIndexItemRes[]>([]);
+  const [data, setData] = useState<DataRes[]>([]);
   const fetchData = async () => {
     try {
       const response = await axios.get('http://127.0.0.1:8080/api/public/stock_buffett_index_lg')
       console.log('Stock_buffett_index_lg -> response', response)
-      setData(response?.data?.map((item: StockBuffettIndexItemRes) => ({
+      setData(response?.data?.map((item: DataRes) => ({
         ...item,
         ['沪深300']: item['收盘价'],
         ['总市值/GDP']: Number((item['总市值'] / item['GDP'])?.toFixed(2)),
@@ -44,7 +44,7 @@ const Stock_buffett_index_lg = () => {
   console.log('Stock_buffett_index_lg -> data', data)
   const config = {
     data,
-    xField: (d: StockBuffettIndexItemRes) => new Date(d['日期']),
+    xField: (d: DataRes) => new Date(d['日期']),
     legend: true,
     children: [
       {
@@ -87,16 +87,16 @@ const Stock_buffett_index_lg = () => {
     ],
   };
   const config1 = {
-    xField: (d: StockBuffettIndexItemRes) => new Date(d['日期']),
+    xField: (d: DataRes) => new Date(d['日期']),
     legend: true,
     scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
     children: [
       {
-        data: [...(data || []).map((item: StockBuffettIndexItemRes) => ({
+        data: [...(data || []).map((item: DataRes) => ({
           ['日期']: item['日期'],
           value: item['总市值'],
           type: '总市值'
-        })), ...(data || []).map((item: StockBuffettIndexItemRes) => ({
+        })), ...(data || []).map((item: DataRes) => ({
           ['日期']: item['日期'],
           value: item['GDP'],
           type: 'GDP'
@@ -312,6 +312,92 @@ const Stock_a_all_pb = () => {
   </>
 };
 
+
+const Stock_market_pe_lg = () => {
+
+  const symbols = ["上证", "深证", "创业板", "科创版"]
+
+  const RenderDualAxes = ({ symbol }: { symbol: string }) => {
+    interface DataRes {
+      日期: string;
+      指数: number;
+      平均市盈率: number;
+    }
+    const [data, setData] = useState<DataRes[]>([]);
+    const fetchData = async () => {
+      try {
+        const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_market_pe_lg?symbol=${symbol}`)
+        console.log('stock_market_pe_lg -> response', symbol, response)
+        setData(response.data)
+      } catch (error) {
+        console.log('error', error)
+      }
+    }
+
+    console.log('stock_market_pe_lg -> data', data)
+
+
+    useEffect(() => {
+      fetchData();
+    }, []);
+
+    const config = {
+      title: {
+        title: symbol, // 主标题的文本新秀丽
+        subtitle: symbol, // 副标题的文本新秀丽
+      },
+      data,
+      xField: (d: DataRes) => new Date(d['日期']),
+      legend: true,
+      children: [
+        {
+          type: 'line',
+          yField: '指数',
+          shapeField: 'smooth',
+          style: {
+            stroke: '#5B8FF9',
+            lineWidth: 2,
+          },
+          axis: {
+            y: {
+              title: '指数',
+              style: { titleFill: '#5B8FF9' },
+            },
+          },
+        },
+        {
+          type: 'line',
+          yField: '平均市盈率',
+          shapeField: 'smooth',
+          style: {
+            stroke: 'darkgreen',
+            lineWidth: 2,
+          },
+          axis: {
+            y: {
+              position: 'right',
+              title: '平均市盈率',
+              style: { titleFill: '#5AD8A6' },
+            },
+          },
+          // area: {
+          //   style: {
+          //     fill: 'linear-gradient(-90deg, white 0%, darkgreen 100%)',
+          //   },
+          // },
+        },
+      ],
+    };
+    return <DualAxes {...config} />;
+  }
+
+
+  return <>
+    {useMemo(() => symbols.map((symbol) => (
+      <RenderDualAxes key={symbol} symbol={symbol} />
+    )), [symbols])}
+  </>
+}
 
 
 
@@ -951,21 +1037,30 @@ const Home = () => {
 
 
     {/* 巴菲特指标 */}
-    {useMemo(() => <Stock_buffett_index_lg />, [])}
+    {/* {useMemo(() => <Stock_buffett_index_lg />, [])} */}
 
     {/* A 股等权重与中位数市盈率 */}
-    {useMemo(() => <Stock_a_ttm_lyr />, [])}
+    {/* {useMemo(() => <Stock_a_ttm_lyr />, [])} */}
 
     {/* A 股等权重与中位数市净率 */}
-    {useMemo(() => <Stock_a_all_pb />, [])}
-
+    {/* {useMemo(() => <Stock_a_all_pb />, [])} */}
 
     {/* 主板市盈率 */}
+    {/* {useMemo(() => <Stock_market_pe_lg />, [])} */}
+
+    
+
     {/* todo */}
-{/* stock_market_pe_lg */}
+    {/* 指数市盈率 */}
+    {/* 接口: stock_index_pe_lg */}
+
+    {/* 主板市净率 */}
+    {/* 接口: stock_market_pb_lg */}
 
 
 
+
+    {/* 组件待优化 */}
     {/* {renderPMI()}
     {renderresponsmacro_china_urban_unemploymente1()}
     {rendermacro_china_ppi_yearly()}

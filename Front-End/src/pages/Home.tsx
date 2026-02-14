@@ -815,11 +815,13 @@ const Stock_ebs_lg = () => {
     股债利差均线: '股债利差均线',
   }
   const sampleRate = 10; // 抽样率
-  interface DataRes {
+  type DataRes = {
     [dateKey]: string;
     [leftKey]: number;
-    // [key in keyof typeof rightKeys]: number;
-  }
+  } & {
+    [K in keyof typeof rightKeys]: number;
+  };
+  
   const labelMap = {
     [dateKey]: dateName,
     [leftKey]: leftName,

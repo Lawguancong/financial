@@ -806,6 +806,16 @@ const DemoLine = (props) => {
 
 const Stock_ebs_lg = () => {
   const chartName = '股债利差'
+  const dateKey = '日期' // 日期键名
+  const fieldKeys = { // keyName: labelName
+    沪深300指数: '沪深300指数',
+    股债利差: '股债利差',
+    股债利差均线: '股债利差均线',
+  }
+  const indexKey = '沪深300指数' // 指数键名
+  const indexName = '沪深300指数' // 指数名称
+  const sampleRate = 10; // 抽样率
+
   interface DataRes {
     日期: string;
     沪深300指数: number;
@@ -831,16 +841,16 @@ const Stock_ebs_lg = () => {
     try {
       const response = await axios.get('http://127.0.0.1:8080/api/public/stock_ebs_lg')
       console.log('stock_a_all_pb -> response', response)
-      const dataFormat = response?.data?.filter((_, index: number) => index % 10 === 0)?.map((item: DataRes) => Object.keys(pick(item, ['沪深300指数', '股债利差', '股债利差均线'])).map((key) => ({
-        ['日期']: item['日期'],
+      const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys(fieldKeys))).map((key) => ({
+        date: item[dateKey],
         key,
         label: labelMap[key as keyof typeof labelMap],
         value: item[key as keyof DataRes],
       }))).flat()
       console.log('chartName -> dataFormat', dataFormat)
       setData({
-        list1: dataFormat?.filter((item: { key: string }) => item.key === '沪深300指数'),
-        list2: dataFormat?.filter((item: { key: string }) => item.key !== '沪深300指数')
+        list1: dataFormat?.filter((item: { key: string }) => item.key === indexKey),
+        list2: dataFormat?.filter((item: { key: string }) => item.key !== indexKey)
       })
     } catch (error) {
       console.log('error', error)
@@ -853,7 +863,11 @@ const Stock_ebs_lg = () => {
 
   console.log('stock_a_all_pb -> data', data)
   const config = {
-    xField: (d: DataRes) => new Date(d['日期']),
+    title: {
+      title: chartName, // 主标题的文本新秀丽
+      subtitle: `${indexName} 与 ${chartName} `, // 副标题的文本新秀丽
+    },
+    xField: (d: { date: string }) => new Date(d.date),
     // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
     children: [
       {
@@ -868,7 +882,7 @@ const Stock_ebs_lg = () => {
         },
         axis: {
           y: {
-            title: '沪深300',
+            title: indexName,
             style: { titleFill: '#5B8FF9' },
           },
         },
@@ -1513,7 +1527,7 @@ const Home = () => {
     {/* {useMemo(() => <Stock_a_gxl_lg />, [])} */}
 
 
-    
+
 
 
     {/* todo */}

@@ -117,7 +117,7 @@ const Stock_buffett_index_lg = () => {
 
 
 const Stock_a_ttm_lyr = () => {
-  interface Stock_a_ttm_lyrRes {
+  interface DataRes {
     date: string; //日期
     close: number; //沪深300指数
     middlePETTM: number; //全A股滚动市盈率(TTM)中位数
@@ -142,7 +142,7 @@ const Stock_a_ttm_lyr = () => {
     averagePELYR: '全A股静态市盈率(LYR)等权平均',
   }
   const [data, setData] = useState<{
-    list1: Stock_a_ttm_lyrRes[];
+    list1: DataRes[];
     list2: {
       date: string;
       key: string;
@@ -152,11 +152,11 @@ const Stock_a_ttm_lyr = () => {
   const fetchData = async () => {
     try {
       const response = await axios.get('http://127.0.0.1:8080/api/public/stock_a_ttm_lyr')
-      const dataFormat = response?.data?.filter((_, index: number) => index % 10 === 0)?.map((item: Stock_a_ttm_lyrRes) => Object.keys(pick(item, ['close', 'averagePELYR', 'averagePETTM', 'middlePELYR', 'middlePETTM'])).map((key) => ({
+      const dataFormat = response?.data?.filter((_, index: number) => index % 10 === 0)?.map((item: DataRes) => Object.keys(pick(item, ['close', 'averagePELYR', 'averagePETTM', 'middlePELYR', 'middlePETTM'])).map((key) => ({
         date: item['date'],
         key,
         label: labelMap[key as keyof typeof labelMap],
-        value: item[key as keyof Stock_a_ttm_lyrRes],
+        value: item[key as keyof DataRes],
       }))).flat()
       setData({
         list1: dataFormat?.filter((item: { key: string }) => item.key === 'close'),
@@ -172,7 +172,7 @@ const Stock_a_ttm_lyr = () => {
   }, []);
 
   const config = {
-    xField: (d: Stock_a_ttm_lyrRes) => new Date(d['date']),
+    xField: (d: DataRes) => new Date(d['date']),
     // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
     children: [
       {
@@ -219,7 +219,7 @@ const Stock_a_ttm_lyr = () => {
 
 
 const Stock_a_all_pb = () => {
-  interface Stock_a_ttm_lyrRes {
+  interface DataRes {
     date: string; //	日期
     close: number; //	上证指数
     middlePB: number; //	全部A股市净率中位数
@@ -236,7 +236,7 @@ const Stock_a_all_pb = () => {
     equalWeightAveragePB: '全部A股市净率等权平均',
   }
   const [data, setData] = useState<{
-    list1: Stock_a_ttm_lyrRes[];
+    list1: DataRes[];
     list2: {
       date: string;
       key: string;
@@ -247,11 +247,11 @@ const Stock_a_all_pb = () => {
     try {
       const response = await axios.get('http://127.0.0.1:8080/api/public/stock_a_all_pb')
       console.log('stock_a_all_pb -> response', response)
-      const dataFormat = response?.data?.filter((_, index: number) => index % 10 === 0)?.map((item: Stock_a_ttm_lyrRes) => Object.keys(pick(item, ['close', 'middlePB', 'equalWeightAveragePB'])).map((key) => ({
+      const dataFormat = response?.data?.filter((_, index: number) => index % 10 === 0)?.map((item: DataRes) => Object.keys(pick(item, ['close', 'middlePB', 'equalWeightAveragePB'])).map((key) => ({
         date: item['date'],
         key,
         label: labelMap[key as keyof typeof labelMap],
-        value: item[key as keyof Stock_a_ttm_lyrRes],
+        value: item[key as keyof DataRes],
       }))).flat()
       console.log('stock_a_all_pb -> dataFormat', dataFormat)
       setData({
@@ -269,7 +269,7 @@ const Stock_a_all_pb = () => {
 
   console.log('stock_a_all_pb -> data', data)
   const config = {
-    xField: (d: Stock_a_ttm_lyrRes) => new Date(d['date']),
+    xField: (d: DataRes) => new Date(d['date']),
     // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
     children: [
       {
@@ -401,8 +401,7 @@ const Stock_market_pe_lg = () => {
 
 const Stock_market_pb_lg = () => {
 
-  // const symbols = ["上证", "深证", "创业板", "科创版"]
-  const symbols = ["上证"]
+  const symbols = ["上证", "深证", "创业板", "科创版"]
   // 科创版 返回的数据结构不统一
 
   const RenderDualAxes = ({ symbol }: { symbol: string }) => {
@@ -413,12 +412,34 @@ const Stock_market_pb_lg = () => {
       等权市净率: number;
       市净率中位数: number;
     }
-    const [data, setData] = useState<DataRes[]>([]);
+    const labelMap = {
+      指数: '指数',
+      市净率: '市净率',
+      等权市净率: '等权市净率',
+      市净率中位数: '市净率中位数',
+    }
+    const [data, setData] = useState<{
+      list1: DataRes[];
+      list2: {
+        ['日期']: string;
+        key: string;
+        value: number;
+      }[];
+    }>({ list1: [], list2: [] });
     const fetchData = async () => {
       try {
         const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_market_pb_lg?symbol=${symbol}`)
         console.log('主板市净率 -> response', symbol, response)
-        setData(response.data)
+        const dataFormat = response?.data?.filter((_, index: number) => index % 10 === 0)?.map((item: DataRes) => Object.keys(pick(item, ['指数', '市净率', '等权市净率', '市净率中位数'])).map((key) => ({
+        ['日期']: item['日期'],
+        key,
+        label: labelMap[key as keyof typeof labelMap],
+        value: item[key as keyof DataRes],
+      }))).flat()
+      setData({
+        list1: dataFormat?.filter((item: { key: string }) => item.key === '指数'),
+        list2: dataFormat?.filter((item: { key: string }) => item.key !== '指数')
+      })
       } catch (error) {
         console.log('error', error)
       }
@@ -431,53 +452,46 @@ const Stock_market_pb_lg = () => {
       fetchData();
     }, []);
 
-    const config = {
-      title: {
-        title: symbol, // 主标题的文本新秀丽
-        subtitle: symbol, // 副标题的文本新秀丽
+   const config = {
+    xField: (d: DataRes) => new Date(d['日期']),
+    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
+    children: [
+      {
+        data: data.list1,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        style: {
+          stroke: '#5B8FF9',
+          lineWidth: 2,
+        },
+        axis: {
+          y: {
+            title: symbol,
+            style: { titleFill: '#5B8FF9' },
+          },
+        },
       },
-      data,
-      xField: (d: DataRes) => new Date(d['日期']),
-      legend: true,
-      children: [
-        {
-          type: 'line',
-          yField: '指数',
-          shapeField: 'smooth',
-          style: {
-            stroke: '#5B8FF9',
-            lineWidth: 2,
-          },
-          axis: {
-            y: {
-              title: '指数',
-              style: { titleFill: '#5B8FF9' },
-            },
+      {
+        data: data.list2,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        axis: {
+          y: {
+            position: 'right',
+            title: '市净率',
+            style: { titleFill: '#000' },
           },
         },
-        {
-          type: 'line',
-          yField: '平均市盈率',
-          shapeField: 'smooth',
-          style: {
-            stroke: 'darkgreen',
-            lineWidth: 2,
-          },
-          axis: {
-            y: {
-              position: 'right',
-              title: '平均市盈率',
-              style: { titleFill: '#5AD8A6' },
-            },
-          },
-          // area: {
-          //   style: {
-          //     fill: 'linear-gradient(-90deg, white 0%, darkgreen 100%)',
-          //   },
-          // },
-        },
-      ],
-    };
+      },
+
+
+
+    ],
+  };
     return <DualAxes {...config} />;
   }
 
@@ -1338,7 +1352,7 @@ const Home = () => {
     {/* {useMemo(() => <Stock_market_pe_lg />, [])} */}
 
     {/* 主板市净率 */}
-    {useMemo(() => <Stock_market_pb_lg />, [])}
+    {/* {useMemo(() => <Stock_market_pb_lg />, [])} */}
 
 
     {/* 指数市净率 */}

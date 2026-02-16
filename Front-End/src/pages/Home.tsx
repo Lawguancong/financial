@@ -907,6 +907,210 @@ const Stock_ebs_lg = () => {
   </>
 };
 
+const Stock_a_congestion_lg = () => {
+  const chartName = '大盘拥挤度'; // 图表名称
+  const dateKey = 'date' // 日期键名
+  const dateName = '日期' // 日期键名
+  const leftKey = 'close' // 左y轴键名
+  const leftName = '上证指数' // 左y轴名称
+  const rightKeys = { // 右y轴键名: 右y轴名称
+    congestion: '拥挤度',
+  }
+  const sampleRate = 10; // 抽样率
+  type DataRes = {
+    [dateKey]: string;
+    [leftKey]: number;
+  } & {
+    [K in keyof typeof rightKeys]: number;
+  };
+  
+  const labelMap = {
+    [dateKey]: dateName,
+    [leftKey]: leftName,
+    ...rightKeys
+  }
+  const [data, setData] = useState<{
+    leftData: DataRes[];
+    rightData: {
+      date: string;
+      key: string;
+      value: number;
+    }[];
+  }>({ leftData: [], rightData: [] });
+  const fetchData = async () => {
+    try {
+      const response = await axios.get('http://127.0.0.1:8080/api/public/stock_a_congestion_lg')
+      console.log(`${chartName} -> response`, response)
+      const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
+        date: item[dateKey],
+        key,
+        label: labelMap[key as keyof typeof labelMap],
+        value: item[key as keyof DataRes],
+      }))).flat()
+      setData({
+        leftData: dataFormat?.filter((item: { key: string }) => item.key === leftKey),
+        rightData: dataFormat?.filter((item: { key: string }) => item.key !== leftKey)
+      })
+    } catch (error) {
+      console.log('error', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  console.log(`${chartName} -> data`, data)
+  const config = {
+    title: {
+      title: chartName, // 主标题的文本新秀丽
+      subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
+    },
+    xField: (d: { date: string }) => new Date(d.date),
+    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
+    children: [
+      {
+        data: data.leftData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        style: {
+          stroke: '#5B8FF9',
+          lineWidth: 2,
+        },
+        axis: {
+          y: {
+            title: leftName,
+            style: { titleFill: '#5B8FF9' },
+          },
+        },
+      },
+      {
+        data: data.rightData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        axis: {
+          y: {
+            position: 'right',
+            title: chartName,
+            style: { titleFill: '#6c6868ff' },
+          },
+        },
+      },
+
+    ],
+  };
+
+  return <>
+    <DualAxes {...config} />;
+  </>
+};
+
+
+const Fund_aum_trend_em = () => {
+  const chartName = '基金规模走势'; // 图表名称
+  const dateKey = 'date' // 日期键名
+  const dateName = '日期' // 日期键名
+  const leftKey = 'value' // 左y轴键名
+  const leftName = '元' // 左y轴名称
+  const rightKeys = { // 右y轴键名: 右y轴名称
+    // congestion: '拥挤度',
+  }
+  const sampleRate = 1; // 抽样率
+  type DataRes = {
+    [dateKey]: string;
+    [leftKey]: number;
+  } & {
+    [K in keyof typeof rightKeys]: number;
+  };
+  
+  const labelMap = {
+    [dateKey]: dateName,
+    [leftKey]: leftName,
+    ...rightKeys
+  }
+  const [data, setData] = useState<{
+    leftData: DataRes[];
+    rightData: {
+      date: string;
+      key: string;
+      value: number;
+    }[];
+  }>({ leftData: [], rightData: [] });
+  const fetchData = async () => {
+    try {
+      const response = await axios.get('http://127.0.0.1:8080/api/public/fund_aum_trend_em')
+      console.log(`${chartName} -> response`, response)
+      const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
+        date: item[dateKey],
+        key,
+        label: labelMap[key as keyof typeof labelMap],
+        value: item[key as keyof DataRes],
+      }))).flat()
+      setData({
+        leftData: dataFormat?.filter((item: { key: string }) => item.key === leftKey),
+        rightData: dataFormat?.filter((item: { key: string }) => item.key !== leftKey)
+      })
+    } catch (error) {
+      console.log('error', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  console.log(`${chartName} -> data`, data)
+  const config = {
+    title: {
+      title: chartName, // 主标题的文本新秀丽
+      subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
+    },
+    xField: (d: { date: string }) => new Date(d.date),
+    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
+    children: [
+      {
+        data: data.leftData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        style: {
+          stroke: '#5B8FF9',
+          lineWidth: 2,
+        },
+        axis: {
+          y: {
+            title: leftName,
+            style: { titleFill: '#5B8FF9' },
+          },
+        },
+      },
+      {
+        data: data.rightData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        axis: {
+          y: {
+            position: 'right',
+            title: chartName,
+            style: { titleFill: '#6c6868ff' },
+          },
+        },
+      },
+
+    ],
+  };
+
+  return <>
+    <DualAxes {...config} />;
+  </>
+};
 
 const DemoDualAxes = () => {
   const uvBillData = [
@@ -1211,7 +1415,6 @@ const Home = () => {
       //   # A 股市盈率和市净率
       //  "stock_hk_indicator_eniu"  # 港股股个股市盈率、市净率和股息率指标
       //  "stock_a_high_low_statistics"  # 创新高和新低的股票数量
-      //  "stock_a_below_net_asset_statistics"  # 破净股统计
 
 
 
@@ -1498,9 +1701,13 @@ const Home = () => {
     {/* {useMemo(() => <Stock_buffett_index_lg />, [])} */}
 
     {/* 股债利差 */}
-    {useMemo(() => <Stock_ebs_lg />, [])}
+    {/* {useMemo(() => <Stock_ebs_lg />, [])} */}
 
+    {/* todo 风险溢价 */}
 
+    {/* todo 十年期国债利率倒数与A股PE中位数走势 */}
+
+    {/* todo 破净统计 stock_a_below_net_asset_statistics */} 
 
     {/* A 股等权重与中位数市盈率 */}
     {/* {useMemo(() => <Stock_a_ttm_lyr />, [])} */}
@@ -1523,11 +1730,26 @@ const Home = () => {
     {/* A 股股息率 */}
     {/* {useMemo(() => <Stock_a_gxl_lg />, [])} */}
 
+    {/* 大盘拥挤度：衡量市场微观结构恶化的指标，即成交额排名前5%的个股的成交额占全部A股占比创下历史极值，接近50%，预示着结构恶化，市场行情进入预警区域，或见顶，或风格发生转换。截止到2022年11月，历史上类似的情形出现过5次，市场均发生了巨大的反转，有2次市场进入牛市或维持牛市之中，且市场均发生了风格切换，分别是2008年10月和2015年1月。另三次发生了“牛转熊”现象。 */}
+    {/* {useMemo(() => <Stock_a_congestion_lg />, [])} */}
 
 
 
 
-    {/* todo */}
+    {/* todo 恒生 */}
+    {/* 恒生指数股息率 */}
+    {/* 接口: stock_hk_gxl_lg */}
+
+
+
+
+    {/* todo 基金 */}
+    {/* 基金基本信息-指数型 */}
+    {/* 接口: fund_info_index_em */}
+
+    {/* 基金规模走势 */}
+    {/* {useMemo(() => <Fund_aum_trend_em />, [])} */}
+
 
 
 

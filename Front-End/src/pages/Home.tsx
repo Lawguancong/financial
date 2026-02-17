@@ -821,7 +821,7 @@ const Stock_ebs_lg = () => {
   } & {
     [K in keyof typeof rightKeys]: number;
   };
-  
+
   const labelMap = {
     [dateKey]: dateName,
     [leftKey]: leftName,
@@ -923,7 +923,7 @@ const Stock_a_congestion_lg = () => {
   } & {
     [K in keyof typeof rightKeys]: number;
   };
-  
+
   const labelMap = {
     [dateKey]: dateName,
     [leftKey]: leftName,
@@ -1010,6 +1010,576 @@ const Stock_a_congestion_lg = () => {
 };
 
 
+const Index_pmi_render = () => {
+  const keysMapping = {
+    '综合PMI': 'index_pmi_com_cx',
+    '制造业PMI': 'index_pmi_man_cx',
+    '服务业PMI': 'index_pmi_ser_cx',
+  }
+
+  return (Object.keys(keysMapping) as Array<keyof typeof keysMapping>).map((keyName) => (
+    <Index_pmi_com_cx keyName={keyName} path={keysMapping[keyName]} />
+  ))
+
+
+}
+
+const Index_pmi_com_cx = ({ keyName, path }: { keyName: string; path: string }) => {
+
+  console.log('Index_pmi_com_cx keyName, path', keyName, path)
+
+  const chartName = keyName; // 图表名称
+  const dateKey = '日期' // 日期键名
+  const dateName = '日期' // 日期键名
+  const leftKey = keyName // 左y轴键名
+  const leftName = keyName // 左y轴名称
+  const rightKeys = { // 右y轴键名: 右y轴名称
+  }
+  const sampleRate = 1; // 抽样率
+  type DataRes = {
+    [dateKey]: string;
+    [leftKey]: number;
+  } & {
+    [K in keyof typeof rightKeys]: number;
+  };
+
+  const labelMap = {
+    [dateKey]: dateName,
+    [leftKey]: leftName,
+    ...rightKeys
+  }
+  const [data, setData] = useState<{
+    leftData: DataRes[];
+    rightData: {
+      date: string;
+      key: string;
+      value: number;
+    }[];
+  }>({ leftData: [], rightData: [] });
+  const fetchData = async () => {
+    try {
+      const response = await axios.get(`http://127.0.0.1:8080/api/public/${path}`)
+      console.log(`${chartName} -> response`, response)
+      const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
+        date: item[dateKey],
+        key,
+        label: labelMap[key as keyof typeof labelMap],
+        value: item[key as keyof DataRes],
+      }))).flat()
+      setData({
+        leftData: dataFormat?.filter((item: { key: string }) => item.key === leftKey),
+        rightData: dataFormat?.filter((item: { key: string }) => item.key !== leftKey)
+      })
+    } catch (error) {
+      console.log('error', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  console.log(`${chartName} -> data`, data)
+  const config = {
+    title: {
+      title: chartName, // 主标题的文本新秀丽
+      subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
+    },
+    xField: (d: { date: string }) => new Date(d.date),
+    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
+    children: [
+      {
+        data: data.leftData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        style: {
+          stroke: '#5B8FF9',
+          lineWidth: 2,
+        },
+        axis: {
+          y: {
+            title: leftName,
+            style: { titleFill: '#5B8FF9' },
+          },
+        },
+      },
+      {
+        data: data.rightData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        axis: {
+          y: {
+            position: 'right',
+            title: chartName,
+            style: { titleFill: '#6c6868ff' },
+          },
+        },
+      },
+
+    ],
+  };
+
+  return <>
+    <DualAxes {...config} />;
+  </>
+};
+
+const Macro_china_ppi_yearly = () => {
+  const chartName = '中国 PPI 年率报告'; // 图表名称
+  const dateKey = '日期' // 日期键名
+  const dateName = '日期' // 日期键名
+  const leftKey = '今值' // 左y轴键名
+  const leftName = '中国 PPI 年率报告' // 左y轴名称
+  const rightKeys = { // 右y轴键名: 右y轴名称
+  }
+  const sampleRate = 1; // 抽样率
+  type DataRes = {
+    [dateKey]: string;
+    [leftKey]: number;
+  } & {
+    [K in keyof typeof rightKeys]: number;
+  };
+
+  const labelMap = {
+    [dateKey]: dateName,
+    [leftKey]: leftName,
+    ...rightKeys
+  }
+  const [data, setData] = useState<{
+    leftData: DataRes[];
+    rightData: {
+      date: string;
+      key: string;
+      value: number;
+    }[];
+  }>({ leftData: [], rightData: [] });
+  const fetchData = async () => {
+    try {
+      const response = await axios.get('http://127.0.0.1:8080/api/public/macro_china_ppi_yearly')
+      console.log(`${chartName} -> response`, response)
+      const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
+        date: item[dateKey],
+        key,
+        label: labelMap[key as keyof typeof labelMap],
+        value: item[key as keyof DataRes],
+      }))).flat()
+      setData({
+        leftData: dataFormat?.filter((item: { key: string }) => item.key === leftKey),
+        rightData: dataFormat?.filter((item: { key: string }) => item.key !== leftKey)
+      })
+    } catch (error) {
+      console.log('error', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  console.log(`${chartName} -> data`, data)
+  const config = {
+    title: {
+      title: chartName, // 主标题的文本新秀丽
+      subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
+    },
+    xField: (d: { date: string }) => new Date(d.date),
+    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
+    children: [
+      {
+        data: data.leftData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        style: {
+          stroke: '#5B8FF9',
+          lineWidth: 2,
+        },
+        axis: {
+          y: {
+            title: leftName,
+            style: { titleFill: '#5B8FF9' },
+          },
+        },
+      },
+      {
+        data: data.rightData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        axis: {
+          y: {
+            position: 'right',
+            title: chartName,
+            style: { titleFill: '#6c6868ff' },
+          },
+        },
+      },
+
+    ],
+  };
+
+  return <>
+    <DualAxes {...config} />;
+  </>
+};
+
+const Macro_china_cpi_yearly = () => {
+  const chartName = '中国 CPI 年率报告'; // 图表名称
+  const dateKey = '日期' // 日期键名
+  const dateName = '日期' // 日期键名
+  const leftKey = '今值' // 左y轴键名
+  const leftName = '中国 CPI 年率报告' // 左y轴名称
+  const rightKeys = { // 右y轴键名: 右y轴名称
+  }
+  const sampleRate = 1; // 抽样率
+  type DataRes = {
+    [dateKey]: string;
+    [leftKey]: number;
+  } & {
+    [K in keyof typeof rightKeys]: number;
+  };
+
+  const labelMap = {
+    [dateKey]: dateName,
+    [leftKey]: leftName,
+    ...rightKeys
+  }
+  const [data, setData] = useState<{
+    leftData: DataRes[];
+    rightData: {
+      date: string;
+      key: string;
+      value: number;
+    }[];
+  }>({ leftData: [], rightData: [] });
+  const fetchData = async () => {
+    try {
+      const response = await axios.get('http://127.0.0.1:8080/api/public/macro_china_cpi_yearly')
+      console.log(`${chartName} -> response`, response)
+      const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
+        date: item[dateKey],
+        key,
+        label: labelMap[key as keyof typeof labelMap],
+        value: item[key as keyof DataRes],
+      }))).flat()
+      setData({
+        leftData: dataFormat?.filter((item: { key: string }) => item.key === leftKey),
+        rightData: dataFormat?.filter((item: { key: string }) => item.key !== leftKey)
+      })
+    } catch (error) {
+      console.log('error', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  console.log(`${chartName} -> data`, data)
+  const config = {
+    title: {
+      title: chartName, // 主标题的文本新秀丽
+      subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
+    },
+    xField: (d: { date: string }) => new Date(d.date),
+    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
+    children: [
+      {
+        data: data.leftData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        style: {
+          stroke: '#5B8FF9',
+          lineWidth: 2,
+        },
+        axis: {
+          y: {
+            title: leftName,
+            style: { titleFill: '#5B8FF9' },
+          },
+        },
+      },
+      {
+        data: data.rightData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        axis: {
+          y: {
+            position: 'right',
+            title: chartName,
+            style: { titleFill: '#6c6868ff' },
+          },
+        },
+      },
+
+    ],
+  };
+
+  return <>
+    <DualAxes {...config} />;
+  </>
+};
+
+const Macro_china_lpr = () => {
+  const chartName = 'LPR品种数据'; // 图表名称
+  const dateKey = 'TRADE_DATE' // 日期键名
+  const dateName = '日期' // 日期键名
+  const leftKey = ''; // 左y轴键名
+  const leftName = '' // 左y轴名称
+  const rightKeys = { // 右y轴键名: 右y轴名称
+    LPR1Y: 'LPR_1Y利率(%)',
+    LPR5Y: 'LPR_5Y利率(%)',
+    RATE_1: '短期贷款利率:6个月至1年(含)(%)',
+    RATE_2: '中长期贷款利率:5年以上(%)',
+  }
+  const sampleRate = 1; // 抽样率
+  type DataRes = {
+    [dateKey]: string;
+    [leftKey]: number;
+  } & {
+    [K in keyof typeof rightKeys]: number;
+  };
+
+  const labelMap = {
+    [dateKey]: dateName,
+    [leftKey]: leftName,
+    ...rightKeys
+  }
+  const [data, setData] = useState<{
+    leftData: DataRes[];
+    rightData: {
+      date: string;
+      key: string;
+      value: number;
+    }[];
+  }>({ leftData: [], rightData: [] });
+  const fetchData = async () => {
+    try {
+      const response = await axios.get('http://127.0.0.1:8080/api/public/macro_china_lpr')
+      console.log(`${chartName} -> response`, response)
+      const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
+        date: item[dateKey],
+        key,
+        label: labelMap[key as keyof typeof labelMap],
+        value: item[key as keyof DataRes],
+      }))).flat()
+      setData({
+        leftData: dataFormat?.filter((item: { key: string }) => item.key === leftKey),
+        rightData: dataFormat?.filter((item: { key: string }) => item.key !== leftKey)
+      })
+    } catch (error) {
+      console.log('error', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  console.log(`${chartName} -> data`, data)
+  const config = {
+    title: {
+      title: chartName, // 主标题的文本新秀丽
+      subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
+    },
+    xField: (d: { date: string }) => new Date(d.date),
+    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
+    children: [
+      {
+        data: data.leftData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        style: {
+          stroke: '#5B8FF9',
+          lineWidth: 2,
+        },
+        axis: {
+          y: {
+            title: leftName,
+            style: { titleFill: '#5B8FF9' },
+          },
+        },
+      },
+      {
+        data: data.rightData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        axis: {
+          y: {
+            position: 'right',
+            title: chartName,
+            style: { titleFill: '#6c6868ff' },
+          },
+        },
+      },
+
+    ],
+  };
+
+  return <>
+    <DualAxes {...config} />;
+  </>
+};
+
+const Stock_margin_account_info = () => {
+  const chartName = '两融账户信息'; // 图表名称
+  const dateKey = '日期' // 日期键名
+  const dateName = '日期' // 日期键名
+  const leftKey = ''; // 左y轴键名
+  const leftName = '' // 左y轴名称
+  const rightKeys = { // 右y轴键名: 右y轴名称
+    融资余额: '融资余额(亿)',
+    融券余额: '融券余额(亿)',
+    融资买入额: '融资买入额(亿)',
+    融券卖出额: '融券卖出额(亿)',
+    证券公司数量: '证券公司数量(家)',
+    营业部数量: '营业部数量(家)',
+    个人投资者数量: '个人投资者数量(万名)',
+    机构投资者数量: '机构投资者数量(家)',
+    参与交易的投资者数量: '参与交易的投资者数量(名)',
+    有融资融券负债的投资者数量: '有融资融券负债的投资者数量(名)',
+    担保物总价值: '担保物总价值(亿)',
+    平均维持担保比例: '平均维持担保比例(%)',
+  }
+  const sampleRate = 1; // 抽样率
+  type DataRes = {
+    [dateKey]: string;
+    [leftKey]: number;
+  } & {
+    [K in keyof typeof rightKeys]: number;
+  };
+
+  const labelMap = {
+    [dateKey]: dateName,
+    [leftKey]: leftName,
+    ...rightKeys
+  }
+  const [data, setData] = useState<{
+    leftData: DataRes[];
+    rightData: {
+      date: string;
+      key: string;
+      value: number;
+    }[];
+  }>({ leftData: [], rightData: [] });
+  const fetchData = async () => {
+    try {
+      const response = await axios.get('http://127.0.0.1:8080/api/public/stock_margin_account_info')
+      console.log(`${chartName} -> response`, response)
+      const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
+        date: item[dateKey],
+        key,
+        label: labelMap[key as keyof typeof labelMap],
+        value: item[key as keyof DataRes],
+      }))).flat()
+      setData({
+        leftData: dataFormat?.filter((item: { key: string }) => item.key === leftKey),
+        rightData: dataFormat?.filter((item: { key: string }) => item.key !== leftKey)
+      })
+    } catch (error) {
+      console.log('error', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  console.log(`${chartName} -> data`, data)
+  const config = {
+    title: {
+      title: chartName, // 主标题的文本新秀丽
+      subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
+    },
+    xField: (d: { date: string }) => new Date(d.date),
+    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
+    children: [
+      {
+        data: data.leftData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        style: {
+          stroke: '#5B8FF9',
+          lineWidth: 2,
+        },
+        axis: {
+          y: {
+            title: leftName,
+            style: { titleFill: '#5B8FF9' },
+          },
+        },
+      },
+      {
+        data: data.rightData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        axis: {
+          y: {
+            position: 'right',
+            title: chartName,
+            style: { titleFill: '#6c6868ff' },
+          },
+        },
+      },
+
+    ],
+  };
+
+  return <>
+    <DualAxes {...config} />;
+  </>
+};
+
+const Macro_china_urban_unemployment = () => {
+  const [data, setData] = useState([]);
+  const fetchData = async () => {
+    try {
+      const response = await axios.get(`http://127.0.0.1:8080/api/public/macro_china_urban_unemployment`) // 城镇调查失业率
+      setData(response?.data || [])
+    } catch (error) {
+      console.log('error', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const config = {
+    xField: (d) => new Date(d.date),
+    children: [
+      {
+        data,
+        type: 'line',
+        yField: 'value',
+        colorField: 'item',
+        shapeField: 'smooth',
+        style: { lineWidth: 3 },
+      },
+
+    ],
+  };
+  return <DualAxes {...config} />;
+}
+
 const Fund_aum_trend_em = () => {
   const chartName = '基金规模走势'; // 图表名称
   const dateKey = 'date' // 日期键名
@@ -1026,7 +1596,7 @@ const Fund_aum_trend_em = () => {
   } & {
     [K in keyof typeof rightKeys]: number;
   };
-  
+
   const labelMap = {
     [dateKey]: dateName,
     [leftKey]: leftName,
@@ -1274,11 +1844,12 @@ const DemoDualAxes2 = (props) => {
   return <DualAxes {...config} />;
 };
 
+
+
+
 const Home = () => {
 
   const [list, setList] = useState([]);
-  const [pmiData, setPmiData] = useState({});
-  const [listresponsmacro_china_urban_unemploymente1, setresponsmacro_china_urban_unemploymente1] = useState([]);
   const [state, setState] = useSetState({});
 
   const fetchData = async () => {
@@ -1293,49 +1864,14 @@ const Home = () => {
         pe_ttm: item?.['滚动市盈率'],
       }))))
 
-      const [{ data: comData }, { data: manData }, { data: serData }] = await Promise.all([
-        axios.get(`http://127.0.0.1:8080/api/public/index_pmi_com_cx`), // 综合 PMI
-        axios.get(`http://127.0.0.1:8080/api/public/index_pmi_man_cx`), // 制造业 PMI
-        axios.get(`http://127.0.0.1:8080/api/public/index_pmi_ser_cx`), // 服务业 PMI
-      ]);
-      setPmiData({
-        comData: comData?.map(item => ({
-          ...item,
-          type: '综合PMI'
-        })), manData: manData?.map(item => ({
-          ...item,
-          type: '制造业PMI'
-        })), serData: serData?.map(item => ({
-          ...item,
-          type: '服务业PMI'
-        }))
-      })
-
-      console.log('comData, manData, serData', comData, manData, serData)
 
       const response1 = await axios.get(`http://127.0.0.1:8080/api/public/index_all_cni`) // 国证指数 -全部指数
       console.log('response1', response1)
 
-      const responsmacro_china_urban_unemploymente1 = await axios.get(`http://127.0.0.1:8080/api/public/macro_china_urban_unemployment`) // 城镇调查失业率
-      setresponsmacro_china_urban_unemploymente1(responsmacro_china_urban_unemploymente1?.data || [])
-      const stock_margin_account_info = await axios.get(`http://127.0.0.1:8080/api/public/stock_margin_account_info`) // 两融账户信息
-      const macro_china_ppi_yearly = await axios.get(`http://127.0.0.1:8080/api/public/macro_china_ppi_yearly`) // 中国 PPI 年率报告
-      const macro_china_cpi_yearly = await axios.get(`http://127.0.0.1:8080/api/public/macro_china_cpi_yearly`) // 中国 CPI 年率报告
-      const macro_china_lpr = await axios.get(`http://127.0.0.1:8080/api/public/macro_china_lpr`) // LPR品种数据
 
 
       // AKShare 数据接口一览
       // https://akshare.akfamily.xyz/tutorial.html#id1
-
-
-
-      // 两融账户信息
-      // 接口: stock_margin_account_info
-      // 目标地址: https://data.eastmoney.com/rzrq/zhtjday.html
-      // 描述: 东方财富网-数据中心-融资融券-融资融券账户统计-两融账户信息
-      // 限量: 单次返回所有历史数据
-      // http://127.0.0.1:8080/api/public/stock_margin_account_info
-
 
 
       // todo
@@ -1424,10 +1960,6 @@ const Home = () => {
 
 
       setState({
-        macro_china_ppi_yearly: macro_china_ppi_yearly.data,
-        macro_china_cpi_yearly: macro_china_cpi_yearly.data,
-        macro_china_lpr: macro_china_lpr.data,
-        stock_margin_account_info: stock_margin_account_info.data,
       })
     } catch (error) {
       console.log('error', error)
@@ -1438,253 +1970,7 @@ const Home = () => {
 
   console.log('state', state)
 
-  const renderPMI = () => {
-    const config = {
-      xField: (d) => new Date(d['日期']),
-      children: [
-        {
-          data: pmiData?.comData || [],
-          type: 'line',
-          yField: '综合PMI',
-          shapeField: 'smooth',
-          colorField: 'type',
-          style: {
-            lineWidth: 1,
-            stroke: '#F6BD16'
-          },
 
-        },
-        {
-          data: pmiData?.manData || [],
-          type: 'line',
-          yField: '制造业PMI',
-          shapeField: 'smooth',
-          colorField: 'type',
-          style: {
-            lineWidth: 1,
-            stroke: '#5AD8A6'
-          },
-          axis: { y: false },
-        },
-        {
-          data: pmiData?.serData || [],
-          type: 'line',
-          yField: '服务业PMI',
-          shapeField: 'smooth',
-          colorField: 'type',
-          style: {
-            lineWidth: 1,
-            stroke: '#5D7092'
-          },
-          axis: { y: false },
-        },
-      ],
-    };
-    return <DualAxes {...config} />;
-  };
-
-
-  const renderresponsmacro_china_urban_unemploymente1 = () => {
-    const config = {
-      xField: (d) => new Date(d.date),
-      children: [
-        {
-          data: listresponsmacro_china_urban_unemploymente1,
-          type: 'line',
-          yField: 'value',
-          colorField: 'item',
-          shapeField: 'smooth',
-          style: { lineWidth: 3 },
-        },
-
-      ],
-    };
-    return <DualAxes {...config} />;
-  }
-
-
-  const rendermacro_china_ppi_yearly = () => {
-    const config = {
-      xField: (d) => new Date(d['日期']),
-      children: [
-        {
-          data: state.macro_china_ppi_yearly || [],
-          type: 'line',
-          yField: '今值',
-          title: 'title1233',
-          shapeField: 'smooth',
-          style: { lineWidth: 3 },
-          axis: {
-            x: {
-              // title: '中国 PPI 年率报告',
-            }
-          }
-        },
-
-      ],
-    };
-    return <DualAxes {...config} />;
-  }
-
-  const rendermacro_china_cpi_yearly = () => {
-    const config = {
-      xField: (d) => new Date(d['日期']),
-      children: [
-        {
-          data: state.macro_china_cpi_yearly || [],
-          type: 'line',
-          yField: '今值',
-          shapeField: 'smooth',
-          style: { lineWidth: 3 },
-          axis: {
-            x: {
-              // title: '中国 CPI 年率报告',
-            }
-          }
-        },
-
-      ],
-    };
-    return <DualAxes {...config} />;
-
-  }
-
-  const render_macro_china_lpr = () => {
-    const config = {
-      xField: (d) => new Date(d['TRADE_DATE']),
-      children: [
-        {
-          data: state.macro_china_lpr || [],
-          type: 'line',
-          yField: 'LPR1Y',
-          shapeField: 'smooth',
-          style: {
-            lineWidth: 1,
-            stroke: '#F6BD16'
-          },
-          axis: {
-            x: {
-              // title: 'LPR品种数据',
-            }
-          }
-        },
-        {
-          data: state.macro_china_lpr || [],
-          type: 'line',
-          yField: 'LPR5Y',
-          shapeField: 'smooth',
-          style: {
-            lineWidth: 1,
-            stroke: '#5D7092'
-          },
-          axis: {
-            x: {
-              // title: 'LPR品种数据',
-            },
-            y: false
-          }
-        },
-        {
-          data: state.macro_china_lpr || [],
-          type: 'line',
-          yField: 'RATE_1',
-          shapeField: 'smooth',
-          style: {
-            lineWidth: 1,
-            stroke: '#5AD8A6'
-          },
-          axis: {
-            x: {
-              // title: 'LPR品种数据',
-            },
-            y: false
-          }
-        },
-        {
-          data: state.macro_china_lpr || [],
-          type: 'line',
-          yField: 'RATE_2',
-          shapeField: 'smooth',
-          style: {
-            lineWidth: 1,
-            stroke: '#5B8FF9'
-          },
-          axis: {
-            x: {
-              // title: 'LPR品种数据',
-            },
-            y: false
-          }
-        },
-
-
-      ],
-    };
-    return <DualAxes {...config} />;
-  }
-
-
-  const render_stock_margin_account_info = () => {
-    const config = {
-      xField: (d) => new Date(d['日期']),
-      // legend: true,
-      children: [
-        {
-          data: state.stock_margin_account_info || [],
-          type: 'line',
-          yField: '融资余额',
-          shapeField: 'smooth',
-          style: {
-            lineWidth: 1,
-            stroke: '#F6BD16'
-          },
-          axis: {
-            x: {
-              // title: 'LPR品种数据',
-            }
-          }
-        },
-        {
-          data: state.stock_margin_account_info || [],
-          type: 'line',
-          yField: '融券余额',
-          shapeField: 'smooth',
-          style: {
-            lineWidth: 1,
-            stroke: '#5D7092'
-          },
-          axis: {
-            x: {
-              // title: 'LPR品种数据',
-            },
-            y: {
-              position: 'right',
-              // title: 'count',
-              style: { titleFill: '#5AD8A6' },
-            },
-          }
-        },
-        // {
-        //   data: list,
-        //   type: 'line',
-        //   yField: 'close',
-        //   style: {
-        //     stroke: '#5B8FF9',
-        //     lineWidth: 2,
-        //   },
-        //   axis: {
-        //     y: {
-        //       position: 'right',
-        //       title: 'count',
-        //       style: { titleFill: '#5AD8A6' },
-        //     },
-        //   }
-        // },
-
-      ],
-    };
-    return <DualAxes {...config} />;
-  }
 
   useEffect(() => {
     fetchData()
@@ -1707,7 +1993,25 @@ const Home = () => {
 
     {/* todo 十年期国债利率倒数与A股PE中位数走势 */}
 
-    {/* todo 破净统计 stock_a_below_net_asset_statistics */} 
+    {/* todo 破净统计 stock_a_below_net_asset_statistics */}
+
+    {/* PMI */}
+    {/* {useMemo(() => <Index_pmi_render />, [])} */}
+
+    {/* 中国 PPI 年率报告 */}
+    {/* {useMemo(() => <Macro_china_ppi_yearly />, [])} */}
+
+    {/* 中国 CPI 年率报告 */}
+    {/* {useMemo(() => <Macro_china_cpi_yearly />, [])} */}
+
+    {/* LPR品种数据 */}
+    {/* {useMemo(() => <Macro_china_lpr />, [])} */}
+
+    {/* 两融账户信息 */}
+    {/* {useMemo(() => <Stock_margin_account_info />, [])} */}
+
+    {/* 城镇调查失业率 */}
+    {useMemo(() => <Macro_china_urban_unemployment />, [])}
 
     {/* A 股等权重与中位数市盈率 */}
     {/* {useMemo(() => <Stock_a_ttm_lyr />, [])} */}
@@ -1755,17 +2059,13 @@ const Home = () => {
 
 
 
-
-
     {/* 组件待优化 */}
-    {/* {renderPMI()}
+    {/* 
     {renderresponsmacro_china_urban_unemploymente1()}
-    {rendermacro_china_ppi_yearly()}
-    {rendermacro_china_cpi_yearly()}
-    {render_macro_china_lpr()}
+
     {list?.length > 0 && <DemoLine data={list} />}
     <DemoDualAxes2 data={list} />
-    {render_stock_margin_account_info()} */}
+     */}
   </>
 };
 

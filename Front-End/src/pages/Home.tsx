@@ -1563,21 +1563,15 @@ const Macro_china_urban_unemployment = () => {
     fetchData();
   }, []);
 
+  console.log('Macro_china_urban_unemployment data', data)
   const config = {
-    xField: (d) => new Date(d.date),
-    children: [
-      {
-        data,
-        type: 'line',
-        yField: 'value',
-        colorField: 'item',
-        shapeField: 'smooth',
-        style: { lineWidth: 3 },
-      },
-
-    ],
+    data,
+    xField: (d) => new Date(moment(d.date).format('YYYY-MM-DD')),
+    yField: 'value',
+    colorField: 'item',
+    shapeField: 'smooth',
   };
-  return <DualAxes {...config} />;
+  return <Line {...config} />;
 }
 
 const Fund_aum_trend_em = () => {
@@ -1845,36 +1839,128 @@ const DemoDualAxes2 = (props) => {
 };
 
 
+const Stock_zh_index_hist_csindex = () => {
+  const chartName = '中证指数'; // 图表名称
+  const dateKey = '日期' // 日期键名
+  const dateName = '日期' // 日期键名
+  const leftKey = '收盘' // 左y轴键名
+  const leftName = '中证指数' // 左y轴名称
+  const rightKeys = { // 右y轴键名: 右y轴名称
+    滚动市盈率: '滚动市盈率',
+  }
+  const sampleRate = 10; // 抽样率
+  type DataRes = {
+    [dateKey]: string;
+    [leftKey]: number;
+  } & {
+    [K in keyof typeof rightKeys]: number;
+  };
+
+  const labelMap = {
+    [dateKey]: dateName,
+    [leftKey]: leftName,
+    ...rightKeys
+  }
+  const [data, setData] = useState<{
+    leftData: DataRes[];
+    rightData: {
+      date: string;
+      key: string;
+      value: number;
+    }[];
+  }>({ leftData: [], rightData: [] });
+  const fetchData = async () => {
+    try {
+      // 入参
+      // symbol	str	symbol = "000928"; 指数代码
+      // start_date	str	start_date = "20180526"
+      // end_date	str	end_date = "20240604"
+      const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_zh_index_hist_csindex?symbol=000985&start_date=20050101&end_date=${today}`)
+      console.log(`${chartName} -> response`, response)
+      const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
+        date: item[dateKey],
+        key,
+        label: labelMap[key as keyof typeof labelMap],
+        value: item[key as keyof DataRes],
+      }))).flat()
+      setData({
+        leftData: dataFormat?.filter((item: { key: string }) => item.key === leftKey),
+        rightData: dataFormat?.filter((item: { key: string }) => item.key !== leftKey)
+      })
+    } catch (error) {
+      console.log('error', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  console.log(`${chartName} -> data`, data)
+  const config = {
+    title: {
+      title: chartName, // 主标题的文本新秀丽
+      subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
+    },
+    xField: (d: { date: string }) => new Date(d.date),
+    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
+    children: [
+      {
+        data: data.leftData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        style: {
+          stroke: '#5B8FF9',
+          lineWidth: 2,
+        },
+        axis: {
+          y: {
+            title: leftName,
+            style: { titleFill: '#5B8FF9' },
+          },
+        },
+      },
+      {
+        data: data.rightData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        axis: {
+          y: {
+            position: 'right',
+            title: chartName,
+            style: { titleFill: '#6c6868ff' },
+          },
+        },
+      },
+
+    ],
+  };
+
+  return <>
+    <DualAxes {...config} />;
+  </>
+};
 
 
 const Home = () => {
 
-  const [list, setList] = useState([]);
   const [state, setState] = useSetState({});
 
   const fetchData = async () => {
     try {
-      const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_zh_index_hist_csindex?symbol=000985&start_date=20100101&end_date=${today}`)
-      const { data = [] } = response;
-      console.log('response', response)
-      setList(data?.map((item => ({
-        label: item?.['指数中文简称'],
-        date: item?.['日期'] && moment(item?.['日期']).format('YYYY/MM/DD'),
-        close: item?.['收盘'],
-        pe_ttm: item?.['滚动市盈率'],
-      }))))
 
-
-      const response1 = await axios.get(`http://127.0.0.1:8080/api/public/index_all_cni`) // 国证指数 -全部指数
-      console.log('response1', response1)
-
-
+      // todo
 
       // AKShare 数据接口一览
       // https://akshare.akfamily.xyz/tutorial.html#id1
 
-
-      // todo
+      // 国证指数
+      // 全部指数
+      // 接口: index_all_cni
 
       // 股票列表-A股
       // 接口: stock_info_a_code_name
@@ -1892,10 +1978,6 @@ const Home = () => {
       // 限量: 单次获取指定 symbol 的所有历史数据
       // 入参: symbol	str	symbol="002044"; A 股代码
       // http://127.0.0.1:8080/api/public/stock_value_em?symbol=002044
-
-
-
-
 
 
 
@@ -2011,7 +2093,10 @@ const Home = () => {
     {/* {useMemo(() => <Stock_margin_account_info />, [])} */}
 
     {/* 城镇调查失业率 */}
-    {useMemo(() => <Macro_china_urban_unemployment />, [])}
+    {/* {useMemo(() => <Macro_china_urban_unemployment />, [])} */}
+
+    {/* 中证指数&市盈率 */}
+    {useMemo(() => <Stock_zh_index_hist_csindex />, [])}
 
     {/* A 股等权重与中位数市盈率 */}
     {/* {useMemo(() => <Stock_a_ttm_lyr />, [])} */}
@@ -2046,7 +2131,6 @@ const Home = () => {
 
 
 
-
     {/* todo 基金 */}
     {/* 基金基本信息-指数型 */}
     {/* 接口: fund_info_index_em */}
@@ -2054,18 +2138,7 @@ const Home = () => {
     {/* 基金规模走势 */}
     {/* {useMemo(() => <Fund_aum_trend_em />, [])} */}
 
-
-
-
-
-
-    {/* 组件待优化 */}
-    {/* 
-    {renderresponsmacro_china_urban_unemploymente1()}
-
-    {list?.length > 0 && <DemoLine data={list} />}
-    <DemoDualAxes2 data={list} />
-     */}
+    
   </>
 };
 

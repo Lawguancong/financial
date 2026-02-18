@@ -16,16 +16,22 @@ const MainLayout: React.FC = () => {
 
   const findSelectedKey = (path: string): string => {
     const findKey = (items: MenuProps['items']): string | null => {
-      if (!items) return null;
+      if (!items) {
+        return null;
+      }
       for (const item of items) {
-        if (!item) continue;
+        if (!item) {
+          continue;
+        }
         const key = String(item.key);
         if (menuPathMap[key] === path) {
           return key;
         }
         if ('children' in item && item.children) {
           const found = findKey(item.children);
-          if (found) return found;
+          if (found) {
+            return found;
+          }
         }
       }
       return null;

@@ -21,13 +21,6 @@ export const menuConfigs: MenuItemConfig[] = [
     component: lazy(() => import('@/pages/Home')),
   },
   {
-    key: 'macro',
-    label: '宏观',
-    icon: <LineChartOutlined />,
-    path: 'macro',
-    component: lazy(() => import('@/pages/Macro')),
-  },
-  {
     key: 'bond',
     label: '债券',
     icon: <BankOutlined />,
@@ -44,6 +37,12 @@ export const menuConfigs: MenuItemConfig[] = [
         label: 'A股',
         children: [
           {
+            key: 'stock/a/macro',
+            label: '宏观',
+            path: 'stock/a/macro',
+            component: lazy(() => import('@/pages/stock/a/macro')),
+          },
+          {
             key: 'stock/a/market-temp',
             label: '市场温度',
             path: 'stock/a/market-temp',
@@ -55,6 +54,7 @@ export const menuConfigs: MenuItemConfig[] = [
             path: 'stock/a/valuation',
             component: lazy(() => import('@/pages/stock/a/valuation')),
           },
+          
         ],
       },
       {

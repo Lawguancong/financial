@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Layout, Menu, theme } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { menuItems, menuPathMap } from '../config/menuConfig';
+import { menuItems, menuPathMap } from '@/config/menuConfig';
 import type { MenuProps } from 'antd';
 
 const { Header, Content, Sider } = Layout;

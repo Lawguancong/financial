@@ -907,6 +907,116 @@ const Stock_ebs_lg = () => {
   </>
 };
 
+const Macro_china_gdp = () => {
+  const chartName = '国内生产总值GDP'; // 图表名称
+  const dateKey = '季度' // 日期键名
+  const dateName = '季度' // 日期键名
+  const leftKey = '国内生产总值-绝对值' // 左y轴键名
+  const leftName = '国内生产总值-绝对值（亿元）' // 左y轴名称
+  const rightKeys = { // 右y轴键名: 右y轴名称
+    '国内生产总值-同比增长': '国内生产总值-同比增长（%）',
+    "第一产业-绝对值": '第一产业-绝对值（亿元）',
+    "第一产业-同比增长": '第一产业-同比增长（%）',
+    "第二产业-绝对值": '第二产业-绝对值（亿元）',
+    "第二产业-同比增长": '第二产业-同比增长（%）',
+    "第三产业-绝对值": '第三产业-绝对值（亿元）',
+    "第三产业-同比增长": '第三产业-同比增长（%）'
+  }
+  const sampleRate = 4; // 抽样率
+  type DataRes = {
+    [dateKey]: string;
+    [leftKey]: number;
+  } & {
+    [K in keyof typeof rightKeys]: number;
+  };
+
+  const labelMap = {
+    [dateKey]: dateName,
+    [leftKey]: leftName,
+    ...rightKeys
+  }
+  const [data, setData] = useState<{
+    leftData: DataRes[];
+    rightData: {
+      date: string;
+      key: string;
+      value: number;
+    }[];
+  }>({ leftData: [], rightData: [] });
+  const fetchData = async () => {
+    try {
+      const response = await axios.get('http://127.0.0.1:8080/api/public/macro_china_gdp')
+      console.log(`${chartName} -> response`, response)
+      const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
+        date: item[dateKey],
+        key,
+        label: labelMap[key as keyof typeof labelMap],
+        value: item[key as keyof DataRes],
+      }))).flat().reverse();
+      setData({
+        leftData: dataFormat?.filter((item: { key: string }) => item.key === leftKey),
+        rightData: dataFormat?.filter((item: { key: string }) => item.key !== leftKey)
+      })
+    } catch (error) {
+      console.log('error', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  console.log(`${chartName} -> data`, data)
+  const config = {
+    title: {
+      title: chartName, // 主标题的文本新秀丽
+      subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
+    },
+    // xField: (d: { date: string }) => new Date(d.date),
+    xField: (d: { date: string }) => d.date,
+
+    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
+    children: [
+      {
+        data: data.leftData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        style: {
+          stroke: '#5B8FF9',
+          lineWidth: 2,
+        },
+        axis: {
+          y: {
+            title: leftName,
+            style: { titleFill: '#5B8FF9' },
+          },
+        },
+      },
+      {
+        data: data.rightData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        axis: {
+          y: {
+            position: 'right',
+            title: chartName,
+            style: { titleFill: '#6c6868ff' },
+          },
+        },
+      },
+
+    ],
+  };
+
+  return <>
+    <DualAxes {...config} />;
+  </>
+};
+
 const Stock_a_congestion_lg = () => {
   const chartName = '大盘拥挤度'; // 图表名称
   const dateKey = 'date' // 日期键名
@@ -1840,11 +1950,11 @@ const DemoDualAxes2 = (props) => {
 
 
 const Stock_zh_index_hist_csindex = () => {
-  const chartName = '中证指数'; // 图表名称
+  const chartName = '中证全指'; // 图表名称
   const dateKey = '日期' // 日期键名
   const dateName = '日期' // 日期键名
   const leftKey = '收盘' // 左y轴键名
-  const leftName = '中证指数' // 左y轴名称
+  const leftName = '中证全指' // 左y轴名称
   const rightKeys = { // 右y轴键名: 右y轴名称
     滚动市盈率: '滚动市盈率',
   }
@@ -1945,118 +2055,83 @@ const Stock_zh_index_hist_csindex = () => {
   </>
 };
 
-
 const Home = () => {
+  // todo
+  // AKShare 数据接口一览
+  // https://akshare.akfamily.xyz/tutorial.html#id1
 
-  const [state, setState] = useSetState({});
+  // 国证指数
+  // 全部指数
+  // 接口: index_all_cni
 
-  const fetchData = async () => {
-    try {
-
-      // todo
-
-      // AKShare 数据接口一览
-      // https://akshare.akfamily.xyz/tutorial.html#id1
-
-      // 国证指数
-      // 全部指数
-      // 接口: index_all_cni
-
-      // 股票列表-A股
-      // 接口: stock_info_a_code_name
-      // 目标地址: 沪深京三个交易所
-      // 描述: 沪深京 A 股股票代码和股票简称数据
-      // 限量: 单次获取所有 A 股股票代码和简称数据
-      // http://127.0.0.1:8080/api/public/stock_info_a_code_name
+  // 股票列表-A股
+  // 接口: stock_info_a_code_name
+  // 目标地址: 沪深京三个交易所
+  // 描述: 沪深京 A 股股票代码和股票简称数据
+  // 限量: 单次获取所有 A 股股票代码和简称数据
+  // http://127.0.0.1:8080/api/public/stock_info_a_code_name
 
 
-
-      // 个股估值
-      // 接口: stock_value_em
-      // 目标地址: https://data.eastmoney.com/gzfx/detail/300766.html
-      // 描述: 东方财富网-数据中心-估值分析-每日互动-每日互动-估值分析
-      // 限量: 单次获取指定 symbol 的所有历史数据
-      // 入参: symbol	str	symbol="002044"; A 股代码
-      // http://127.0.0.1:8080/api/public/stock_value_em?symbol=002044
+  // 个股估值
+  // 接口: stock_value_em
+  // 目标地址: https://data.eastmoney.com/gzfx/detail/300766.html
+  // 描述: 东方财富网-数据中心-估值分析-每日互动-每日互动-估值分析
+  // 限量: 单次获取指定 symbol 的所有历史数据
+  // 入参: symbol	str	symbol="002044"; A 股代码
+  // http://127.0.0.1:8080/api/public/stock_value_em?symbol=002044
 
 
 
-      // 波动率指数
+  // 波动率指数
 
 
-      // 创新高和新低的股票数量
-      // 接口: stock_a_high_low_statistics
-      // 目标地址: https://www.legulegu.com/stockdata/high-low-statistics
-      // 描述: 不同市场的创新高和新低的股票数量
-      // 限量: 单次获取指定 market 的近两年的历史数据
-      // http://127.0.0.1:8080/api/public/stock_a_high_low_statistics
-
-
-
-      // 筹码分布
-      // 接口: stock_cyq_em
-      // 目标地址: https://quote.eastmoney.com/concept/sz000001.html
-      // 描述: 东方财富网 - 概念板 - 行情中心 - 日K - 筹码分布
-      // 限量: 单次返回指定 symbol 和 adjust 的近 90 个交易日数据
-      // http://127.0.0.1:8080/api/public/stock_cyq_em
-
-
-      // 实时行情数据-雪球
-      // 接口: stock_individual_spot_xq
-      // 目标地址: https://xueqiu.com/S/SH513520
-      // 描述: 雪球-行情中心-个股
-      // 限量: 单次获取指定 symbol 的最新行情数据
-      // http://127.0.0.1:8080/api/public/stock_individual_spot_xq
-
-
-      // 股票行业成交
-      // 接口: stock_szse_sector_summary
-      // 目标地址: http://docs.static.szse.cn/www/market/periodical/month/W020220511355248518608.html
-      // 描述: 深圳证券交易所-统计资料-股票行业成交数据
-      // 限量: 单次返回指定 symbol 和 date 的统计资料-股票行业成交数据
-      // http://127.0.0.1:8080/api/public/stock_szse_sector_summary
+  // 创新高和新低的股票数量
+  // 接口: stock_a_high_low_statistics
+  // 目标地址: https://www.legulegu.com/stockdata/high-low-statistics
+  // 描述: 不同市场的创新高和新低的股票数量
+  // 限量: 单次获取指定 market 的近两年的历史数据
+  // http://127.0.0.1:8080/api/public/stock_a_high_low_statistics
 
 
 
-      // 上海证券交易所-每日概况
-      // 接口: stock_sse_deal_daily
-      // 目标地址: http://www.sse.com.cn/market/stockdata/overview/day/
-      // 描述: 上海证券交易所-数据-股票数据-成交概况-股票成交概况-每日股票情况
-      // 限量: 单次返回指定日期的每日概况数据, 当前交易日数据需要在收盘后获取; 注意仅支持获取在 20211227（包含）之后的数据
-      // http://127.0.0.1:8080/api/public/stock_sse_deal_daily
+  // 筹码分布
+  // 接口: stock_cyq_em
+  // 目标地址: https://quote.eastmoney.com/concept/sz000001.html
+  // 描述: 东方财富网 - 概念板 - 行情中心 - 日K - 筹码分布
+  // 限量: 单次返回指定 symbol 和 adjust 的近 90 个交易日数据
+  // http://127.0.0.1:8080/api/public/stock_cyq_em
+
+
+  // 实时行情数据-雪球
+  // 接口: stock_individual_spot_xq
+  // 目标地址: https://xueqiu.com/S/SH513520
+  // 描述: 雪球-行情中心-个股
+  // 限量: 单次获取指定 symbol 的最新行情数据
+  // http://127.0.0.1:8080/api/public/stock_individual_spot_xq
+
+
+  // 股票行业成交
+  // 接口: stock_szse_sector_summary
+  // 目标地址: http://docs.static.szse.cn/www/market/periodical/month/W020220511355248518608.html
+  // 描述: 深圳证券交易所-统计资料-股票行业成交数据
+  // 限量: 单次返回指定 symbol 和 date 的统计资料-股票行业成交数据
+  // http://127.0.0.1:8080/api/public/stock_szse_sector_summary
 
 
 
-      // "macro_china_gdp"  # 中国-国内生产总值
-
-
-      //   # A 股市盈率和市净率
-      //  "stock_hk_indicator_eniu"  # 港股股个股市盈率、市净率和股息率指标
-      //  "stock_a_high_low_statistics"  # 创新高和新低的股票数量
-
-
-
-      // 恒生指数股息率
-      // 接口: stock_hk_gxl_lg
+  // 上海证券交易所-每日概况
+  // 接口: stock_sse_deal_daily
+  // 目标地址: http://www.sse.com.cn/market/stockdata/overview/day/
+  // 描述: 上海证券交易所-数据-股票数据-成交概况-股票成交概况-每日股票情况
+  // 限量: 单次返回指定日期的每日概况数据, 当前交易日数据需要在收盘后获取; 注意仅支持获取在 20211227（包含）之后的数据
+  // http://127.0.0.1:8080/api/public/stock_sse_deal_daily
 
 
 
-      setState({
-      })
-    } catch (error) {
-      console.log('error', error)
-    }
 
-  }
+  //  "stock_hk_indicator_eniu"  # 港股股个股市盈率、市净率和股息率指标
+  //  "stock_a_high_low_statistics"  # 创新高和新低的股票数量
 
-
-  console.log('state', state)
-
-
-
-  useEffect(() => {
-    fetchData()
-  }, []);
 
 
   return <>
@@ -2077,6 +2152,9 @@ const Home = () => {
 
     {/* todo 破净统计 stock_a_below_net_asset_statistics */}
 
+    {/* 国内生产总值GDP */}
+    {/* {useMemo(() => <Macro_china_gdp />, [])} */}
+
     {/* PMI */}
     {/* {useMemo(() => <Index_pmi_render />, [])} */}
 
@@ -2095,8 +2173,9 @@ const Home = () => {
     {/* 城镇调查失业率 */}
     {/* {useMemo(() => <Macro_china_urban_unemployment />, [])} */}
 
-    {/* 中证指数&市盈率 */}
-    {useMemo(() => <Stock_zh_index_hist_csindex />, [])}
+    {/* todo 获取所有中证指数 stock_zh_index_hist_csindex */}
+    {/* 中证全指 &市盈率 */}
+    {/* {useMemo(() => <Stock_zh_index_hist_csindex />, [])} */}
 
     {/* A 股等权重与中位数市盈率 */}
     {/* {useMemo(() => <Stock_a_ttm_lyr />, [])} */}
@@ -2138,7 +2217,7 @@ const Home = () => {
     {/* 基金规模走势 */}
     {/* {useMemo(() => <Fund_aum_trend_em />, [])} */}
 
-    
+
   </>
 };
 

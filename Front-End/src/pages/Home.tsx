@@ -9,7 +9,7 @@ import { useSetState } from 'ahooks';
 import { pick } from 'lodash-es';
 
 
-const today = moment().format('YYYYMMDD'); // 获取当天日期并格式化为YYYYMMDD
+// const today = moment().format('YYYYMMDD'); // 获取当天日期并格式化为YYYYMMDD
 
 
 
@@ -114,7 +114,7 @@ const Stock_a_ttm_lyr = () => {
   };
 
   return <>
-    <DualAxes {...config} />;
+    <DualAxes {...config} />
   </>
 };
 
@@ -209,7 +209,7 @@ const Stock_a_all_pb = () => {
   };
 
   return <>
-    <DualAxes {...config} />;
+    <DualAxes {...config} />
   </>
 };
 
@@ -289,7 +289,7 @@ const Stock_market_pe_lg = () => {
         },
       ],
     };
-    return <DualAxes {...config} />;
+    return <DualAxes {...config} />
   }
 
 
@@ -393,7 +393,7 @@ const Stock_market_pb_lg = () => {
 
       ],
     };
-    return <DualAxes {...config} />;
+    return <DualAxes {...config} />
   }
 
 
@@ -494,7 +494,7 @@ const Stock_index_pb_lg = () => {
         },
       ],
     };
-    return <DualAxes {...config} />;
+    return <DualAxes {...config} />
   }
 
 
@@ -600,7 +600,7 @@ const Stock_index_pe_lg = () => {
         },
       ],
     };
-    return <DualAxes {...config} />;
+    return <DualAxes {...config} />
   }
 
 
@@ -611,68 +611,7 @@ const Stock_index_pe_lg = () => {
   </>
 }
 
-const Stock_a_gxl_lg = () => {
 
-  const symbols = ["上证A股", "深证A股", "创业板", "科创板"]
-  // const symbols = ["上证A股"]
-  const RenderDualAxes = ({ symbol }: { symbol: string }) => {
-    interface DataRes {
-      日期: string;
-      股息率: number;
-    }
-    const [data, setData] = useState<DataRes[]>([]);
-    const fetchData = async () => {
-      try {
-        const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_a_gxl_lg?symbol=${symbol}`)
-        console.log('A 股股息率 -> response', symbol, response)
-        setData(response.data)
-      } catch (error) {
-        console.log('error', error)
-      }
-    }
-
-    console.log('A 股股息率 -> data', data)
-
-    useEffect(() => {
-      fetchData();
-    }, []);
-
-    const config = {
-      title: {
-        title: symbol, // 主标题的文本新秀丽
-        subtitle: symbol, // 副标题的文本新秀丽
-      },
-      data,
-      xField: (d: DataRes) => new Date(d['日期']),
-      legend: true,
-      children: [
-        {
-          type: 'line',
-          yField: '股息率',
-          shapeField: 'smooth',
-          style: {
-            stroke: '#5B8FF9',
-            lineWidth: 2,
-          },
-          axis: {
-            y: {
-              title: '股息率',
-              style: { titleFill: '#5B8FF9' },
-            },
-          },
-        },
-      ],
-    };
-    return <DualAxes {...config} />;
-  }
-
-
-  return <>
-    {useMemo(() => symbols.map((symbol) => (
-      <RenderDualAxes key={symbol} symbol={symbol} />
-    )), [symbols])}
-  </>
-}
 
 
 const DemoLine = (props) => {
@@ -702,7 +641,7 @@ const DemoLine = (props) => {
       showMarkers: true,
     },
   };
-  return <Line {...config} />;
+  return <Line {...config} />
 };
 
 
@@ -813,111 +752,11 @@ const Macro_china_gdp = () => {
   };
 
   return <>
-    <DualAxes {...config} />;
+    <DualAxes {...config} />
   </>
 };
 
-const Stock_a_congestion_lg = () => {
-  const chartName = '大盘拥挤度'; // 图表名称
-  const dateKey = 'date' // 日期键名
-  const dateName = '日期' // 日期键名
-  const leftKey = 'close' // 左y轴键名
-  const leftName = '上证指数' // 左y轴名称
-  const rightKeys = { // 右y轴键名: 右y轴名称
-    congestion: '拥挤度',
-  }
-  const sampleRate = 10; // 抽样率
-  type DataRes = {
-    [dateKey]: string;
-    [leftKey]: number;
-  } & {
-    [K in keyof typeof rightKeys]: number;
-  };
 
-  const labelMap = {
-    [dateKey]: dateName,
-    [leftKey]: leftName,
-    ...rightKeys
-  }
-  const [data, setData] = useState<{
-    leftData: DataRes[];
-    rightData: {
-      date: string;
-      key: string;
-      value: number;
-    }[];
-  }>({ leftData: [], rightData: [] });
-  const fetchData = async () => {
-    try {
-      const response = await axios.get('http://127.0.0.1:8080/api/public/stock_a_congestion_lg')
-      console.log(`${chartName} -> response`, response)
-      const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
-        date: item[dateKey],
-        key,
-        label: labelMap[key as keyof typeof labelMap],
-        value: item[key as keyof DataRes],
-      }))).flat()
-      setData({
-        leftData: dataFormat?.filter((item: { key: string }) => item.key === leftKey),
-        rightData: dataFormat?.filter((item: { key: string }) => item.key !== leftKey)
-      })
-    } catch (error) {
-      console.log('error', error)
-    }
-  }
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  console.log(`${chartName} -> data`, data)
-  const config = {
-    title: {
-      title: chartName, // 主标题的文本新秀丽
-      subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
-    },
-    xField: (d: { date: string }) => new Date(d.date),
-    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
-    children: [
-      {
-        data: data.leftData,
-        type: 'line',
-        yField: 'value',
-        colorField: 'label',
-        shapeField: 'smooth',
-        style: {
-          stroke: '#5B8FF9',
-          lineWidth: 2,
-        },
-        axis: {
-          y: {
-            title: leftName,
-            style: { titleFill: '#5B8FF9' },
-          },
-        },
-      },
-      {
-        data: data.rightData,
-        type: 'line',
-        yField: 'value',
-        colorField: 'label',
-        shapeField: 'smooth',
-        axis: {
-          y: {
-            position: 'right',
-            title: chartName,
-            style: { titleFill: '#6c6868ff' },
-          },
-        },
-      },
-
-    ],
-  };
-
-  return <>
-    <DualAxes {...config} />;
-  </>
-};
 
 
 const Index_pmi_render = () => {
@@ -1034,7 +873,7 @@ const Index_pmi_com_cx = ({ keyName, path }: { keyName: string; path: string }) 
   };
 
   return <>
-    <DualAxes {...config} />;
+    <DualAxes {...config} />
   </>
 };
 
@@ -1135,7 +974,7 @@ const Macro_china_ppi_yearly = () => {
   };
 
   return <>
-    <DualAxes {...config} />;
+    <DualAxes {...config} />
   </>
 };
 
@@ -1236,7 +1075,7 @@ const Macro_china_cpi_yearly = () => {
   };
 
   return <>
-    <DualAxes {...config} />;
+    <DualAxes {...config} />
   </>
 };
 
@@ -1341,7 +1180,7 @@ const Macro_china_lpr = () => {
   };
 
   return <>
-    <DualAxes {...config} />;
+    <DualAxes {...config} />
   </>
 };
 
@@ -1370,7 +1209,7 @@ const Macro_china_urban_unemployment = () => {
     colorField: 'item',
     shapeField: 'smooth',
   };
-  return <Line {...config} />;
+  return <Line {...config} />
 }
 
 const Fund_aum_trend_em = () => {
@@ -1471,7 +1310,7 @@ const Fund_aum_trend_em = () => {
   };
 
   return <>
-    <DualAxes {...config} />;
+    <DualAxes {...config} />
   </>
 };
 
@@ -1539,7 +1378,7 @@ const DemoDualAxes = () => {
       },
     ],
   };
-  return <DualAxes {...config} />;
+  return <DualAxes {...config} />
 };
 
 
@@ -1593,7 +1432,7 @@ const DemoDualAxes1 = () => {
       },
     ],
   };
-  return <DualAxes {...config} />;
+  return <DualAxes {...config} />
 };
 
 const DemoDualAxes2 = (props) => {
@@ -1634,115 +1473,10 @@ const DemoDualAxes2 = (props) => {
       },
     ],
   };
-  return <DualAxes {...config} />;
+  return <DualAxes {...config} />
 };
 
 
-const Stock_zh_index_hist_csindex = () => {
-  const chartName = '中证全指'; // 图表名称
-  const dateKey = '日期' // 日期键名
-  const dateName = '日期' // 日期键名
-  const leftKey = '收盘' // 左y轴键名
-  const leftName = '中证全指' // 左y轴名称
-  const rightKeys = { // 右y轴键名: 右y轴名称
-    滚动市盈率: '滚动市盈率',
-  }
-  const sampleRate = 10; // 抽样率
-  type DataRes = {
-    [dateKey]: string;
-    [leftKey]: number;
-  } & {
-    [K in keyof typeof rightKeys]: number;
-  };
-
-  const labelMap = {
-    [dateKey]: dateName,
-    [leftKey]: leftName,
-    ...rightKeys
-  }
-  const [data, setData] = useState<{
-    leftData: DataRes[];
-    rightData: {
-      date: string;
-      key: string;
-      value: number;
-    }[];
-  }>({ leftData: [], rightData: [] });
-  const fetchData = async () => {
-    try {
-      // 入参
-      // symbol	str	symbol = "000928"; 指数代码
-      // start_date	str	start_date = "20180526"
-      // end_date	str	end_date = "20240604"
-      const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_zh_index_hist_csindex?symbol=000985&start_date=20050101&end_date=${today}`)
-      console.log(`${chartName} -> response`, response)
-      const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
-        date: item[dateKey],
-        key,
-        label: labelMap[key as keyof typeof labelMap],
-        value: item[key as keyof DataRes],
-      }))).flat()
-      setData({
-        leftData: dataFormat?.filter((item: { key: string }) => item.key === leftKey),
-        rightData: dataFormat?.filter((item: { key: string }) => item.key !== leftKey)
-      })
-    } catch (error) {
-      console.log('error', error)
-    }
-  }
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  console.log(`${chartName} -> data`, data)
-  const config = {
-    title: {
-      title: chartName, // 主标题的文本新秀丽
-      subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
-    },
-    xField: (d: { date: string }) => new Date(d.date),
-    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
-    children: [
-      {
-        data: data.leftData,
-        type: 'line',
-        yField: 'value',
-        colorField: 'label',
-        shapeField: 'smooth',
-        style: {
-          stroke: '#5B8FF9',
-          lineWidth: 2,
-        },
-        axis: {
-          y: {
-            title: leftName,
-            style: { titleFill: '#5B8FF9' },
-          },
-        },
-      },
-      {
-        data: data.rightData,
-        type: 'line',
-        yField: 'value',
-        colorField: 'label',
-        shapeField: 'smooth',
-        axis: {
-          y: {
-            position: 'right',
-            title: chartName,
-            style: { titleFill: '#6c6868ff' },
-          },
-        },
-      },
-
-    ],
-  };
-
-  return <>
-    <DualAxes {...config} />;
-  </>
-};
 
 const Home = () => {
   // todo
@@ -1848,8 +1582,6 @@ const Home = () => {
     {/* {useMemo(() => <Macro_china_urban_unemployment />, [])} */}
 
     {/* todo 获取所有中证指数 stock_zh_index_hist_csindex */}
-    {/* 中证全指 &市盈率 */}
-    {/* {useMemo(() => <Stock_zh_index_hist_csindex />, [])} */}
 
     {/* A 股等权重与中位数市盈率 */}
     {/* {useMemo(() => <Stock_a_ttm_lyr />, [])} */}
@@ -1868,13 +1600,6 @@ const Home = () => {
 
     {/* 指数市盈率 */}
     {/* {useMemo(() => <Stock_index_pe_lg />, [])} */}
-
-    {/* A 股股息率 */}
-    {/* {useMemo(() => <Stock_a_gxl_lg />, [])} */}
-
-    {/* 大盘拥挤度：衡量市场微观结构恶化的指标，即成交额排名前5%的个股的成交额占全部A股占比创下历史极值，接近50%，预示着结构恶化，市场行情进入预警区域，或见顶，或风格发生转换。截止到2022年11月，历史上类似的情形出现过5次，市场均发生了巨大的反转，有2次市场进入牛市或维持牛市之中，且市场均发生了风格切换，分别是2008年10月和2015年1月。另三次发生了“牛转熊”现象。 */}
-    {/* {useMemo(() => <Stock_a_congestion_lg />, [])} */}
-
 
 
 

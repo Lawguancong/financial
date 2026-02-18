@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Spin } from 'antd';
+import { DualAxes } from '@ant-design/plots';
 import axios from 'axios';
 import moment from 'moment';
 
@@ -52,6 +53,80 @@ const IndexDetail: React.FC = () => {
     fetchData();
   }, [fetchData]);
 
+  const chartConfig = useMemo(() => {
+    if (!data || data.length === 0) {
+      return null;
+    }
+
+    const chartName = `${data[0].指数中文简称}-滚动市盈率`; // 图表名称
+    const dateKey = '日期' // 日期键名
+    const dateName = '日期' // 日期键名
+    const leftKey = '收盘';
+    const leftName = `${data[0].指数中文简称}`;
+    const rightKeys = {
+      滚动市盈率: '滚动市盈率',
+    };
+
+    const labelMap = {
+      [dateKey]: dateName,
+      [leftKey]: leftName,
+      ...rightKeys
+    };
+
+    const dataFormat = data.map((item) => {
+      const keys = Object.keys({ [leftKey]: leftName, ...rightKeys });
+      return keys.map((key) => ({
+        date: item[dateKey],
+        key,
+        label: labelMap[key as keyof typeof labelMap],
+        value: item[key as keyof IndexDetailData],
+      }));
+    }).flat();
+
+    const leftData = dataFormat.filter((item) => item.key === leftKey);
+    const rightData = dataFormat.filter((item) => item.key !== leftKey);
+
+    return {
+      title: {
+        title: chartName,
+      },
+      xField: (d: { date: string }) => new Date(d.date),
+      children: [
+        {
+          data: leftData,
+          type: 'line',
+          yField: 'value',
+          colorField: 'label',
+          shapeField: 'smooth',
+          style: {
+            stroke: '#5B8FF9',
+            lineWidth: 2,
+          },
+          axis: {
+            y: {
+              title: leftName,
+              style: { titleFill: '#5B8FF9' },
+            },
+          },
+        },
+        {
+          data: rightData,
+          type: 'line',
+          yField: 'value',
+          colorField: 'label',
+          shapeField: 'smooth',
+          axis: {
+            y: {
+              position: 'right',
+              title: chartName,
+              style: { titleFill: '#6c6868ff' },
+            },
+          },
+        },
+      ],
+    };
+  }, [data, indexName]);
+
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -63,9 +138,9 @@ const IndexDetail: React.FC = () => {
   return (
     <div style={{ padding: '24px' }}>
       <h1 style={{ marginBottom: '24px' }}>
-        指数详情 - {indexName}
+        {data?.[0]?.指数中文简称} - 指数详情
       </h1>
-      
+
       {data.length > 0 ? (
         <div>
           <div style={{ marginBottom: '16px', padding: '16px', background: '#f5f5f5', borderRadius: '8px' }}>
@@ -89,93 +164,7 @@ const IndexDetail: React.FC = () => {
           </div>
 
           <div style={{ marginTop: '24px' }}>
-            <h2>历史数据</h2>
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '16px' }}>
-              <thead>
-                <tr style={{ background: '#fafafa' }}>
-                  <th style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'left' }}>日期</th>
-                  <th style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'left' }}>指数代码</th>
-                  <th style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'left' }}>指数中文全称</th>
-                  <th style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'left' }}>指数中文简称</th>
-                  <th style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'left' }}>指数英文全称</th>
-                  <th style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'left' }}>指数英文简称</th>
-                  <th style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'right' }}>开盘</th>
-                  <th style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'right' }}>最高</th>
-                  <th style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'right' }}>最低</th>
-                  <th style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'right' }}>收盘</th>
-                  <th style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'right' }}>涨跌</th>
-                  <th style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'right' }}>涨跌幅(%)</th>
-                  <th style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'right' }}>成交量(万手)</th>
-                  <th style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'right' }}>成交金额(亿元)</th>
-                  <th style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'right' }}>样本数量</th>
-                  <th style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'right' }}>滚动市盈率</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.map((item, index) => (
-                  <tr key={index} style={{ background: index % 2 === 0 ? '#fff' : '#fafafa' }}>
-                    <td style={{ padding: '12px', border: '1px solid #e8e8e8' }}>
-                      {moment(item.日期).format('YYYY-MM-DD')}
-                    </td>
-                    <td style={{ padding: '12px', border: '1px solid #e8e8e8' }}>
-                      {item.指数代码}
-                    </td>
-                    <td style={{ padding: '12px', border: '1px solid #e8e8e8' }}>
-                      {item.指数中文全称}
-                    </td>
-                    <td style={{ padding: '12px', border: '1px solid #e8e8e8' }}>
-                      {item.指数中文简称}
-                    </td>
-                    <td style={{ padding: '12px', border: '1px solid #e8e8e8' }}>
-                      {item.指数英文全称}
-                    </td>
-                    <td style={{ padding: '12px', border: '1px solid #e8e8e8' }}>
-                      {item.指数英文简称}
-                    </td>
-                    <td style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'right' }}>
-                      {item.开盘}
-                    </td>
-                    <td style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'right' }}>
-                      {item.最高}
-                    </td>
-                    <td style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'right' }}>
-                      {item.最低}
-                    </td>
-                    <td style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'right' }}>
-                      {item.收盘}
-                    </td>
-                    <td style={{ 
-                      padding: '12px', 
-                      border: '1px solid #e8e8e8', 
-                      textAlign: 'right',
-                      color: item.涨跌 >= 0 ? '#f5222d' : '#52c41a'
-                    }}>
-                      {item.涨跌}
-                    </td>
-                    <td style={{ 
-                      padding: '12px', 
-                      border: '1px solid #e8e8e8', 
-                      textAlign: 'right',
-                      color: item.涨跌幅 >= 0 ? '#f5222d' : '#52c41a'
-                    }}>
-                      {item.涨跌幅}%
-                    </td>
-                    <td style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'right' }}>
-                      {item.成交量}
-                    </td>
-                    <td style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'right' }}>
-                      {item.成交金额}
-                    </td>
-                    <td style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'right' }}>
-                      {item.样本数量}
-                    </td>
-                    <td style={{ padding: '12px', border: '1px solid #e8e8e8', textAlign: 'right' }}>
-                      {item.滚动市盈率}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {chartConfig && <DualAxes {...chartConfig} />}
           </div>
         </div>
       ) : (

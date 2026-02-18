@@ -104,8 +104,8 @@ const Fund_aum_trend_em = () => {
   console.log(`${chartName} -> data`, data)
   const config = {
     title: {
-      title: chartName, // 主标题的文本新秀丽
-      subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
+      title: chartName,
+      subtitle: `${leftName} 与 ${chartName} `, // 
     },
     xField: (d: { date: string }) => new Date(d.date),
     // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
@@ -358,14 +358,12 @@ const Home = () => {
 
 
   //  "index_csindex_all"  # 中证指数网站-指数列表
-  //  "stock_zh_index_hist_csindex"  # 中证指数
   //  "stock_zh_index_value_csindex"  # 中证指数-指数估值
   return <>
     {/* Demo */}
     {useMemo(() => <DemoDualAxes />, [])}
     {useMemo(() => <DemoDualAxes1 />, [])}
 
-    {/* todo 获取所有中证指数 stock_zh_index_hist_csindex */}
 
 
     {/* todo 恒生 */}

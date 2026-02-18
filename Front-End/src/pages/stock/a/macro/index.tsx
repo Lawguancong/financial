@@ -69,8 +69,8 @@ const Macro_china_gdp = () => {
   console.log(`${chartName} -> data`, data)
   const config = {
     title: {
-      title: chartName, // 主标题的文本新秀丽
-      subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
+      title: chartName,
+      subtitle: `${leftName} 与 ${chartName} `, // 
     },
     // xField: (d: { date: string }) => new Date(d.date),
     xField: (d: { date: string }) => d.date,
@@ -186,8 +186,8 @@ const Index_pmi_com_cx = ({ keyName, path }: { keyName: string; path: string }) 
   console.log(`${chartName} -> data`, data)
   const config = {
     title: {
-      title: chartName, // 主标题的文本新秀丽
-      subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
+      title: chartName,
+      subtitle: `${leftName} 与 ${chartName} `, // 
     },
     xField: (d: { date: string }) => new Date(d.date),
     // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
@@ -287,8 +287,8 @@ const Macro_china_ppi_yearly = () => {
   console.log(`${chartName} -> data`, data)
   const config = {
     title: {
-      title: chartName, // 主标题的文本新秀丽
-      subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
+      title: chartName,
+      subtitle: `${leftName} 与 ${chartName} `, // 
     },
     xField: (d: { date: string }) => new Date(d.date),
     // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
@@ -388,8 +388,8 @@ const Macro_china_cpi_yearly = () => {
   console.log(`${chartName} -> data`, data)
   const config = {
     title: {
-      title: chartName, // 主标题的文本新秀丽
-      subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
+      title: chartName,
+      subtitle: `${leftName} 与 ${chartName} `, // 
     },
     xField: (d: { date: string }) => new Date(d.date),
     // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
@@ -493,8 +493,8 @@ const Macro_china_lpr = () => {
   console.log(`${chartName} -> data`, data)
   const config = {
     title: {
-      title: chartName, // 主标题的文本新秀丽
-      subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
+      title: chartName,
+      subtitle: `${leftName} 与 ${chartName} `, // 
     },
     xField: (d: { date: string }) => new Date(d.date),
     // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },

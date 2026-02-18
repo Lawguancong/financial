@@ -40,8 +40,8 @@ const Stock_buffett_index_lg = () => {
   console.log('Stock_buffett_index_lg -> data', data)
   const config = {
     title: {
-      title: '巴菲特指标', // 主标题的文本新秀丽
-      subtitle: `沪深300 与 总市值/GDP `, // 副标题的文本新秀丽
+      title: '巴菲特指标',
+      subtitle: `沪深300 与 总市值/GDP `, // 
     },
     data,
     xField: (d: DataRes) => new Date(d['日期']),
@@ -90,8 +90,8 @@ const Stock_buffett_index_lg = () => {
   };
   const config1 = {
     title: {
-      title: '总市值 与 GDP', // 主标题的文本新秀丽
-      subtitle: `总市值 与 GDP`, // 副标题的文本新秀丽
+      title: '总市值 与 GDP',
+      subtitle: `总市值 与 GDP`, // 
     },
     xField: (d: DataRes) => new Date(d['日期']),
     legend: true,
@@ -180,8 +180,7 @@ const Stock_zh_index_hist_csindex = () => {
   console.log(`${chartName} -> data`, data)
   const config = {
     title: {
-      title: chartName, // 主标题的文本新秀丽
-      subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
+      title: chartName,
     },
     xField: (d: { date: string }) => new Date(d.date),
     // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
@@ -284,8 +283,8 @@ const Stock_a_gxl_lg = () => {
     console.log(`${chartName} -> data`, data)
     const config = {
       title: {
-        title: chartName, // 主标题的文本新秀丽
-        subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
+        title: chartName,
+        subtitle: `${leftName} 与 ${chartName} `, // 
       },
       xField: (d: { date: string }) => new Date(d.date),
       // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
@@ -395,8 +394,8 @@ const Stock_ebs_lg = () => {
   console.log(`${chartName} -> data`, data)
   const config = {
     title: {
-      title: chartName, // 主标题的文本新秀丽
-      subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
+      title: chartName,
+      subtitle: `${leftName} 与 ${chartName} `, // 
     },
     xField: (d: { date: string }) => new Date(d.date),
     // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
@@ -508,8 +507,8 @@ const Stock_margin_account_info = () => {
   console.log(`${chartName} -> data`, data)
   const config = {
     title: {
-      title: chartName, // 主标题的文本新秀丽
-      subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
+      title: chartName,
+      subtitle: `${leftName} 与 ${chartName} `, // 
     },
     xField: (d: { date: string }) => new Date(d.date),
     // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
@@ -611,8 +610,8 @@ const Stock_a_congestion_lg = () => {
   console.log(`${chartName} -> data`, data)
   const config = {
     title: {
-      title: chartName, // 主标题的文本新秀丽
-      subtitle: `${leftName} 与 ${chartName} `, // 副标题的文本新秀丽
+      title: chartName,
+      subtitle: `${leftName} 与 ${chartName} `, // 
     },
     xField: (d: { date: string }) => new Date(d.date),
     // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },

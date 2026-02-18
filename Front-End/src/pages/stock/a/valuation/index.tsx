@@ -359,7 +359,7 @@ const Stock_market_pb_lg = () => {
       等权市净率: '等权市净率',
       市净率中位数: '市净率中位数',
     }
-    const sampleRate = 1; // 抽样率
+    const sampleRate = 10; // 抽样率
     type DataRes = {
       [dateKey]: string;
       [leftKey]: number;
@@ -475,7 +475,7 @@ const Stock_index_pb_lg = () => {
       等权市净率: '等权市净率',
       市净率中位数: '市净率中位数',
     }
-    const sampleRate = 1; // 抽样率
+    const sampleRate = 10; // 抽样率
     type DataRes = {
       [dateKey]: string;
       [leftKey]: number;
@@ -595,7 +595,7 @@ const Stock_index_pe_lg = () => {
       滚动市盈率: '滚动市盈率',
       滚动市盈率中位数: '滚动市盈率中位数',
     }
-    const sampleRate = 1; // 抽样率
+    const sampleRate = 10; // 抽样率
     type DataRes = {
       [dateKey]: string;
       [leftKey]: number;
@@ -701,19 +701,19 @@ const Index = () => {
 
   return <>
     {/* A 股等权重与中位数市盈率 */}
-    {/* {useMemo(() => <Stock_a_ttm_lyr />, [])} */}
+    {useMemo(() => <Stock_a_ttm_lyr />, [])}
 
     {/* A 股等权重与中位数市净率 */}
-    {/* {useMemo(() => <Stock_a_all_pb />, [])} */}
+    {useMemo(() => <Stock_a_all_pb />, [])}
 
     {/* 主板市盈率 */}
-    {/* {useMemo(() => <Stock_market_pe_lg />, [])} */}
+    {useMemo(() => <Stock_market_pe_lg />, [])}
 
     {/* 主板市净率 */}
-    {/* {useMemo(() => <Stock_market_pb_lg />, [])} */}
+    {useMemo(() => <Stock_market_pb_lg />, [])}
 
     {/* 指数市净率 */}
-    {/* {useMemo(() => <Stock_index_pb_lg />, [])} */}
+    {useMemo(() => <Stock_index_pb_lg />, [])}
 
     {/* 指数市盈率 */}
     {useMemo(() => <Stock_index_pe_lg />, [])}

@@ -1,4 +1,4 @@
-import { HomeOutlined, AppstoreOutlined, LineChartOutlined, BankOutlined, StockOutlined, ShoppingOutlined, ApartmentOutlined, FundOutlined, ThunderboltOutlined, ExperimentOutlined } from '@ant-design/icons';
+import { HomeOutlined, BankOutlined, StockOutlined, ShoppingOutlined, ApartmentOutlined, FundOutlined, ThunderboltOutlined, ExperimentOutlined } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { lazy } from 'react';
 
@@ -54,7 +54,20 @@ export const menuConfigs: MenuItemConfig[] = [
             path: 'stock/a/valuation',
             component: lazy(() => import('@/pages/stock/a/valuation')),
           },
-          
+          {
+            key: 'stock/a/index',
+            label: '指数',
+            path: 'stock/a/index',
+            component: lazy(() => import('@/pages/stock/a/index')),
+            children: [
+              {
+                key: 'stock/a/index/detail',
+                label: '指数详情',
+                path: 'stock/a/index/detail',
+                component: lazy(() => import('@/pages/stock/a/index/detail')),
+              },
+            ],
+          },
         ],
       },
       {

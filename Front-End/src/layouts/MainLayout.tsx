@@ -50,7 +50,18 @@ const MainLayout: React.FC = () => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed}>
+      <Sider 
+        collapsible 
+        collapsed={collapsed} 
+        onCollapse={setCollapsed}
+        style={{
+          position: 'fixed',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          zIndex: 10,
+        }}
+      >
         <div style={{ height: 32, margin: 16, background: 'rgba(255, 255, 255, 0.2)' }} />
         <Menu
           theme="dark"
@@ -60,7 +71,7 @@ const MainLayout: React.FC = () => {
           onClick={handleMenuClick}
         />
       </Sider>
-      <Layout>
+      <Layout style={{ marginLeft: collapsed ? 80 : 200 }}>
         <Header style={{ padding: 0, background: colorBgContainer }}>
           <h1 style={{ padding: '0 24px', margin: 0, lineHeight: '64px' }}>
             金融数据分析平台
@@ -70,7 +81,7 @@ const MainLayout: React.FC = () => {
           <div
             style={{
               padding: 24,
-              minHeight: 360,
+              minHeight: 'calc(100vh - 64px - 32px)',
               background: colorBgContainer,
               borderRadius: borderRadiusLG,
             }}

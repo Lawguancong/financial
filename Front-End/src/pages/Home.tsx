@@ -2152,6 +2152,9 @@ const Home = () => {
 
     {/* todo 破净统计 stock_a_below_net_asset_statistics */}
 
+    {/* 两融账户信息 */}
+    {/* {useMemo(() => <Stock_margin_account_info />, [])} */}
+
     {/* 国内生产总值GDP */}
     {/* {useMemo(() => <Macro_china_gdp />, [])} */}
 
@@ -2167,8 +2170,6 @@ const Home = () => {
     {/* LPR品种数据 */}
     {/* {useMemo(() => <Macro_china_lpr />, [])} */}
 
-    {/* 两融账户信息 */}
-    {/* {useMemo(() => <Stock_margin_account_info />, [])} */}
 
     {/* 城镇调查失业率 */}
     {/* {useMemo(() => <Macro_china_urban_unemployment />, [])} */}

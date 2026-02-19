@@ -38,7 +38,7 @@ const IndexDetail: React.FC = () => {
     }
     setLoading(true);
     try {
-      const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_zh_index_hist_csindex?symbol=${code}&start_date=${publishDate}`);
+      const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_zh_index_hist_csindex?symbol=${code}&start_date=${publishDate}&end_date=${moment().format('YYYYMMDD')}`);
       console.log('指数详情 -> response', response);
       setData(response?.data || []);
       setIndexName(code);

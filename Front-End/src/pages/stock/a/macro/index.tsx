@@ -125,7 +125,7 @@ const Index_pmi_render = () => {
   }
 
   return (Object.keys(keysMapping) as Array<keyof typeof keysMapping>).map((keyName) => (
-    <Index_pmi_com_cx keyName={keyName} path={keysMapping[keyName]} />
+    <Index_pmi_com_cx key={keyName} keyName={keyName} path={keysMapping[keyName]} />
   ))
 
 

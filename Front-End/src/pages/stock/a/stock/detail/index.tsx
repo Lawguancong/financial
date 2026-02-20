@@ -27,6 +27,7 @@ const StockDetail: React.FC = () => {
   const [searchParams] = useSearchParams();
 
   const symbol = searchParams.get('symbol') || '';
+  const symbolName = searchParams.get('symbolName') || '';
   const period = searchParams.get('period') || 'daily'; // 'daily', 'weekly', 'monthly'
   const startDate = searchParams.get('start_date') || '';
   const endDate = searchParams.get('end_date') || '';
@@ -168,7 +169,7 @@ const StockDetail: React.FC = () => {
   return (
     <div style={{ padding: '24px' }}>
       <Card style={{ marginBottom: '16px' }}>
-        <Title level={4}>{data?.[0]?.股票代码} - {stockName} - 历史数据</Title>
+        <Title level={4}>{symbolName}({symbol}) - 历史数据</Title>
       </Card>
       <Spin spinning={loading}>
         <Table

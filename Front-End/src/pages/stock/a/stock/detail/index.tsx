@@ -4,6 +4,7 @@ import { Stock } from '@ant-design/plots';
 import axios from 'axios';
 import { useSearchParams } from 'react-router-dom';
 import moment from 'moment';
+import testData from './data.json';
 
 const { Title } = Typography;
 
@@ -23,52 +24,69 @@ interface StockDetailData {
 }
 
 const StockDetail: React.FC = () => {
-  const [data, setData] = useState<StockDetailData[]>([]);
+  const [data, setData] = useState<StockDetailData[]>(testData);
   const [loading, setLoading] = useState(false);
   const [adjust, setAdjust] = useState<string>('');
   const [period, setPeriod] = useState<string>('daily');
+  // const [startDate, setStartDate] = useState<string>(moment().subtract(60, 'month').format('YYYYMMDD'));
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>(moment().format('YYYYMMDD'));
   const [searchParams] = useSearchParams();
 
   const symbol = searchParams.get('symbol') || '';
   const symbolName = searchParams.get('symbolName') || '';
-  const startDate = searchParams.get('start_date') || '';
-  const endDate = searchParams.get('end_date') || '';
 
+  const fetchStockDetail = async () => {
+    if (!symbol) {
+      return;
+    }
+    setLoading(true);
+    try {
+      const params: Record<string, string> = {
+        symbol,
+        period,
+      };
+
+      if (startDate) params.start_date = startDate;
+      if (endDate) params.end_date = endDate;
+      if (adjust) params.adjust = adjust;
+
+      const response = await axios.get('http://127.0.0.1:8080/api/public/stock_zh_a_hist', {
+        params,
+      });
+      console.log('个股详情 -> response', response);
+      setData(response?.data || []);
+    } catch (error) {
+      console.log('error', error);
+    } finally {
+      setLoading(false);
+    }
+  };
   useEffect(() => {
-    const fetchStockDetail = async () => {
-      if (!symbol) {
-        return;
-      }
-
-      setLoading(true);
-      try {
-        const params: Record<string, string> = {
-          symbol,
-          period,
-        };
-
-        if (startDate) params.start_date = startDate;
-        if (endDate) params.end_date = endDate;
-        if (adjust) params.adjust = adjust;
-
-        const response = await axios.get('http://127.0.0.1:8080/api/public/stock_zh_a_hist', {
-          params,
-        });
-        console.log('个股详情 -> response', response);
-        setData(response?.data || []);
-      } catch (error) {
-        console.log('error', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchStockDetail();
-  }, [symbol, period, startDate, endDate, adjust]);
+    console.log('个股详情 useEffect')
+    console.log('个股详情 loading', loading)
+    // fetchStockDetail();
+  }, []);
 
   const color = (d: StockDetailData) => {
     const trend = Math.sign(d.收盘 - d.开盘);
     return trend > 0 ? '#4daf4a' : trend === 0 ? '#999999' : '#e41a1c';
+  };
+
+  const getSliderRange = () => {
+    if (data.length === 0) {
+      return [0, 1];
+    }
+
+    const oneMonthAgo = moment().subtract(6, 'month');
+    let startIndex = data.findIndex(item => moment(item.日期).isSameOrAfter(oneMonthAgo));
+
+    if (startIndex === -1) {
+      startIndex = 0;
+    }
+
+    const startRatio = startIndex / (data.length - 1);
+    return [Math.max(0, startRatio), 1];
   };
 
   const chartConfig = {
@@ -88,7 +106,25 @@ const StockDetail: React.FC = () => {
         { field: '收盘', name: '收盘价' },
         { field: '最低', name: '最低价' },
         { field: '最高', name: '最高价' },
+        { field: '成交量', name: '成交量' },
+        { field: '成交额', name: '成交额' },
+        { field: '振幅', name: '振幅' },
+        { field: '涨跌幅', name: '涨跌幅' },
+        { field: '涨跌额', name: '涨跌额' },
+        { field: '换手率', name: '换手率' },
       ],
+    },
+    slider: {
+      x: {
+        values: getSliderRange(),
+        labelFormatter: (d: string) => d,
+      },
+    },
+    interaction: {
+      sliderWheel: true, // 启用滚轮缩放交互
+      sliderFilter: {
+        adaptiveMode: 'filter', // 启用自适应
+      }
     },
   };
 

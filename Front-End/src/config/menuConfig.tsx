@@ -68,6 +68,20 @@ export const menuConfigs: MenuItemConfig[] = [
               },
             ],
           },
+          {
+            key: 'stock/a/stock',
+            label: '个股',
+            path: 'stock/a/stock',
+            component: lazy(() => import('@/pages/stock/a/stock')),
+            children: [
+              {
+                key: 'stock/a/stock/detail',
+                label: '个股详情',
+                path: 'stock/a/stock/detail',
+                component: lazy(() => import('@/pages/stock/a/stock/detail')),
+              },
+            ],
+          },
         ],
       },
       {

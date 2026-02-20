@@ -152,7 +152,7 @@ const handleNavigateToDetail = (record: StockData) => {
   const month = String(today.getMonth() + 1).padStart(2, '0');
   const day = String(today.getDate()).padStart(2, '0');
   const endDate = `${year}${month}${day}`;
-  window.open(`/stock/a/stock/detail?symbol=${record.代码}&symbolName=${record.名称}&period=daily&end_date=${endDate}`, '_blank');
+  window.open(`/stock/a/stock/detail?symbol=${record.代码}&symbolName=${record.名称}&end_date=${endDate}`, '_blank');
 };
 const columns = [
   {

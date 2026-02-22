@@ -83,6 +83,8 @@ const MainLayout: React.FC = () => {
         collapsed={collapsed} 
         onCollapse={setCollapsed}
         style={{
+          overflow: 'auto',
+          height: '100vh',
           position: 'fixed',
           left: 0,
           top: 0,

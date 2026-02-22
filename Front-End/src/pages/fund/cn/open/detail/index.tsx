@@ -9,6 +9,7 @@ import { format } from 'fecha';
 import moment from 'moment';
 import { useSetState } from 'ahooks';
 import { pick } from 'lodash-es';
+import { calculateMaxDrawdown, calculateStartDate } from '@/utils';
 
 interface FundDetailData {
   净值日期: string;
@@ -19,7 +20,7 @@ const FundOpenDetail: React.FC = () => {
   const [searchParams] = useSearchParams();
   const symbol = searchParams.get('symbol');
   const symbolName = searchParams.get('symbolName');
-  
+
 
   const [indicator, setIndicator] = useState<string>('单位净值走势');
   const [period, setPeriod] = useState<string>('成立来');
@@ -33,16 +34,16 @@ const FundOpenDetail: React.FC = () => {
   }>({ leftData: [], rightData: [] });
   const [loading, setLoading] = useState(false);
 
-   const keyMap = {
+  const keyMap = {
     '单位净值走势': {
       "日期": '净值日期',
       "数据": '单位净值',
-      sampleRate: 10,
+      sampleRate: 3,
     },
     '累计净值走势': {
       "日期": '净值日期',
       "数据": '累计净值',
-      sampleRate: 10,
+      sampleRate: 3,
     },
     '累计收益率走势': {
       "日期": '日期',
@@ -67,16 +68,17 @@ const FundOpenDetail: React.FC = () => {
     // },
   }
 
-  
+
   const chartName = indicator; // 图表名称
   const dateKey = (keyMap as Record<string, { 日期: string; 数据: string; sampleRate: number }>)[indicator].日期 // 日期键名
   const dateName = '日期' // 日期键名
   const leftKey = '最大回撤率' // 左y轴键名
   const leftName = '最大回撤率(%)' // 左y轴名称
+
   const rightKeys = { // 右y轴键名: 右y轴名称
-    "单位净值": "单位净值",
-    "累计净值": "累计净值",
-    "累计收益率": "累计收益率",
+    "单位净值": "单位净值",// 单位净值：现在卖多少钱（会因分红下跌）
+    "累计净值": "累计净值",// 累计净值：加上所有分红，看基金整体涨幅
+    "累计收益率": "累计收益率",// 累计收益率：算上分红再投资，你真正赚了多少
   }
   const sampleRate = (keyMap as Record<string, { 日期: string; 数据: string; sampleRate: number }>)[indicator].sampleRate // 抽样率
   type DataRes = {
@@ -113,7 +115,7 @@ const FundOpenDetail: React.FC = () => {
     { label: '成立来', value: '成立来' },
   ];
 
- 
+
   const fetchData = useCallback(async () => {
     if (!symbol) {
       return;
@@ -134,7 +136,7 @@ const FundOpenDetail: React.FC = () => {
       });
       console.log('基金详情 -> response', response);
       // setData(response?.data || []);
-      const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
+      const dataFormat = calculateMaxDrawdown(response?.data, keyMap[indicator].数据)?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
         date: item[dateKey],
         key,
         label: labelMap[key as keyof typeof labelMap],

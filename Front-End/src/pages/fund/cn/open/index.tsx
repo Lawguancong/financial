@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { Select, Button, Table, Card, Spin } from 'antd';
+import { Select, Button, Table, Card, Spin, Input, Typography } from 'antd';
 import axios from 'axios';
 import moment from 'moment';
 import { createRangeFilter, numberSorter } from '@/utils/tableUtils';
+
+const { Link } = Typography;
 
 interface FundData {
   序号: number;
@@ -75,6 +77,45 @@ const FundOpen: React.FC = () => {
       key: '基金代码',
       width: 120,
       fixed: 'left' as const,
+      filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }: { setSelectedKeys: (keys: React.Key[]) => void; selectedKeys: React.Key[]; confirm: () => void; clearFilters: () => void }) => (
+        <div style={{ padding: 8 }}>
+          <Input
+            placeholder="输入基金代码"
+            value={selectedKeys[0] as string}
+            onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+            onPressEnter={confirm}
+            style={{ width: 188, marginBottom: 8, display: 'block' }}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button
+              type="primary"
+              onClick={confirm}
+              size="small"
+              style={{ width: 90 }}
+            >
+              搜索
+            </Button>
+            <Button
+              onClick={() => {
+                clearFilters();
+                confirm();
+              }}
+              size="small"
+              style={{ width: 90 }}
+            >
+              重置
+            </Button>
+          </div>
+        </div>
+      ),
+      filterIcon: (filtered: boolean) => (
+        <span style={{ color: filtered ? '#1890ff' : undefined }}>🔍</span>
+      ),
+      onFilter: (value: string | number | boolean, record: FundData) => {
+        const searchValue = String(value).toLowerCase();
+        const codeValue = String(record['基金代码'] || '').toLowerCase();
+        return codeValue.includes(searchValue);
+      },
     },
     {
       title: '基金简称',
@@ -82,6 +123,53 @@ const FundOpen: React.FC = () => {
       key: '基金简称',
       width: 200,
       fixed: 'left' as const,
+      render: (name: string, record: FundData) => (
+        <Link
+          onClick={() => window.open(`/fund/cn/open/detail?symbol=${record['基金代码']}&symbolName=${encodeURIComponent(name)}`, '_blank')}
+          style={{ cursor: 'pointer', color: '#1890ff' }}
+        >
+          {name}
+        </Link>
+      ),
+      filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }: { setSelectedKeys: (keys: React.Key[]) => void; selectedKeys: React.Key[]; confirm: () => void; clearFilters: () => void }) => (
+        <div style={{ padding: 8 }}>
+          <Input
+            placeholder="输入基金简称"
+            value={selectedKeys[0] as string}
+            onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+            onPressEnter={confirm}
+            style={{ width: 188, marginBottom: 8, display: 'block' }}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button
+              type="primary"
+              onClick={confirm}
+              size="small"
+              style={{ width: 90 }}
+            >
+              搜索
+            </Button>
+            <Button
+              onClick={() => {
+                clearFilters();
+                confirm();
+              }}
+              size="small"
+              style={{ width: 90 }}
+            >
+              重置
+            </Button>
+          </div>
+        </div>
+      ),
+      filterIcon: (filtered: boolean) => (
+        <span style={{ color: filtered ? '#1890ff' : undefined }}>🔍</span>
+      ),
+      onFilter: (value: string | number | boolean, record: FundData) => {
+        const searchValue = String(value).toLowerCase();
+        const nameValue = String(record['基金简称'] || '').toLowerCase();
+        return nameValue.includes(searchValue);
+      },
     },
     {
       title: '日期',
@@ -221,8 +309,8 @@ const FundOpen: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: '24px', height: 'calc(100vh - 64px - 32px)', display: 'flex', flexDirection: 'column' }}>
-      <Card style={{ marginBottom: '16px', flexShrink: 0 }}>
+    <div style={{ padding: '24px' }}>
+      <Card style={{ marginBottom: '16px' }}>
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span>基金类型：</span>
@@ -239,13 +327,13 @@ const FundOpen: React.FC = () => {
         </div>
       </Card>
 
-      <Spin spinning={loading} style={{ flex: 1 }}>
-        <Card style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Spin spinning={loading}>
+        <Card>
           <Table
             columns={columns}
             dataSource={data}
             rowKey="序号"
-            scroll={{ x: 2000, y: 'calc(100vh - 280px)' }}
+            scroll={{ x: 2000 }}
             pagination={{
               ...pagination,
               showSizeChanger: true,

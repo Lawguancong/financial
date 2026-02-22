@@ -124,10 +124,26 @@ export const menuConfigs: MenuItemConfig[] = [
     icon: <FundOutlined />,
     children: [
       {
-        key: 'fund/open',
-        label: '开放式基金',
-        path: 'fund/open',
-        component: lazy(() => import('@/pages/fund/open')),
+        key: 'fund/cn/open',
+        label: '国内',
+        path: 'fund/cn/open',
+        children: [
+          {
+            key: 'fund/cn/open',
+            label: '开放式基金',
+            path: 'fund/cn/open',
+            component: lazy(() => import('@/pages/fund/cn/open')),
+            children: [
+              {
+                key: 'fund/cn/open/detail',
+                label: '基金详情',
+                path: 'fund/cn/open/detail',
+                component: lazy(() => import('@/pages/fund/cn/open/detail')),
+              }
+            ]
+
+          },
+        ],
       },
     ],
   },

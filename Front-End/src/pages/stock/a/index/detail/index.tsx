@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Spin, Radio } from 'antd';
+import { Spin, Radio, Tag } from 'antd';
 import { DualAxes } from '@ant-design/plots';
 import axios from 'axios';
 import moment from 'moment';
-import { calculateMaxDrawdown } from '@/utils';
+import { calculateMaxDrawdown, calculateStartDate } from '@/utils';
 
 interface IndexDetailData {
   日期: string;
@@ -33,47 +33,6 @@ const IndexDetail: React.FC = () => {
   const [data, setData] = useState<IndexDetailData[]>([]);
   const [loading, setLoading] = useState(false);
   const [timeRange, setTimeRange] = useState<string>('10年');
-  const chartName = `${data?.[0]?.指数中文简称}-滚动市盈率`; // 图表名称
-  const dateKey = '日期' // 日期键名
-  const dateName = '日期' // 日期键名
-  const leftKey = '收盘';
-  const leftName = `${data?.[0]?.指数中文简称}`;
-
-  const calculateStartDate = useCallback(() => {
-    if (!publishDate) {
-      return '';
-    }
-
-    const currentMoment = moment();
-    const publishMoment = moment(publishDate, 'YYYYMMDD');
-    let startDate = '';
-
-    switch (timeRange) {
-      case '上市以来':
-        startDate = publishMoment.format('YYYYMMDD');
-        break;
-      case '20年':
-        startDate = currentMoment.subtract(20, 'years').format('YYYYMMDD');
-        break;
-      case '10年':
-        startDate = currentMoment.subtract(10, 'years').format('YYYYMMDD');
-        break;
-      case '5年':
-        startDate = currentMoment.subtract(5, 'years').format('YYYYMMDD');
-        break;
-      case '3年':
-        startDate = currentMoment.subtract(3, 'years').format('YYYYMMDD');
-        break;
-      default:
-        startDate = currentMoment.subtract(10, 'years').format('YYYYMMDD');
-    }
-
-    if (startDate && startDate < publishDate) {
-      startDate = publishDate;
-    }
-
-    return startDate;
-  }, [timeRange, publishDate]);
 
   const fetchData = useCallback(async () => {
     if (!code) {
@@ -81,17 +40,17 @@ const IndexDetail: React.FC = () => {
     }
     setLoading(true);
     try {
-      const startDate = calculateStartDate();
+      const startDate = calculateStartDate(publishDate || '', timeRange);
       const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_zh_index_hist_csindex?symbol=${code}&start_date=${startDate}&end_date=${moment().format('YYYYMMDD')}`);
       console.log('指数详情 -> response', response);
-      const dataWithDrawdown = calculateMaxDrawdown(response?.data || [], leftKey);
-      setData(dataWithDrawdown);
+      const dataWithDrawdown = calculateMaxDrawdown(response?.data || [], '收盘');
+      setData(dataWithDrawdown as unknown as IndexDetailData[]);
     } catch (error) {
       console.log('error', error);
     } finally {
       setLoading(false);
     }
-  }, [code, calculateStartDate]);
+  }, [code, publishDate, timeRange]);
 
   console.log('指数详情 -> data', data);
 
@@ -104,10 +63,16 @@ const IndexDetail: React.FC = () => {
       return null;
     }
 
+    const latestData = data[data.length - 1];
+    const chartName = `${latestData.指数中文简称}-滚动市盈率`;
+    const dateKey = '日期';
+    const dateName = '日期';
+    const leftKey = '收盘';
+    const leftName = `${latestData.指数中文简称}`;
 
     const rightKeys = {
-      最大回撤率: '最大回撤率',
-      滚动市盈率: '滚动市盈率(%)',
+      最大回撤率: '最大回撤率(%)',
+      滚动市盈率: '滚动市盈率',
     };
 
     const labelMap = {
@@ -168,7 +133,7 @@ const IndexDetail: React.FC = () => {
         },
       ],
     };
-  }, [data, code]);
+  }, [data]);
 
   if (loading) {
     return (
@@ -189,6 +154,7 @@ const IndexDetail: React.FC = () => {
         <Radio.Group value={timeRange} onChange={(e) => setTimeRange(e.target.value)}>
           <Radio.Button value="上市以来">上市以来</Radio.Button>
           <Radio.Button value="20年">最近20年</Radio.Button>
+          <Radio.Button value="15年">最近15年</Radio.Button>
           <Radio.Button value="10年">最近10年</Radio.Button>
           <Radio.Button value="5年">最近5年</Radio.Button>
           <Radio.Button value="3年">最近3年</Radio.Button>
@@ -197,24 +163,54 @@ const IndexDetail: React.FC = () => {
 
       {data.length > 0 ? (
         <div>
-          <div style={{ marginBottom: '16px', padding: '16px', background: '#f5f5f5', borderRadius: '8px' }}>
-            <p><strong>最新数据：</strong></p>
-            <p>日期：{moment(data[0].日期).format('YYYY-MM-DD')}</p>
-            <p>指数代码：{data[0].指数代码}</p>
-            <p>指数中文全称：{data[0].指数中文全称}</p>
-            <p>指数中文简称：{data[0].指数中文简称}</p>
-            <p>指数英文全称：{data[0].指数英文全称}</p>
-            <p>指数英文简称：{data[0].指数英文简称}</p>
-            <p>开盘：{data[0].开盘}</p>
-            <p>最高：{data[0].最高}</p>
-            <p>最低：{data[0].最低}</p>
-            <p>收盘：{data[0].收盘}</p>
-            <p>涨跌：{data[0].涨跌}</p>
-            <p>涨跌幅：{data[0].涨跌幅}%</p>
-            <p>成交量：{data[0].成交量} 万手</p>
-            <p>成交金额：{data[0].成交金额} 亿元</p>
-            <p>样本数量：{data[0].样本数量}</p>
-            <p>滚动市盈率：{data[0].滚动市盈率}</p>
+          <div style={{ 
+            marginBottom: '16px', 
+            padding: '20px', 
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            borderRadius: '16px',
+            color: 'white',
+            boxShadow: '0 8px 24px rgba(102, 126, 234, 0.25)',
+            border: '1px solid rgba(255, 255, 255, 0.1)'
+          }}>
+            {(() => {
+              const latestData = data[data.length - 1];
+              return (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', fontSize: '13px', lineHeight: '1.6' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontWeight: 'bold', fontSize: '15px', letterSpacing: '0.5px' }}>最新数据</span>
+                    <Tag color="white" style={{ 
+                      color: '#667eea', 
+                      fontWeight: '600', 
+                      padding: '2px 10px',
+                      borderRadius: '6px',
+                      fontSize: '12px'
+                    }}>
+                      {moment(latestData.日期).format('YYYY-MM-DD')}
+                    </Tag>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: '500' }}>{latestData.指数中文简称}({latestData.指数代码})</span>
+                    <span>开盘：<span style={{ fontWeight: '600' }}>{latestData.开盘}</span></span>
+                    <span>最高：<span style={{ fontWeight: '600' }}>{latestData.最高}</span></span>
+                    <span>最低：<span style={{ fontWeight: '600' }}>{latestData.最低}</span></span>
+                    <span style={{ fontWeight: 'bold', fontSize: '15px', marginLeft: '8px' }}>收盘：<span style={{ fontSize: '16px' }}>{latestData.收盘}</span></span>
+                    <span style={{ 
+                      color: latestData.涨跌 >= 0 ? '#95de64' : '#ff7875', 
+                      fontWeight: 'bold',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      background: latestData.涨跌 >= 0 ? 'rgba(149, 222, 100, 0.15)' : 'rgba(255, 120, 117, 0.15)'
+                    }}>
+                      {latestData.涨跌 >= 0 ? '+' : ''}{latestData.涨跌} ({latestData.涨跌幅 >= 0 ? '+' : ''}{latestData.涨跌幅}%)
+                    </span>
+                    <span>成交量：<span style={{ fontWeight: '600' }}>{latestData.成交量}</span>万手</span>
+                    <span>成交额：<span style={{ fontWeight: '600' }}>{latestData.成交金额}</span>亿元</span>
+                    <span>滚动市盈率：<span style={{ fontWeight: '600' }}>{latestData.滚动市盈率}</span></span>
+                    <span>最大回撤率：<span style={{ fontWeight: '600' }}>{latestData.最大回撤率}</span>%</span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           <div style={{ marginTop: '24px' }}>

@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Spin } from 'antd';
+import { Spin, Radio } from 'antd';
 import { DualAxes } from '@ant-design/plots';
 import axios from 'axios';
 import moment from 'moment';
+import { calculateMaxDrawdown } from '@/utils';
 
 interface IndexDetailData {
   日期: string;
@@ -22,6 +23,7 @@ interface IndexDetailData {
   成交金额: number;
   样本数量: number;
   滚动市盈率: number;
+  最大回撤率: number;
 }
 
 const IndexDetail: React.FC = () => {
@@ -30,7 +32,48 @@ const IndexDetail: React.FC = () => {
   const publishDate = searchParams.get('publishDate');
   const [data, setData] = useState<IndexDetailData[]>([]);
   const [loading, setLoading] = useState(false);
-  const [indexName, setIndexName] = useState('');
+  const [timeRange, setTimeRange] = useState<string>('10年');
+  const chartName = `${data?.[0]?.指数中文简称}-滚动市盈率`; // 图表名称
+  const dateKey = '日期' // 日期键名
+  const dateName = '日期' // 日期键名
+  const leftKey = '收盘';
+  const leftName = `${data?.[0]?.指数中文简称}`;
+
+  const calculateStartDate = useCallback(() => {
+    if (!publishDate) {
+      return '';
+    }
+
+    const currentMoment = moment();
+    const publishMoment = moment(publishDate, 'YYYYMMDD');
+    let startDate = '';
+
+    switch (timeRange) {
+      case '上市以来':
+        startDate = publishMoment.format('YYYYMMDD');
+        break;
+      case '20年':
+        startDate = currentMoment.subtract(20, 'years').format('YYYYMMDD');
+        break;
+      case '10年':
+        startDate = currentMoment.subtract(10, 'years').format('YYYYMMDD');
+        break;
+      case '5年':
+        startDate = currentMoment.subtract(5, 'years').format('YYYYMMDD');
+        break;
+      case '3年':
+        startDate = currentMoment.subtract(3, 'years').format('YYYYMMDD');
+        break;
+      default:
+        startDate = currentMoment.subtract(10, 'years').format('YYYYMMDD');
+    }
+
+    if (startDate && startDate < publishDate) {
+      startDate = publishDate;
+    }
+
+    return startDate;
+  }, [timeRange, publishDate]);
 
   const fetchData = useCallback(async () => {
     if (!code) {
@@ -38,16 +81,19 @@ const IndexDetail: React.FC = () => {
     }
     setLoading(true);
     try {
-      const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_zh_index_hist_csindex?symbol=${code}&start_date=${publishDate}&end_date=${moment().format('YYYYMMDD')}`);
+      const startDate = calculateStartDate();
+      const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_zh_index_hist_csindex?symbol=${code}&start_date=${startDate}&end_date=${moment().format('YYYYMMDD')}`);
       console.log('指数详情 -> response', response);
-      setData(response?.data || []);
-      setIndexName(code);
+      const dataWithDrawdown = calculateMaxDrawdown(response?.data || [], leftKey);
+      setData(dataWithDrawdown);
     } catch (error) {
       console.log('error', error);
     } finally {
       setLoading(false);
     }
-  }, [code, publishDate]);
+  }, [code, calculateStartDate]);
+
+  console.log('指数详情 -> data', data);
 
   useEffect(() => {
     fetchData();
@@ -58,13 +104,10 @@ const IndexDetail: React.FC = () => {
       return null;
     }
 
-    const chartName = `${data[0].指数中文简称}-滚动市盈率`; // 图表名称
-    const dateKey = '日期' // 日期键名
-    const dateName = '日期' // 日期键名
-    const leftKey = '收盘';
-    const leftName = `${data[0].指数中文简称}`;
+
     const rightKeys = {
-      滚动市盈率: '滚动市盈率',
+      最大回撤率: '最大回撤率',
+      滚动市盈率: '滚动市盈率(%)',
     };
 
     const labelMap = {
@@ -125,7 +168,7 @@ const IndexDetail: React.FC = () => {
         },
       ],
     };
-  }, [data, indexName]);
+  }, [data, code]);
 
   if (loading) {
     return (
@@ -140,6 +183,17 @@ const IndexDetail: React.FC = () => {
       <h1 style={{ marginBottom: '24px' }}>
         {data?.[0]?.指数中文简称} - 指数详情
       </h1>
+
+      <div style={{ marginBottom: '16px', padding: '16px', background: '#f5f5f5', borderRadius: '8px' }}>
+        <p><strong>时间范围：</strong></p>
+        <Radio.Group value={timeRange} onChange={(e) => setTimeRange(e.target.value)}>
+          <Radio.Button value="上市以来">上市以来</Radio.Button>
+          <Radio.Button value="20年">最近20年</Radio.Button>
+          <Radio.Button value="10年">最近10年</Radio.Button>
+          <Radio.Button value="5年">最近5年</Radio.Button>
+          <Radio.Button value="3年">最近3年</Radio.Button>
+        </Radio.Group>
+      </div>
 
       {data.length > 0 ? (
         <div>

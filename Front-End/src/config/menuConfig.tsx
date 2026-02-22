@@ -122,8 +122,14 @@ export const menuConfigs: MenuItemConfig[] = [
     key: 'fund',
     label: '基金',
     icon: <FundOutlined />,
-    path: 'fund',
-    component: lazy(() => import('@/pages/Fund')),
+    children: [
+      {
+        key: 'fund/open',
+        label: '开放式基金',
+        path: 'fund/open',
+        component: lazy(() => import('@/pages/FundOpen')),
+      },
+    ],
   },
   {
     key: 'futures',

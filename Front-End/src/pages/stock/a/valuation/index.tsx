@@ -699,24 +699,25 @@ const Stock_index_pe_lg = () => {
 
 const Index = () => {
 
+  // todo 拆分 指数市盈率 与 指数市净率
   return <>
     {/* A 股等权重与中位数市盈率 */}
-    {useMemo(() => <Stock_a_ttm_lyr />, [])}
+    {/* {useMemo(() => <Stock_a_ttm_lyr />, [])} */}
 
     {/* A 股等权重与中位数市净率 */}
-    {useMemo(() => <Stock_a_all_pb />, [])}
+    {/* {useMemo(() => <Stock_a_all_pb />, [])} */}
 
     {/* 主板市盈率 */}
-    {useMemo(() => <Stock_market_pe_lg />, [])}
+    {/* {useMemo(() => <Stock_market_pe_lg />, [])} */}
 
     {/* 主板市净率 */}
-    {useMemo(() => <Stock_market_pb_lg />, [])}
+    {/* {useMemo(() => <Stock_market_pb_lg />, [])} */}
 
     {/* 指数市净率 */}
-    {useMemo(() => <Stock_index_pb_lg />, [])}
+    {/* {useMemo(() => <Stock_index_pb_lg />, [])} */}
 
     {/* 指数市盈率 */}
-    {useMemo(() => <Stock_index_pe_lg />, [])}
+    {/* {useMemo(() => <Stock_index_pe_lg />, [])} */}
   </>
 };
 

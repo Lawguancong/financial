@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Spin, Typography, Card, Radio } from 'antd';
 import { Stock } from '@ant-design/plots';
 import axios from 'axios';
@@ -24,10 +24,12 @@ interface StockDetailData {
 }
 
 const StockDetail: React.FC = () => {
-  const [data, setData] = useState<StockDetailData[]>(testData);
   const [loading, setLoading] = useState(false);
   const [adjust, setAdjust] = useState<string>('');
   const [period, setPeriod] = useState<string>('daily');
+  const [data, setData] = useState<StockDetailData[]>(testData[period as 'daily' | 'weekly' | 'monthly'] || []);
+  // const [data, setData] = useState<StockDetailData[]>([]);
+
   // const [startDate, setStartDate] = useState<string>(moment().subtract(60, 'month').format('YYYYMMDD'));
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>(moment().format('YYYYMMDD'));
@@ -65,8 +67,9 @@ const StockDetail: React.FC = () => {
   useEffect(() => {
     console.log('个股详情 useEffect')
     console.log('个股详情 loading', loading)
+    // todo useEffect 执行2次，导致请求2次接口，2次setSate渲染，导致图表渲染2次，图表有bug
     // fetchStockDetail();
-  }, []);
+  }, [symbol, period]);
 
   const color = (d: StockDetailData) => {
     const trend = Math.sign(d.收盘 - d.开盘);
@@ -114,6 +117,9 @@ const StockDetail: React.FC = () => {
         { field: '换手率', name: '换手率' },
       ],
     },
+    axis: {
+      x: false
+    },
     slider: {
       x: {
         values: getSliderRange(),
@@ -127,6 +133,8 @@ const StockDetail: React.FC = () => {
       }
     },
   };
+
+  console.log('render渲染 个股详情')
 
   return (
     <div style={{ padding: '24px' }}>

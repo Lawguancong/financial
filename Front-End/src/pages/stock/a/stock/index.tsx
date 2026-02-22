@@ -47,7 +47,8 @@ const createRangeFilter = (dataKey: keyof StockData) => ({
         minValue = parsed.min;
         maxValue = parsed.max;
       }
-    } catch {
+    } catch (e) {
+      console.error('解析筛选值失败', e);
     }
     
     return (
@@ -105,7 +106,8 @@ const createRangeFilter = (dataKey: keyof StockData) => ({
       const parsed = JSON.parse(String(value)) as RangeFilterValue;
       minValue = parsed.min;
       maxValue = parsed.max;
-    } catch {
+    } catch (e) {
+      console.error('解析筛选值失败', e);
     }
     
     const recordValue = record[dataKey];
@@ -193,7 +195,7 @@ const columns = [
     width: 120,
     sorter: numberSorter('换手率'),
     ...createRangeFilter('换手率'),
-  } as any,
+  } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
   {
     title: '市盈率(动态)',
     dataIndex: '市盈率-动态',
@@ -201,7 +203,7 @@ const columns = [
     width: 140,
     sorter: numberSorter('市盈率-动态'),
     ...createRangeFilter('市盈率-动态'),
-  } as any,
+  } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
   {
     title: '市净率',
     dataIndex: '市净率',
@@ -209,7 +211,7 @@ const columns = [
     width: 100,
     sorter: numberSorter('市净率'),
     ...createRangeFilter('市净率'),
-  } as any,
+  } as any, // eslint-disable-line @typescript-eslint/no-explicit-any,
   {
     title: '总市值(元)',
     dataIndex: '总市值',
@@ -345,6 +347,10 @@ const columns = [
 const Stock: React.FC = () => {
   const [data, setData] = useState<StockData[]>([]);
   const [loading, setLoading] = useState(false);
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 20,
+  });
 
 
 
@@ -387,7 +393,7 @@ const Stock: React.FC = () => {
 
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div style={{ padding: '24px', height: 'calc(100vh - 64px - 32px)', display: 'flex', flexDirection: 'column' }}>
       {useMemo(() => (
         <Table
           columns={columns}
@@ -395,9 +401,19 @@ const Stock: React.FC = () => {
           loading={loading}
           rowKey="代码"
           scroll={{ x: 3000, y: 'calc(100vh - 200px)' }}
-          pagination={false}
+          pagination={{
+            ...pagination,
+            showSizeChanger: true,
+            showTotal: (total) => `共 ${total} 条`,
+            onChange: (page, pageSize) => {
+              setPagination({ current: page, pageSize });
+            },
+            onShowSizeChange: (current, size) => {
+              setPagination({ current: 1, pageSize: size });
+            },
+          }}
         />
-      ), [data, loading])}
+      ), [data, loading, pagination])}
     </div>
   );
 };

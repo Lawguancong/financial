@@ -34,19 +34,14 @@ const stringSorter = (key: keyof IndexData) => (a: IndexData, b: IndexData) => {
 const Index: React.FC = () => {
   const [data, setData] = useState<IndexData[]>([]);
   const [loading, setLoading] = useState(false);
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 20,
+  });
 
   const getUniqueValues = (data: IndexData[], key: keyof IndexData): string[] => {
     return Array.from(new Set(data.map(item => String(item[key] || ''))))
       .filter(value => value !== 'null' && value !== 'undefined')
-      .sort();
-  };
-
-  const getUniqueDateValues = (data: IndexData[], key: keyof IndexData): string[] => {
-    return Array.from(new Set(data.map(item => {
-      const date = item[key];
-      return date ? moment(date).format('YYYY-MM-DD') : '';
-    })))
-      .filter(value => value !== 'null' && value !== 'undefined' && value !== '')
       .sort();
   };
 
@@ -83,7 +78,6 @@ const Index: React.FC = () => {
       fixed: 'left' as const,
       sorter: stringSorter('发布时间'),
       render: (text: string) => text ? moment(text).format('YYYY-MM-DD') : '',
-      // filters: getUniqueDateValues(data, '发布时间').map(value => ({ text: value, value })),
     },
     {
       title: '指数类别',
@@ -93,7 +87,7 @@ const Index: React.FC = () => {
       sorter: stringSorter('指数类别'),
       filters: getUniqueValues(data, '指数类别').map(value => ({ text: value, value })),
       onFilter: (value: React.Key, record: IndexData) => record['指数类别']?.includes(value as string),
-    },
+    } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     {
       title: '基点',
       dataIndex: '基点',
@@ -137,14 +131,24 @@ const Index: React.FC = () => {
 
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div style={{ padding: '24px', height: 'calc(100vh - 64px - 32px)', display: 'flex', flexDirection: 'column' }}>
       <Table
         columns={columns}
         dataSource={data}
         loading={loading}
         rowKey="指数代码"
         scroll={{ x: 2000, y: 'calc(100vh - 200px)' }}
-        pagination={false}
+        pagination={{
+          ...pagination,
+          showSizeChanger: true,
+          showTotal: (total) => `共 ${total} 条`,
+          onChange: (page, pageSize) => {
+            setPagination({ current: page, pageSize });
+          },
+          onShowSizeChange: (current, size) => {
+            setPagination({ current: 1, pageSize: size });
+          },
+        }}
       />
     </div>
   );

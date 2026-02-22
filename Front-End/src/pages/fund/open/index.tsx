@@ -25,12 +25,12 @@ interface FundData {
   手续费: string;
 }
 
-const FundIndividual: React.FC = () => {
+const FundOpen: React.FC = () => {
   const [fundType, setFundType] = useState<string>('全部');
   const [data, setData] = useState<FundData[]>([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({
-    current: 1,
+    current:1,
     pageSize: 20,
   });
 
@@ -52,7 +52,7 @@ const FundIndividual: React.FC = () => {
           symbol: fundType,
         },
       });
-      console.log('个基 -> response', response);
+      console.log('开放式基金 -> response', response);
       setData(response?.data || []);
     } catch (error) {
       console.log('error', error);
@@ -221,8 +221,8 @@ const FundIndividual: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: '24px' }}>
-      <Card style={{ marginBottom: '16px' }}>
+    <div style={{ padding: '24px', height: 'calc(100vh - 64px - 32px)', display: 'flex', flexDirection: 'column' }}>
+      <Card style={{ marginBottom: '16px', flexShrink: 0 }}>
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span>基金类型：</span>
@@ -239,13 +239,13 @@ const FundIndividual: React.FC = () => {
         </div>
       </Card>
 
-      <Spin spinning={loading}>
-        <Card>
+      <Spin spinning={loading} style={{ flex: 1 }}>
+        <Card style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
           <Table
             columns={columns}
             dataSource={data}
             rowKey="序号"
-            scroll={{ x: 2000 }}
+            scroll={{ x: 2000, y: 'calc(100vh - 280px)' }}
             pagination={{
               ...pagination,
               showSizeChanger: true,
@@ -264,4 +264,4 @@ const FundIndividual: React.FC = () => {
   );
 };
 
-export default FundIndividual;
+export default FundOpen;

@@ -127,7 +127,7 @@ export const menuConfigs: MenuItemConfig[] = [
         key: 'fund/open',
         label: '开放式基金',
         path: 'fund/open',
-        component: lazy(() => import('@/pages/FundOpen')),
+        component: lazy(() => import('@/pages/fund/open')),
       },
     ],
   },

@@ -14,7 +14,7 @@ const FundOpenDetail: React.FC = () => {
   const symbolName = searchParams.get('symbolName');
 
 
-  const [indicator, setIndicator] = useState<string>('累计净值走势');
+  const [indicator, setIndicator] = useState<string>('累计收益率走势');
   const [period, setPeriod] = useState<string>('成立来');
   const [timeRange, setTimeRange] = useState<string>('上市以来');
   const [data, setData] = useState<{
@@ -27,6 +27,7 @@ const FundOpenDetail: React.FC = () => {
   }>({ leftData: [], rightData: [] });
   const [loading, setLoading] = useState(false);
 
+  // todo 修复累计收益率的 年化收益率 没有时间范围，
   const keyMap: Record<string, { 日期: string; 数据: string; sampleRate: number }> = {
     '单位净值走势': {
       "日期": '净值日期',
@@ -71,9 +72,6 @@ const FundOpenDetail: React.FC = () => {
   const rightKeys = { // 右y轴键名: 右y轴名称
     "最大回撤率": '最大回撤率(%)',
     "年化收益率": "年化收益率(%)",// 
-    // "单位净值": "单位净值",
-    // "累计净值": "累计净值",
-    // "累计收益率": "累计收益率",
   }
   const sampleRate = keyMap[indicator].sampleRate // 抽样率
   type DataRes = {
@@ -252,6 +250,8 @@ const FundOpenDetail: React.FC = () => {
               />
             </div>
           )}
+          {indicator !== '累计收益率走势' && (
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span>时间范围：</span>
             <Select
@@ -261,6 +261,7 @@ const FundOpenDetail: React.FC = () => {
               options={timeRangeOptions}
             />
           </div>
+          )}
           <Button type="primary" onClick={fetchData} loading={loading}>
             搜索
           </Button>

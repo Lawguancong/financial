@@ -5,6 +5,7 @@ export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
   leftKey: string = '收盘',
   dateKey: string = '日期'
 ): (T & { 最大回撤率: number; 年化收益率: number | null })[] => {
+  console.log('11111 leftKey', leftKey);
   if (!data || data.length === 0) {
     return [];
   }
@@ -21,29 +22,29 @@ export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
       maxClose = closePrice;
     }
 
-    const drawdown = (maxClose - closePrice) / maxClose;
+    let drawdown: number | null = null;
+    if (leftKey === '累计收益率') {
+      drawdown = ((maxClose + 100) - (closePrice+100)) / (maxClose + 100);
+
+    } else {
+      drawdown = (maxClose - closePrice) / maxClose;
+    }
     const drawdownPercent = parseFloat((drawdown * 100).toFixed(2));
 
     const days = moment(currentDate, 'YYYYMMDD').diff(moment(firstDate, 'YYYYMMDD'), 'days');
-    
-    // console.log('年化收益率计算:', {
-    //   firstDate,
-    //   currentDate,
-    //   days,
-    //   firstClose,
-    //   closePrice,
-    //   ratio: closePrice / firstClose,
-    //   annualizedRate: days > 365 ? Math.pow(closePrice / firstClose, 365 / days) - 1 : null,
-    // });
-    
     let annualizedRate: number | null = null;
     if (days > 365) {
-      annualizedRate = parseFloat((Math.pow(closePrice / firstClose, 365 / days) - 1).toFixed(4));
+      if (leftKey === '累计收益率') {
+        annualizedRate = parseFloat((Math.pow((closePrice / 100) + 1, 365 / days) - 1).toFixed(4));
+      } else {
+        annualizedRate = parseFloat((Math.pow(closePrice / firstClose, 365 / days) - 1).toFixed(4));
+      }
+
     }
 
     return {
       ...item,
-      最大回撤率: drawdownPercent,
+      最大回撤率: -drawdownPercent,
       年化收益率: annualizedRate !== null ? annualizedRate * 100 : null,
     };
   });

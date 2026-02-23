@@ -4,7 +4,7 @@ export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
   data: T[],
   leftKey: string = '收盘',
   dateKey: string = '日期'
-): (T & { 最大回撤率: number; 年化收益率: number })[] => {
+): (T & { 最大回撤率: number; 年化收益率: number | null })[] => {
   if (!data || data.length === 0) {
     return [];
   }
@@ -25,18 +25,26 @@ export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
     const drawdownPercent = parseFloat((drawdown * 100).toFixed(2));
 
     const days = moment(currentDate, 'YYYYMMDD').diff(moment(firstDate, 'YYYYMMDD'), 'days');
-    // console.log('firstDate 11', firstDate)
-    // console.log('currentDate 11', currentDate)
-    // console.log('days 11', days)
-    let annualizedRate = 0;
-    if (days > 0) {
+    
+    // console.log('年化收益率计算:', {
+    //   firstDate,
+    //   currentDate,
+    //   days,
+    //   firstClose,
+    //   closePrice,
+    //   ratio: closePrice / firstClose,
+    //   annualizedRate: days > 365 ? Math.pow(closePrice / firstClose, 365 / days) - 1 : null,
+    // });
+    
+    let annualizedRate: number | null = null;
+    if (days > 365) {
       annualizedRate = parseFloat((Math.pow(closePrice / firstClose, 365 / days) - 1).toFixed(4));
     }
 
     return {
       ...item,
       最大回撤率: drawdownPercent,
-      年化收益率: annualizedRate * 100,
+      年化收益率: annualizedRate !== null ? annualizedRate * 100 : null,
     };
   });
 };
@@ -50,12 +58,11 @@ export const calculateStartDate = (
   }
 
   const currentMoment = moment();
-  const publishMoment = moment(publishDate, 'YYYYMMDD');
   let startDate = '';
 
   switch (timeRange) {
     case '上市以来':
-      startDate = publishMoment.format('YYYYMMDD');
+      startDate = moment(publishDate).format('YYYYMMDD');
       break;
     case '20年':
       startDate = currentMoment.subtract(20, 'years').format('YYYYMMDD');

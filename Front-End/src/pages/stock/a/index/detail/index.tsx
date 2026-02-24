@@ -23,7 +23,8 @@ interface IndexDetailData {
   成交金额: number;
   样本数量: number;
   滚动市盈率: number;
-  最大回撤率: number;
+  __最大回撤率__: number;
+  __年化收益率__: number | null;
 }
 
 const IndexDetail: React.FC = () => {
@@ -71,7 +72,8 @@ const IndexDetail: React.FC = () => {
     const leftName = `${latestData.指数中文简称}`;
 
     const rightKeys = {
-      最大回撤率: '最大回撤率(%)',
+      __最大回撤率__: '最大回撤率(%)',
+      __年化收益率__: '年化收益率(%)',
       滚动市盈率: '滚动市盈率',
     };
 
@@ -206,7 +208,7 @@ const IndexDetail: React.FC = () => {
                     <span>成交量：<span style={{ fontWeight: '600' }}>{latestData.成交量}</span>万手</span>
                     <span>成交额：<span style={{ fontWeight: '600' }}>{latestData.成交金额}</span>亿元</span>
                     <span>滚动市盈率：<span style={{ fontWeight: '600' }}>{latestData.滚动市盈率}</span></span>
-                    <span>最大回撤率：<span style={{ fontWeight: '600' }}>{latestData.最大回撤率}</span>%</span>
+                    <span>动态回撤率：<span style={{ fontWeight: '600' }}>{latestData.__最大回撤率__}</span>%</span>
                   </div>
                 </div>
               );

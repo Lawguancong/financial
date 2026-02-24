@@ -70,8 +70,8 @@ const FundOpenDetail: React.FC = () => {
   const leftName = keyMap[indicator].数据 // 左y轴名称
 
   const rightKeys = { // 右y轴键名: 右y轴名称
-    "最大回撤率": '最大回撤率(%)',
-    "年化收益率": "年化收益率(%)",// 
+    "__最大回撤率__": '最大回撤率(%)',
+    "__年化收益率__": "年化收益率(%)",// 
   }
   const sampleRate = keyMap[indicator].sampleRate // 抽样率
   type DataRes = {
@@ -117,6 +117,11 @@ const FundOpenDetail: React.FC = () => {
     { label: '最近3年', value: '3年' },
   ];
 
+
+  const handleChangeIndicator = async (value: string) => {
+    await setTimeRange('上市以来');
+    await setIndicator(value);
+  }
 
   const fetchData = useCallback(async () => {
     if (!symbol) {
@@ -235,7 +240,7 @@ const FundOpenDetail: React.FC = () => {
             <Select
               style={{ width: 200 }}
               value={indicator}
-              onChange={setIndicator}
+              onChange={handleChangeIndicator}
               options={indicatorOptions}
             />
           </div>

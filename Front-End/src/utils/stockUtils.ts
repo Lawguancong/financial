@@ -4,7 +4,7 @@ export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
   data: T[],
   leftKey: string = '收盘',
   dateKey: string = '日期'
-): (T & { 最大回撤率: number; 年化收益率: number | null })[] => {
+): (T & { __最大回撤率__: number; __年化收益率__: number | null })[] => {
   console.log('11111 leftKey', leftKey);
   if (!data || data.length === 0) {
     return [];
@@ -44,8 +44,8 @@ export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
 
     return {
       ...item,
-      最大回撤率: -drawdownPercent,
-      年化收益率: annualizedRate !== null ? annualizedRate * 100 : null,
+      ['__最大回撤率__']: -drawdownPercent,
+      __年化收益率__: annualizedRate !== null ? annualizedRate * 100 : null,
     };
   });
 };

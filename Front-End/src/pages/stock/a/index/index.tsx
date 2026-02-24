@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Table, Typography } from 'antd';
+import { Table, Typography, Input, Button } from 'antd';
 import axios from 'axios';
 import moment from 'moment';
 
@@ -50,17 +50,95 @@ const Index: React.FC = () => {
       title: '指数代码',
       dataIndex: '指数代码',
       key: '指数代码',
-      width: 20,
-      fixed: 'left' as const,
+      width: 60,
+      // fixed: 'left' as const,
       sorter: stringSorter('指数代码'),
+      filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }: { setSelectedKeys: (keys: React.Key[]) => void; selectedKeys: React.Key[]; confirm: () => void; clearFilters: () => void }) => (
+        <div style={{ padding: 8 }}>
+          <Input
+            placeholder="输入指数代码"
+            value={selectedKeys[0] as string}
+            onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+            onPressEnter={confirm}
+            style={{ width: 188, marginBottom: 8, display: 'block' }}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button
+              type="primary"
+              onClick={confirm}
+              size="small"
+              style={{ width: 90 }}
+            >
+              搜索
+            </Button>
+            <Button
+              onClick={() => {
+                clearFilters();
+                confirm();
+              }}
+              size="small"
+              style={{ width: 90 }}
+            >
+              重置
+            </Button>
+          </div>
+        </div>
+      ),
+      filterIcon: (filtered: boolean) => (
+        <span style={{ color: filtered ? '#1890ff' : undefined }}>🔍</span>
+      ),
+      onFilter: (value: string | number | boolean, record: IndexData) => {
+        const searchValue = String(value).toLowerCase();
+        const codeValue = String(record['指数代码'] || '').toLowerCase();
+        return codeValue.includes(searchValue);
+      },
     },
     {
       title: '指数简称',
       dataIndex: '指数简称',
       key: '指数简称',
-      width: 20,
-      fixed: 'left' as const,
+      width: 60,
+      // fixed: 'left' as const,
       sorter: stringSorter('指数简称'),
+      filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }: { setSelectedKeys: (keys: React.Key[]) => void; selectedKeys: React.Key[]; confirm: () => void; clearFilters: () => void }) => (
+        <div style={{ padding: 8 }}>
+          <Input
+            placeholder="输入指数简称"
+            value={selectedKeys[0] as string}
+            onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+            onPressEnter={confirm}
+            style={{ width: 188, marginBottom: 8, display: 'block' }}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button
+              type="primary"
+              onClick={confirm}
+              size="small"
+              style={{ width: 90 }}
+            >
+              搜索
+            </Button>
+            <Button
+              onClick={() => {
+                clearFilters();
+                confirm();
+              }}
+              size="small"
+              style={{ width: 90 }}
+            >
+              重置
+            </Button>
+          </div>
+        </div>
+      ),
+      filterIcon: (filtered: boolean) => (
+        <span style={{ color: filtered ? '#1890ff' : undefined }}>🔍</span>
+      ),
+      onFilter: (value: string | number | boolean, record: IndexData) => {
+        const searchValue = String(value).toLowerCase();
+        const nameValue = String(record['指数简称'] || '').toLowerCase();
+        return nameValue.includes(searchValue);
+      },
       render: (name: string, record: IndexData) => (
         <Link
           onClick={() => window.open(`/stock/a/index/detail?code=${record['指数代码']}&publishDate=${record['发布时间'] ? moment(record['发布时间']).format('YYYYMMDD') : ''}`)}
@@ -74,8 +152,8 @@ const Index: React.FC = () => {
       title: '发布时间',
       dataIndex: '发布时间',
       key: '发布时间',
-      width: 20,
-      fixed: 'left' as const,
+      width: 60,
+      // fixed: 'left' as const,
       sorter: stringSorter('发布时间'),
       render: (text: string) => text ? moment(text).format('YYYY-MM-DD') : '',
     },
@@ -83,7 +161,7 @@ const Index: React.FC = () => {
       title: '指数类别',
       dataIndex: '指数类别',
       key: '指数类别',
-      width: 20,
+      width: 60,
       sorter: stringSorter('指数类别'),
       filters: getUniqueValues(data, '指数类别').map(value => ({ text: value, value })),
       onFilter: (value: React.Key, record: IndexData) => record['指数类别']?.includes(value as string),

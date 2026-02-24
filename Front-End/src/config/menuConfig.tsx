@@ -20,13 +20,13 @@ export const menuConfigs: MenuItemConfig[] = [
     path: 'home',
     component: lazy(() => import('@/pages/Home')),
   },
-  {
-    key: 'bond',
-    label: '债券',
-    icon: <BankOutlined />,
-    path: 'bond',
-    component: lazy(() => import('@/pages/Bond')),
-  },
+  // {
+  //   key: 'bond',
+  //   label: '债券',
+  //   icon: <BankOutlined />,
+  //   path: 'bond',
+  //   component: lazy(() => import('@/pages/Bond')),
+  // },
   {
     key: 'stock',
     label: '股票',
@@ -84,40 +84,40 @@ export const menuConfigs: MenuItemConfig[] = [
           },
         ],
       },
-      {
-        key: 'stock/hk',
-        label: '港股',
-        path: 'stock/hk',
-        component: lazy(() => import('@/pages/StockHK')),
-      },
-      {
-        key: 'stock/us',
-        label: '美股',
-        path: 'stock/us',
-        component: lazy(() => import('@/pages/StockUS')),
-      },
-      {
-        key: 'stock/other',
-        label: '其它',
-        path: 'stock/other',
-        component: lazy(() => import('@/pages/StockOther')),
-      },
+      // {
+      //   key: 'stock/hk',
+      //   label: '港股',
+      //   path: 'stock/hk',
+      //   component: lazy(() => import('@/pages/StockHK')),
+      // },
+      // {
+      //   key: 'stock/us',
+      //   label: '美股',
+      //   path: 'stock/us',
+      //   component: lazy(() => import('@/pages/StockUS')),
+      // },
+      // {
+      //   key: 'stock/other',
+      //   label: '其它',
+      //   path: 'stock/other',
+      //   component: lazy(() => import('@/pages/StockOther')),
+      // },
     ],
   },
-  {
-    key: 'commodity',
-    label: '大宗商品',
-    icon: <ShoppingOutlined />,
-    path: 'commodity',
-    component: lazy(() => import('@/pages/Commodity')),
-  },
-  {
-    key: 'realestate',
-    label: '房地产',
-    icon: <ApartmentOutlined />,
-    path: 'realestate',
-    component: lazy(() => import('@/pages/RealEstate')),
-  },
+  // {
+  //   key: 'commodity',
+  //   label: '大宗商品',
+  //   icon: <ShoppingOutlined />,
+  //   path: 'commodity',
+  //   component: lazy(() => import('@/pages/Commodity')),
+  // },
+  // {
+  //   key: 'realestate',
+  //   label: '房地产',
+  //   icon: <ApartmentOutlined />,
+  //   path: 'realestate',
+  //   component: lazy(() => import('@/pages/RealEstate')),
+  // },
   {
     key: 'fund',
     label: '基金',
@@ -147,38 +147,38 @@ export const menuConfigs: MenuItemConfig[] = [
       },
     ],
   },
-  {
-    key: 'futures',
-    label: '期货',
-    icon: <ThunderboltOutlined />,
-    path: 'futures',
-    component: lazy(() => import('@/pages/Futures')),
-  },
-  {
-    key: 'options',
-    label: '期权',
-    icon: <ExperimentOutlined />,
-    path: 'options',
-    component: lazy(() => import('@/pages/Options')),
-  },
-  {
-    key: 'other/level1',
-    label: '其它/一级',
-    children: [
-      {
-        key: 'other/level2',
-        label: '其它/二级',
-        children: [
-          {
-            key: 'other/level3',
-            label: '其它/三级',
-            path: 'other/level3',
-            component: lazy(() => import('@/pages/OtherLevel3')),
-          },
-        ],
-      },
-    ],
-  },
+  // {
+  //   key: 'futures',
+  //   label: '期货',
+  //   icon: <ThunderboltOutlined />,
+  //   path: 'futures',
+  //   component: lazy(() => import('@/pages/Futures')),
+  // },
+  // {
+  //   key: 'options',
+  //   label: '期权',
+  //   icon: <ExperimentOutlined />,
+  //   path: 'options',
+  //   component: lazy(() => import('@/pages/Options')),
+  // },
+  // {
+  //   key: 'other/level1',
+  //   label: '其它/一级',
+  //   children: [
+  //     {
+  //       key: 'other/level2',
+  //       label: '其它/二级',
+  //       children: [
+  //         {
+  //           key: 'other/level3',
+  //           label: '其它/三级',
+  //           path: 'other/level3',
+  //           component: lazy(() => import('@/pages/OtherLevel3')),
+  //         },
+  //       ],
+  //     },
+  //   ],
+  // },
 ];
 
 export const routeConfigs = (() => {

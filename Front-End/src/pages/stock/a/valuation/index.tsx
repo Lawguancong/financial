@@ -1,12 +1,9 @@
-import { Line } from '@ant-design/plots';
 import { DualAxes } from '@ant-design/plots';
-import React, { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
-import { createRoot } from 'react-dom/client';
-import { format } from 'fecha';
-import moment from 'moment';
-import { useSetState } from 'ahooks';
 import { pick } from 'lodash-es';
+import { Tabs ,Button,} from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
 
 
 const Stock_a_ttm_lyr = () => {
@@ -698,27 +695,110 @@ const Stock_index_pe_lg = () => {
 
 
 const Index = () => {
+  const [activeKey, setActiveKey] = useState('1');
+  const [refreshKeys, setRefreshKeys] = useState({
+    '1': 0,
+    '2': 0,
+    '3': 0,
+    '4': 0,
+    '5': 0,
+    '6': 0,
+  });
 
-  // todo 拆分 指数市盈率 与 指数市净率
-  return <>
-    {/* A 股等权重与中位数市盈率 */}
-    {/* {useMemo(() => <Stock_a_ttm_lyr />, [])} */}
+  console.log('refreshKeys, ', refreshKeys)
 
-    {/* A 股等权重与中位数市净率 */}
-    {/* {useMemo(() => <Stock_a_all_pb />, [])} */}
+  const items = [
+    {
+      key: '1',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>A 股等权重与中位数市盈率</span>
+          <Button 
+            icon={<ReloadOutlined />} 
+            size="small" 
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '1': prev['1'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <Stock_a_ttm_lyr key={refreshKeys['1']} />, [refreshKeys['1']]),
+    },
+    {
+      key: '2',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>A 股等权重与中位数市净率</span>
+          <Button 
+            icon={<ReloadOutlined />} 
+            size="small" 
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '2': prev['2'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <Stock_a_all_pb key={refreshKeys['2']} />, [refreshKeys['2']]),
+    },
+    {
+      key: '3',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>主板市盈率</span>
+          <Button 
+            icon={<ReloadOutlined />} 
+            size="small" 
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '3': prev['3'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <Stock_market_pe_lg key={refreshKeys['3']} />, [refreshKeys['3']]),
+    },
+    {
+      key: '4',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>主板市净率</span>
+          <Button 
+            icon={<ReloadOutlined />} 
+            size="small" 
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '4': prev['4'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <Stock_market_pb_lg key={refreshKeys['4']} />, [refreshKeys['4']]),
+    },
+    {
+      key: '5',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>指数市净率</span>
+          <Button 
+            icon={<ReloadOutlined />} 
+            size="small" 
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '5': prev['5'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <Stock_index_pb_lg key={refreshKeys['5']} />, [refreshKeys['5']]),
+    },
+    {
+      key: '6',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>指数市盈率</span>
+          <Button 
+            icon={<ReloadOutlined />} 
+            size="small" 
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '6': prev['6'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <Stock_index_pe_lg key={refreshKeys['6']} />, [refreshKeys['6']]),
+    },
+  ];
 
-    {/* 主板市盈率 */}
-    {/* {useMemo(() => <Stock_market_pe_lg />, [])} */}
-
-    {/* 主板市净率 */}
-    {/* {useMemo(() => <Stock_market_pb_lg />, [])} */}
-
-    {/* 指数市净率 */}
-    {/* {useMemo(() => <Stock_index_pb_lg />, [])} */}
-
-    {/* 指数市盈率 */}
-    {/* {useMemo(() => <Stock_index_pe_lg />, [])} */}
-  </>
+  return (
+    <div style={{ padding: '24px' }}>
+      <Tabs activeKey={activeKey} items={items} onChange={setActiveKey} />
+    </div>
+  );
 };
 
 export default Index;

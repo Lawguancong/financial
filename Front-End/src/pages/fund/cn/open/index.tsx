@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Select, Button, Table, Card, Spin, Input, Typography } from 'antd';
-import axios from 'axios';
+import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { createRangeFilter, numberSorter } from '@/utils/tableUtils';
 
@@ -49,7 +49,7 @@ const FundOpen: React.FC = () => {
   const fetchFundData = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('http://127.0.0.1:8080/api/public/fund_open_fund_rank_em', {
+      const response = await apiClient.get('/api/public/fund_open_fund_rank_em', {
         params: {
           symbol: fundType,
         },

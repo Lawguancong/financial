@@ -1,7 +1,7 @@
 import { Line } from '@ant-design/plots';
 import { DualAxes } from '@ant-design/plots';
 import React, { useEffect, useState, useMemo } from 'react';
-import axios from 'axios';
+import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { pick } from 'lodash-es';
 
@@ -45,7 +45,7 @@ const Macro_china_gdp = () => {
   }>({ leftData: [], rightData: [] });
   const fetchData = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8080/api/public/macro_china_gdp')
+      const response = await apiClient.get('/api/public/macro_china_gdp')
       console.log(`${chartName} -> response`, response)
       const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
         date: item[dateKey],
@@ -162,7 +162,7 @@ const Index_pmi_com_cx = ({ keyName, path }: { keyName: string; path: string }) 
   }>({ leftData: [], rightData: [] });
   const fetchData = async () => {
     try {
-      const response = await axios.get(`http://127.0.0.1:8080/api/public/${path}`)
+      const response = await apiClient.get(`/api/public/${path}`)
       console.log(`${chartName} -> response`, response)
       const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
         date: item[dateKey],
@@ -263,7 +263,7 @@ const Macro_china_ppi_yearly = () => {
   }>({ leftData: [], rightData: [] });
   const fetchData = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8080/api/public/macro_china_ppi_yearly')
+      const response = await apiClient.get('/api/public/macro_china_ppi_yearly')
       console.log(`${chartName} -> response`, response)
       const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
         date: item[dateKey],
@@ -364,7 +364,7 @@ const Macro_china_cpi_yearly = () => {
   }>({ leftData: [], rightData: [] });
   const fetchData = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8080/api/public/macro_china_cpi_yearly')
+      const response = await apiClient.get('/api/public/macro_china_cpi_yearly')
       console.log(`${chartName} -> response`, response)
       const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
         date: item[dateKey],
@@ -469,7 +469,7 @@ const Macro_china_lpr = () => {
   }>({ leftData: [], rightData: [] });
   const fetchData = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8080/api/public/macro_china_lpr')
+      const response = await apiClient.get('/api/public/macro_china_lpr')
       console.log(`${chartName} -> response`, response)
       const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
         date: item[dateKey],
@@ -543,7 +543,7 @@ const Macro_china_urban_unemployment = () => {
   const [data, setData] = useState([]);
   const fetchData = async () => {
     try {
-      const response = await axios.get(`http://127.0.0.1:8080/api/public/macro_china_urban_unemployment`) // 城镇调查失业率
+      const response = await apiClient.get(`/api/public/macro_china_urban_unemployment`) // 城镇调查失业率
       setData(response?.data || [])
     } catch (error) {
       console.log('error', error)

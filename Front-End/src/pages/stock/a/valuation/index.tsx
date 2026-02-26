@@ -4,6 +4,8 @@ import axios from 'axios';
 import { pick } from 'lodash-es';
 import { Tabs ,Button,} from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
+import apiClient from '@/utils/axios';
+import akshareApi from '@/utils/akshareApi';
 
 
 const Stock_a_ttm_lyr = () => {
@@ -49,7 +51,9 @@ const Stock_a_ttm_lyr = () => {
   }>({ leftData: [], rightData: [] });
   const fetchData = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8080/api/public/stock_a_ttm_lyr')
+      // const response = await apiClient.get('/api/public/stock_a_ttm_lyr')
+       const response = await akshareApi.getStockATTMLYR({});
+      // const response = await akshareApi.getStockAGxl({});
       console.log(`${chartName} -> response`, response)
       const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
         date: item[dateKey],

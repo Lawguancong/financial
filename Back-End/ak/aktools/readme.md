@@ -5,10 +5,14 @@ https://github.com/akfamily/aktools
 
 📦 安装依赖（Python 3.11）
 # 使用指定 Python 3.11 环境安装
+pip3 install aktools
+或者
 pip3.11 install aktools
 
 ▶️ 启动服务
 # 方法 1：通过 python3.11 直接运行
+python3 -m aktools
+或者
 python3.11 -m aktools
 或者
 /opt/homebrew/opt/python@3.11/bin/python3.11 -m aktools

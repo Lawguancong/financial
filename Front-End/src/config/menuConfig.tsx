@@ -1,4 +1,4 @@
-import { HomeOutlined, BankOutlined, StockOutlined, ShoppingOutlined, ApartmentOutlined, FundOutlined, ThunderboltOutlined, ExperimentOutlined } from '@ant-design/icons';
+import { HomeOutlined, BankOutlined, StockOutlined, ShoppingOutlined, ApartmentOutlined, FundOutlined, ThunderboltOutlined, ExperimentOutlined, CodeOutlined } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { lazy } from 'react';
 
@@ -179,6 +179,13 @@ export const menuConfigs: MenuItemConfig[] = [
   //     },
   //   ],
   // },
+  {
+    key: 'api/test',
+    label: 'AKShare API 测试',
+    icon: <CodeOutlined />,
+    path: 'api/test',
+    component: lazy(() => import('@/pages/AkshareTest')),
+  },
 ];
 
 export const routeConfigs = (() => {

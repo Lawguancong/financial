@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Spin, Typography, Card, Radio } from 'antd';
 import { Stock } from '@ant-design/plots';
-import axios from 'axios';
+import apiClient from '@/utils/axios';
 import { useSearchParams } from 'react-router-dom';
 import moment from 'moment';
 import testData from './data.json';
@@ -53,7 +53,7 @@ const StockDetail: React.FC = () => {
       if (endDate) params.end_date = endDate;
       if (adjust) params.adjust = adjust;
 
-      const response = await axios.get('http://127.0.0.1:8080/api/public/stock_zh_a_hist', {
+      const response = await apiClient.get('/api/public/stock_zh_a_hist', {
         params,
       });
       console.log('个股详情 -> response', response);

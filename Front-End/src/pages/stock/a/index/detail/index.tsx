@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Spin, Radio, Tag } from 'antd';
 import { DualAxes } from '@ant-design/plots';
-import axios from 'axios';
+import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { calculateMaxDrawdown, calculateStartDate } from '@/utils';
 
@@ -42,7 +42,7 @@ const IndexDetail: React.FC = () => {
     setLoading(true);
     try {
       const startDate = calculateStartDate(publishDate || '', timeRange);
-      const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_zh_index_hist_csindex?symbol=${code}&start_date=${startDate}&end_date=${moment().format('YYYYMMDD')}`);
+      const response = await apiClient.get(`/api/public/stock_zh_index_hist_csindex?symbol=${code}&start_date=${startDate}&end_date=${moment().format('YYYYMMDD')}`);
       console.log('指数详情 -> response', response);
       const dataWithDrawdown = calculateMaxDrawdown(response?.data || [], '收盘');
       setData(dataWithDrawdown as unknown as IndexDetailData[]);

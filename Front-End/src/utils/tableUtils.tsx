@@ -6,9 +6,25 @@ export interface RangeFilterValue {
   max?: number;
 }
 
+export interface RangeFilter<T extends Record<string, unknown>> {
+  filterDropdown: ({ 
+    setSelectedKeys, 
+    selectedKeys, 
+    confirm, 
+    clearFilters 
+  }: { 
+    setSelectedKeys: (keys: React.Key[]) => void; 
+    selectedKeys: React.Key[]; 
+    confirm: () => void; 
+    clearFilters: () => void 
+  }) => React.ReactNode;
+  filterIcon: (filtered: boolean) => React.ReactNode;
+  onFilter: (value: string | number | boolean, record: T) => boolean;
+}
+
 export const createRangeFilter = <T extends Record<string, unknown>>(
   dataKey: keyof T
-): any => ({
+): RangeFilter<T> => ({
   filterDropdown: ({ 
     setSelectedKeys, 
     selectedKeys, 

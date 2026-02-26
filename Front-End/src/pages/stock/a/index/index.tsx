@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Table, Typography, Input, Button } from 'antd';
-import axios from 'axios';
+import apiClient from '@/utils/axios';
 import moment from 'moment';
 
 const { Link } = Typography;
@@ -192,7 +192,7 @@ const Index: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('http://127.0.0.1:8080/api/public/index_csindex_all');
+      const response = await apiClient.get('/api/public/index_csindex_all');
       console.log('指数列表 -> response', response);
       setData(response?.data || []);
     } catch (error) {

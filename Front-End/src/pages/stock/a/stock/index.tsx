@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Table, Typography, InputNumber, Space, Button } from 'antd';
-import axios from 'axios';
+import apiClient from '@/utils/axios';
 
 const { Link } = Typography;
 
@@ -363,7 +363,7 @@ const Stock: React.FC = () => {
 
     setLoading(true);
     try {
-      const response = await axios.get('http://127.0.0.1:8080/api/public/stock_zh_a_spot_em');
+      const response = await apiClient.get('/api/public/stock_zh_a_spot_em');
       console.log('个股列表 -> response', response);
       const responseData = response?.data || [];
       // setData(responseData.slice(0, 100));

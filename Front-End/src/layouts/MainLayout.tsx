@@ -105,7 +105,7 @@ const MainLayout: React.FC = () => {
         <Header style={{ padding: 0, background: colorBgContainer }}>
           <div style={{ padding: '0 24px' }}>
             <h1 style={{ margin: 0, lineHeight: '48px', fontSize: '36px' }}>
-              金融数据分析平台
+              数据分析平台
             </h1>
             <div style={{ lineHeight: '32px', fontSize: '14px', color: '#666' }}>
               {currentMenuPath}

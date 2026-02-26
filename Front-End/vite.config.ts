@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { appConfig } from './src/config/appConfig'
+
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -42,6 +44,37 @@ export default defineConfig({
     // 最小化，使用默认的esbuild
     minify: 'esbuild',
   },
+  // 开发服务器配置
+
+  //  curl "http://localhost:5001/api/stock/a/ttm-lyr?symbol=上证A股"
+  //        http://127.0.0.1:6670/api/akshare/stock/a/gxl?symbol=
+
+  server: {
+    // port: 6670,// akshare端口
+    // proxy: {
+    //   // 将/api/akshare前缀的请求代理到akshare后端服务
+    //   '/api/akshare': {
+    //     target: `http://localhost:5001`,
+    //     changeOrigin: true,
+    //     rewrite: (path) => {
+    //       console.log('rewrite path:', path.replace(/^\/api\/akshare/, '/api'))
+    //       return path.replace(/^\/api\/akshare/, '/api')
+    //     },
+    //   },
+    // },
+    // proxy: {
+    //   // 将/api/akshare前缀的请求代理到akshare后端服务
+    //   '/api/aktools': {
+    //     target: `http://localhost:5001`,
+    //     changeOrigin: true,
+    //     rewrite: (path) => {
+    //       console.log('rewrite path:', path.replace(/^\/api\/aktools/, '/api'))
+    //       return path.replace(/^\/api\/aktools/, '/api')
+    //     },
+    //   },
+    // },
+  },
+  
   // // 公共静态资源目录
   publicDir: 'public',
 })

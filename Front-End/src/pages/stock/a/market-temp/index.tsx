@@ -1,7 +1,7 @@
 import { Line } from '@ant-design/plots';
 import { DualAxes } from '@ant-design/plots';
 import React, { useEffect, useState, useMemo } from 'react';
-import axios from 'axios';
+import apiClient from '@/utils/axios';
 import { createRoot } from 'react-dom/client';
 import { format } from 'fecha';
 import moment from 'moment';
@@ -21,7 +21,7 @@ const Stock_buffett_index_lg = () => {
   const [data, setData] = useState<DataRes[]>([]);
   const fetchData = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8080/api/public/stock_buffett_index_lg')
+      const response = await apiClient.get('/api/public/stock_buffett_index_lg')
       console.log('Stock_buffett_index_lg -> response', response)
       setData(response?.data.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => ({
         ...item,
@@ -156,7 +156,7 @@ const Stock_zh_index_hist_csindex = () => {
       // symbol	str	symbol = "000928"; 指数代码
       // start_date	str	start_date = "20180526"
       // end_date	str	end_date = "20240604"
-      const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_zh_index_hist_csindex?symbol=000985&start_date=20050101&end_date=${moment().format('YYYYMMDD')}`)
+      const response = await apiClient.get(`/api/public/stock_zh_index_hist_csindex?symbol=000985&start_date=20050101&end_date=${moment().format('YYYYMMDD')}`)
       console.log(`${chartName} -> response`, response)
       const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
         date: item[dateKey],
@@ -259,7 +259,7 @@ const Stock_a_gxl_lg = () => {
     }>({ leftData: [], rightData: [] });
     const fetchData = async () => {
       try {
-        const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_a_gxl_lg?symbol=${symbol}`)
+        const response = await apiClient.get(`/api/public/stock_a_gxl_lg?symbol=${symbol}`)
         console.log(`${chartName} -> response`, response)
         const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
           date: item[dateKey],
@@ -370,7 +370,7 @@ const Stock_ebs_lg = () => {
   }>({ leftData: [], rightData: [] });
   const fetchData = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8080/api/public/stock_ebs_lg')
+      const response = await apiClient.get('/api/public/stock_ebs_lg')
       console.log(`${chartName} -> response`, response)
       const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
         date: item[dateKey],
@@ -483,7 +483,7 @@ const Stock_margin_account_info = () => {
   }>({ leftData: [], rightData: [] });
   const fetchData = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8080/api/public/stock_margin_account_info')
+      const response = await apiClient.get('/api/public/stock_margin_account_info')
       console.log(`${chartName} -> response`, response)
       const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
         date: item[dateKey],
@@ -586,7 +586,7 @@ const Stock_a_congestion_lg = () => {
   }>({ leftData: [], rightData: [] });
   const fetchData = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8080/api/public/stock_a_congestion_lg')
+      const response = await apiClient.get('/api/public/stock_a_congestion_lg')
       console.log(`${chartName} -> response`, response)
       const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
         date: item[dateKey],

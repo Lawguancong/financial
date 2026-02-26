@@ -20,13 +20,13 @@ python3.11 -m aktools
 
 🌐 访问 API
 启动服务后，在浏览器或工具中访问：
-http://127.0.0.1:8080/api/public/stock_zh_a_hist?symbol=600985
+http://127.0.0.1:6670/api/public/stock_zh_a_hist?symbol=600985
 参数说明：
 symbol: 股票代码（如 600985）
 
 🔧 管理服务进程
-查看占用 8080 端口的进程
-lsof -i:8080
+查看占用 6670 端口的进程
+lsof -i:6670
 
 强制终止进程（谨慎使用）
 sudo kill -9 <PID>  # 替换 <PID> 为实际进程号，如 89593

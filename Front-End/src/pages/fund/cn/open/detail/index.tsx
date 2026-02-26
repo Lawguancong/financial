@@ -6,6 +6,7 @@ import axios from 'axios';
 import { pick } from 'lodash-es';
 import { calculateMaxDrawdown, calculateStartDate } from '@/utils';
 import moment from 'moment';
+import apiClient from '@/utils/axios';
 
 // 最近x年 全部
 const FundOpenDetail: React.FC = () => {
@@ -27,7 +28,6 @@ const FundOpenDetail: React.FC = () => {
   }>({ leftData: [], rightData: [] });
   const [loading, setLoading] = useState(false);
 
-  // todo 修复累计收益率的 年化收益率 没有时间范围，
   const keyMap: Record<string, { 日期: string; 数据: string; sampleRate: number }> = {
     '单位净值走势': {
       "日期": '净值日期',
@@ -70,8 +70,9 @@ const FundOpenDetail: React.FC = () => {
   const leftName = keyMap[indicator].数据 // 左y轴名称
 
   const rightKeys = { // 右y轴键名: 右y轴名称
+    "累计收益率": '累计收益率(%)',
     "__最大回撤率__": '最大回撤率(%)',
-    "__年化收益率__": "年化收益率(%)",// 
+    "__年化收益率__": "年化收益率(%)",
   }
   const sampleRate = keyMap[indicator].sampleRate // 抽样率
   type DataRes = {
@@ -111,10 +112,25 @@ const FundOpenDetail: React.FC = () => {
   const timeRangeOptions = [
     { label: '上市以来', value: '上市以来' },
     { label: '最近20年', value: '20年' },
+    { label: '最近19年', value: '19年' },
+    { label: '最近18年', value: '18年' },
+    { label: '最近17年', value: '17年' },
+    { label: '最近16年', value: '16年' },
     { label: '最近15年', value: '15年' },
+    { label: '最近14年', value: '14年' },
+    { label: '最近13年', value: '13年' },
+    { label: '最近12年', value: '12年' },
+    { label: '最近11年', value: '11年' },
     { label: '最近10年', value: '10年' },
+    { label: '最近9年', value: '9年' },
+    { label: '最近8年', value: '8年' },
+    { label: '最近7年', value: '7年' },
+    { label: '最近6年', value: '6年' },
     { label: '最近5年', value: '5年' },
+    { label: '最近4年', value: '4年' },
     { label: '最近3年', value: '3年' },
+    { label: '最近2年', value: '2年' },
+    { label: '最近1年', value: '1年' },
   ];
 
 
@@ -137,10 +153,9 @@ const FundOpenDetail: React.FC = () => {
       if (indicator === '累计收益率走势') {
         params.period = period;
       }
-
-      const response = await axios.get('http://127.0.0.1:8080/api/public/fund_open_fund_info_em', {
+      const response = await apiClient.get('/api/public/fund_open_fund_info_em', {
         params,
-      });
+      })
       console.log('基金详情 -> response', response);
       
       let filteredData = response?.data || [];
@@ -255,8 +270,7 @@ const FundOpenDetail: React.FC = () => {
               />
             </div>
           )}
-          {indicator !== '累计收益率走势' && (
-
+          {/* {indicator !== '累计收益率走势' && ( */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span>时间范围：</span>
             <Select
@@ -266,7 +280,7 @@ const FundOpenDetail: React.FC = () => {
               options={timeRangeOptions}
             />
           </div>
-          )}
+          {/* )} */}
           <Button type="primary" onClick={fetchData} loading={loading}>
             搜索
           </Button>

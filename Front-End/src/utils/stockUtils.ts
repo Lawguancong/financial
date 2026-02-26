@@ -24,8 +24,7 @@ export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
 
     let drawdown: number | null = null;
     if (leftKey === '累计收益率') {
-      drawdown = ((maxClose + 100) - (closePrice+100)) / (maxClose + 100);
-
+      drawdown = ((maxClose + 100) - (closePrice + 100)) / (maxClose + 100);
     } else {
       drawdown = (maxClose - closePrice) / maxClose;
     }
@@ -35,17 +34,23 @@ export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
     let annualizedRate: number | null = null;
     if (days > 365) {
       if (leftKey === '累计收益率') {
-        annualizedRate = parseFloat((Math.pow((closePrice / 100) + 1, 365 / days) - 1).toFixed(4));
+        // 总收益：上市以来，2009年12月～2026年2月，累计收益率：177.36%
+        // 前段收益：2009年12月～2023年2月，累计收益率：118.46%
+        // 后段收益：最近3年，2023年2月～2026年2月，累计收益率：26.97%
+        // 求总收益：总收益率 + 1 = (1 + 前段收益率) * (1 + 后段收益率)
+        // 求前段收益（已知总和后段）：前段收益率 = (1 + 总收益率) / (1 + 后段收益率) - 1
+        // 求后段收益（已知总和前段）：后段收益率 = (1 + 总收益率) / (1 + 前段收益率) - 1
+        // console.log('111 annualizedRate',  (100 + closePrice) / (100 + firstClose))
+        annualizedRate = parseFloat((Math.pow((100 + closePrice) / (100 + firstClose), 365 / days) - 1).toFixed(4));
       } else {
         annualizedRate = parseFloat((Math.pow(closePrice / firstClose, 365 / days) - 1).toFixed(4));
       }
-
     }
 
     return {
       ...item,
       ['__最大回撤率__']: -drawdownPercent,
-      __年化收益率__: annualizedRate !== null ? annualizedRate * 100 : null,
+      ['__年化收益率__']: annualizedRate !== null ? annualizedRate * 100 : null,
     };
   });
 };
@@ -61,27 +66,17 @@ export const calculateStartDate = (
   const currentMoment = moment();
   let startDate = '';
 
-  switch (timeRange) {
-    case '上市以来':
+  if (timeRange === '上市以来') {
+    startDate = moment(publishDate).format('YYYYMMDD');
+  } else {
+    // 尝试从timeRange中提取年数
+    const yearMatch = timeRange.match(/^(\d+)年$/);
+    if (yearMatch) {
+      const years = parseInt(yearMatch[1], 10);
+      startDate = currentMoment.subtract(years, 'years').format('YYYYMMDD');
+    } else {
       startDate = moment(publishDate).format('YYYYMMDD');
-      break;
-    case '20年':
-      startDate = currentMoment.subtract(20, 'years').format('YYYYMMDD');
-      break;
-    case '15年':
-      startDate = currentMoment.subtract(15, 'years').format('YYYYMMDD');
-      break;
-    case '10年':
-      startDate = currentMoment.subtract(10, 'years').format('YYYYMMDD');
-      break;
-    case '5年':
-      startDate = currentMoment.subtract(5, 'years').format('YYYYMMDD');
-      break;
-    case '3年':
-      startDate = currentMoment.subtract(3, 'years').format('YYYYMMDD');
-      break;
-    default:
-      startDate = currentMoment.subtract(10, 'years').format('YYYYMMDD');
+    }
   }
 
   if (startDate && startDate < publishDate) {

@@ -51,11 +51,11 @@ const AkshareTest: React.FC = () => {
       dataIndex: 'date',
       key: 'date',
     },
-    {
-      title: '股息率',
-      dataIndex: 'gxl',
-      key: 'gxl',
-    },
+    // {
+    //   title: '股息率',
+    //   dataIndex: 'gxl',
+    //   key: 'gxl',
+    // },
     // 其他列根据实际返回数据添加
   ];
 

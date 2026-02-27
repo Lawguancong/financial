@@ -71,8 +71,8 @@ const FundOpenDetail: React.FC = () => {
 
   const rightKeys = { // 右y轴键名: 右y轴名称
     "累计收益率": '累计收益率(%)',
-    "__最大回撤率__": '最大回撤率(%)',
-    "__年化收益率__": "年化收益率(%)",
+    ['__最大回撤率__']: '最大回撤率(%)',
+    ['__年化收益率__']: "年化收益率(%)",
   }
   const sampleRate = keyMap[indicator].sampleRate // 抽样率
   type DataRes = {
@@ -136,6 +136,7 @@ const FundOpenDetail: React.FC = () => {
 
   const handleChangeIndicator = async (value: string) => {
     await setTimeRange('上市以来');
+    await setPeriod('成立来');
     await setIndicator(value);
   }
 
@@ -171,8 +172,11 @@ const FundOpenDetail: React.FC = () => {
         });
       }
       console.log(`111111111 ${chartName} -> filteredData`, filteredData)
-      
-      const dataFormat = calculateMaxDrawdown(filteredData, keyMap[indicator].数据, keyMap[indicator].日期)?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => {
+      const dataFormat = calculateMaxDrawdown({
+        data: filteredData,
+        leftKey: keyMap[indicator].数据,
+        dateKey: keyMap[indicator].日期,
+      })?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => {
         const value = item[key];
         if (value === null) {
           return null;

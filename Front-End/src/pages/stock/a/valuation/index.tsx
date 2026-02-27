@@ -51,8 +51,8 @@ const Stock_a_ttm_lyr = () => {
   }>({ leftData: [], rightData: [] });
   const fetchData = async () => {
     try {
-      // const response = await apiClient.get('/api/public/stock_a_ttm_lyr')
-       const response = await akshareApi.getStockATTMLYR({});
+      const response = await apiClient.get('/api/public/stock_a_ttm_lyr')
+      //  const response = await akshareApi.getStockATTMLYR({});
       // const response = await akshareApi.getStockAGxl({});
       console.log(`${chartName} -> response`, response)
       const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
@@ -160,7 +160,7 @@ const Stock_a_all_pb = () => {
   }>({ leftData: [], rightData: [] });
   const fetchData = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8080/api/public/stock_a_all_pb')
+      const response = await apiClient.get('/api/public/stock_a_all_pb')
       console.log(`${chartName} -> response`, response)
       const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
         date: item[dateKey],
@@ -266,7 +266,7 @@ const Stock_market_pe_lg = () => {
     }>({ leftData: [], rightData: [] });
     const fetchData = async () => {
       try {
-        const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_market_pe_lg?symbol=${symbol}`)
+        const response = await apiClient.get(`/api/public/stock_market_pe_lg?symbol=${symbol}`)
         console.log(`${chartName} -> response`, response)
         const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
           date: item[dateKey],
@@ -383,7 +383,7 @@ const Stock_market_pb_lg = () => {
     }>({ leftData: [], rightData: [] });
     const fetchData = async () => {
       try {
-        const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_market_pb_lg?symbol=${symbol}`)
+        const response = await apiClient.get(`/api/public/stock_market_pb_lg?symbol=${symbol}`)
         console.log(`${chartName} -> response`, response)
         const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
           date: item[dateKey],
@@ -499,7 +499,7 @@ const Stock_index_pb_lg = () => {
     }>({ leftData: [], rightData: [] });
     const fetchData = async () => {
       try {
-        const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_index_pb_lg?symbol=${symbol}`)
+        const response = await apiClient.get(`/api/public/stock_index_pb_lg?symbol=${symbol}`)
         console.log(`${chartName} -> response`, response)
         const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
           date: item[dateKey],
@@ -619,7 +619,7 @@ const Stock_index_pe_lg = () => {
     }>({ leftData: [], rightData: [] });
     const fetchData = async () => {
       try {
-        const response = await axios.get(`http://127.0.0.1:8080/api/public/stock_index_pe_lg?symbol=${symbol}`)
+        const response = await apiClient.get(`/api/public/stock_index_pe_lg?symbol=${symbol}`)
         console.log(`${chartName} -> response`, response)
         const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
           date: item[dateKey],
@@ -772,7 +772,7 @@ const Index = () => {
       key: '5',
       label: (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>指数市净率</span>
+          <span>指数市盈率</span>
           <Button 
             icon={<ReloadOutlined />} 
             size="small" 
@@ -780,13 +780,13 @@ const Index = () => {
           />
         </div>
       ),
-      children: useMemo(() => <Stock_index_pb_lg key={refreshKeys['5']} />, [refreshKeys['5']]),
+      children: useMemo(() => <Stock_index_pe_lg key={refreshKeys['5']} />, [refreshKeys['5']]),
     },
     {
       key: '6',
       label: (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>指数市盈率</span>
+          <span>指数市净率</span>
           <Button 
             icon={<ReloadOutlined />} 
             size="small" 
@@ -794,8 +794,9 @@ const Index = () => {
           />
         </div>
       ),
-      children: useMemo(() => <Stock_index_pe_lg key={refreshKeys['6']} />, [refreshKeys['6']]),
+      children: useMemo(() => <Stock_index_pb_lg key={refreshKeys['6']} />, [refreshKeys['6']]),
     },
+    
   ];
 
   return (

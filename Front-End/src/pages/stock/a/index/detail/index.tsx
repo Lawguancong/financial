@@ -4,7 +4,7 @@ import { Spin, Radio, Tag } from 'antd';
 import { DualAxes } from '@ant-design/plots';
 import apiClient from '@/utils/axios';
 import moment from 'moment';
-import { calculateMaxDrawdown, calculateStartDate } from '@/utils';
+import { calculateMaxDrawdown, calculateStartDate, calculatePercentiles } from '@/utils';
 
 interface IndexDetailData {
   日期: string;
@@ -23,8 +23,8 @@ interface IndexDetailData {
   成交金额: number;
   样本数量: number;
   滚动市盈率: number;
-  __最大回撤率__: number;
-  __年化收益率__: number | null;
+  ['__最大回撤率__']: number;
+  ['__年化收益率__']: number | null;
 }
 
 const IndexDetail: React.FC = () => {
@@ -35,6 +35,8 @@ const IndexDetail: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [timeRange, setTimeRange] = useState<string>('10年');
 
+  const { percentile15, percentile85 } = calculatePercentiles(data, '滚动市盈率');
+
   const fetchData = useCallback(async () => {
     if (!code) {
       return;
@@ -44,7 +46,13 @@ const IndexDetail: React.FC = () => {
       const startDate = calculateStartDate(publishDate || '', timeRange);
       const response = await apiClient.get(`/api/public/stock_zh_index_hist_csindex?symbol=${code}&start_date=${startDate}&end_date=${moment().format('YYYYMMDD')}`);
       console.log('指数详情 -> response', response);
-      const dataWithDrawdown = calculateMaxDrawdown(response?.data || [], '收盘');
+      const dataWithDrawdown = calculateMaxDrawdown({
+        data: response?.data || [],
+        leftKey: '收盘',
+        dateKey: '日期',
+        percentKey: '滚动市盈率'
+      });
+      console.log('指数详情 -> dataWithDrawdown', dataWithDrawdown);
       setData(dataWithDrawdown as unknown as IndexDetailData[]);
     } catch (error) {
       console.log('error', error);
@@ -72,9 +80,11 @@ const IndexDetail: React.FC = () => {
     const leftName = `${latestData.指数中文简称}`;
 
     const rightKeys = {
-      __最大回撤率__: '最大回撤率(%)',
-      __年化收益率__: '年化收益率(%)',
+      ['__最大回撤率__']: '最大回撤率(%)',
+      ['__年化收益率__']: '年化收益率(%)',
       滚动市盈率: '滚动市盈率',
+      [`__滚动市盈率15%百分位__`]: `滚动市盈率15%百分位`,
+      [`__滚动市盈率85%百分位__`]: `滚动市盈率85%百分位`,
     };
 
     const labelMap = {
@@ -95,7 +105,8 @@ const IndexDetail: React.FC = () => {
 
     const leftData = dataFormat.filter((item) => item.key === leftKey);
     const rightData = dataFormat.filter((item) => item.key !== leftKey);
-
+    console.log(`指数详情 -> ${chartName} -> leftData`, leftData);
+    console.log(`指数详情 -> ${chartName} -> rightData`, rightData);
     return {
       title: {
         title: chartName,
@@ -208,13 +219,14 @@ const IndexDetail: React.FC = () => {
                     <span>成交量：<span style={{ fontWeight: '600' }}>{latestData.成交量}</span>万手</span>
                     <span>成交额：<span style={{ fontWeight: '600' }}>{latestData.成交金额}</span>亿元</span>
                     <span>滚动市盈率：<span style={{ fontWeight: '600' }}>{latestData.滚动市盈率}</span></span>
-                    <span>动态回撤率：<span style={{ fontWeight: '600' }}>{latestData.__最大回撤率__}</span>%</span>
+                    <span>滚动市盈率(15%分位数)：<span style={{ fontWeight: '600' }}>{percentile15}</span></span>
+                    <span>滚动市盈率(85%分位数)：<span style={{ fontWeight: '600' }}>{percentile85}</span></span>
+                    <span>动态回撤率：<span style={{ fontWeight: '600' }}>{latestData['__最大回撤率__']}</span>%</span>
                   </div>
                 </div>
               );
             })()}
           </div>
-
           <div style={{ marginTop: '24px' }}>
             {chartConfig && <DualAxes {...chartConfig} />}
           </div>

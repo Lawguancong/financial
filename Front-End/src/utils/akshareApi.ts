@@ -25,7 +25,7 @@ export const akshareApi = {
       ? `/api/stock/a/gxl?${queryString.stringify(params)}` 
       : `/api/public/stock_a_gxl_lg?${queryString.stringify(params)}`;
     const response = await apiClient.get<T>(url);
-    return response.data;
+    return response;
   },
 
   /**
@@ -39,7 +39,7 @@ export const akshareApi = {
       ? `/api/stock/a/ttm-lyr?${queryString.stringify(params)}` 
       : `/api/public/stock_a_ttm_lyr?${queryString.stringify(params)}`;
     const response = await apiClient.get<T>(url);
-    return response.data;
+    return response;
   },
 
   // 更多AKShare接口可以在这里添加

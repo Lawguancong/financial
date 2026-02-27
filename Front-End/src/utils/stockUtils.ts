@@ -1,11 +1,14 @@
 import moment from 'moment';
 
 export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
-  data: T[],
-  leftKey: string = '收盘',
-  dateKey: string = '日期'
+  params: {
+    data: T[];
+    leftKey?: string;
+    dateKey?: string;
+    percentKey?: string;
+  }
 ): (T & { __最大回撤率__: number; __年化收益率__: number | null })[] => {
-  console.log('11111 leftKey', leftKey);
+  const { data, leftKey = '', dateKey = '', percentKey } = params;
   if (!data || data.length === 0) {
     return [];
   }
@@ -13,6 +16,16 @@ export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
   let maxClose = 0;
   const firstClose = data[0][leftKey] as number;
   const firstDate = data[0][dateKey] as string;
+
+  const values = percentKey && data
+    ?.map(item => item[percentKey] as number)
+    ?.filter(value => typeof value === 'number' && !isNaN(value))
+    ?.sort((a, b) => a - b);
+
+    
+  // 计算15%和85%百分位
+  const percentile15 = values?.[Math.floor(values.length * 0.15)];
+  const percentile85 = values?.[Math.floor(values.length * 0.85)];
 
   return data.map(item => {
     const closePrice = item[leftKey] as number;
@@ -40,7 +53,6 @@ export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
         // 求总收益：总收益率 + 1 = (1 + 前段收益率) * (1 + 后段收益率)
         // 求前段收益（已知总和后段）：前段收益率 = (1 + 总收益率) / (1 + 后段收益率) - 1
         // 求后段收益（已知总和前段）：后段收益率 = (1 + 总收益率) / (1 + 前段收益率) - 1
-        // console.log('111 annualizedRate',  (100 + closePrice) / (100 + firstClose))
         annualizedRate = parseFloat((Math.pow((100 + closePrice) / (100 + firstClose), 365 / days) - 1).toFixed(4));
       } else {
         annualizedRate = parseFloat((Math.pow(closePrice / firstClose, 365 / days) - 1).toFixed(4));
@@ -50,7 +62,9 @@ export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
     return {
       ...item,
       ['__最大回撤率__']: -drawdownPercent,
-      ['__年化收益率__']: annualizedRate !== null ? annualizedRate * 100 : null,
+      ['__年化收益率__']: annualizedRate !== null ? Number((annualizedRate * 100).toFixed(2)) : null,
+      [`__${percentKey}15%百分位__`]: percentile15 !== null ? Number(percentile15?.toFixed(2)) : null,
+      [`__${percentKey}85%百分位__`]: percentile85 !== null ? Number(percentile85?.toFixed(2)) : null,
     };
   });
 };
@@ -84,4 +98,33 @@ export const calculateStartDate = (
   }
 
   return startDate;
+};
+
+export const calculatePercentiles = (
+  data: { [key: string]: number }[],
+  percentKey: string
+): { percentile15: number | null; percentile85: number | null } => {
+  if (!data || data.length === 0) {
+    return { percentile15: null, percentile85: null };
+  }
+
+  // 提取指定字段的值并排序
+  const values = data
+    .map(item => item[percentKey] as number)
+    .filter(value => typeof value === 'number' && !isNaN(value))
+    .sort((a, b) => a - b);
+
+  if (values.length === 0) {
+    return { percentile15: null, percentile85: null };
+  }
+
+  // 计算15%和85%百分位
+  const percentile15 = values[Math.floor(values.length * 0.2)];
+  const percentile85 = values[Math.floor(values.length * 0.8)];
+
+  // 为每条数据添加百分位信息
+  return {
+    percentile15,
+    percentile85,
+  };
 };

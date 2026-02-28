@@ -4,16 +4,18 @@ import React, { useEffect, useState, useMemo } from 'react';
 import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { pick } from 'lodash-es';
+import { Tabs, Button } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
 
 
 
-const Macro_china_gdp = () => {
-  const chartName = '国内生产总值GDP'; // 图表名称
-  const dateKey = '季度' // 日期键名
-  const dateName = '季度' // 日期键名
-  const leftKey = '国内生产总值-绝对值' // 左y轴键名
-  const leftName = '国内生产总值-绝对值（亿元）' // 左y轴名称
-  const rightKeys = { // 右y轴键名: 右y轴名称
+const Macro_china_gdp = ({ key }: { key: number }) => {
+  const chartName = '国内生产总值GDP';
+  const dateKey = '季度'
+  const dateName = '季度'
+  const leftKey = '国内生产总值-绝对值'
+  const leftName = '国内生产总值-绝对值（亿元）'
+  const rightKeys = {
     '国内生产总值-同比增长': '国内生产总值-同比增长（%）',
     "第一产业-绝对值": '第一产业-绝对值（亿元）',
     "第一产业-同比增长": '第一产业-同比增长（%）',
@@ -22,7 +24,7 @@ const Macro_china_gdp = () => {
     "第三产业-绝对值": '第三产业-绝对值（亿元）',
     "第三产业-同比增长": '第三产业-同比增长（%）'
   }
-  const sampleRate = 4; // 抽样率
+  const sampleRate = 4;
   type DataRes = {
     [dateKey]: string;
     [leftKey]: number;
@@ -64,18 +66,15 @@ const Macro_china_gdp = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [key]);
 
   console.log(`${chartName} -> data`, data)
   const config = {
     title: {
       title: chartName,
-      subtitle: `${leftName} 与 ${chartName} `, // 
+      subtitle: `${leftName} 与 ${chartName} `,
     },
-    // xField: (d: { date: string }) => new Date(d.date),
     xField: (d: { date: string }) => d.date,
-
-    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
     children: [
       {
         data: data.leftData,
@@ -117,7 +116,7 @@ const Macro_china_gdp = () => {
   </>
 };
 
-const Index_pmi_render = () => {
+const Index_pmi_render = ({ key }: { key: number }) => {
   const keysMapping = {
     '综合PMI': 'index_pmi_com_cx',
     '制造业PMI': 'index_pmi_man_cx',
@@ -125,21 +124,21 @@ const Index_pmi_render = () => {
   }
 
   return (Object.keys(keysMapping) as Array<keyof typeof keysMapping>).map((keyName) => (
-    <Index_pmi_com_cx key={keyName} keyName={keyName} path={keysMapping[keyName]} />
+    <Index_pmi_com_cx keyName={keyName} path={keysMapping[keyName]} key={key} />
   ))
 
 
 }
 
-const Index_pmi_com_cx = ({ keyName, path }: { keyName: string; path: string }) => {
-  const chartName = keyName; // 图表名称
-  const dateKey = '日期' // 日期键名
-  const dateName = '日期' // 日期键名
-  const leftKey = keyName // 左y轴键名
-  const leftName = keyName // 左y轴名称
-  const rightKeys = { // 右y轴键名: 右y轴名称
+const Index_pmi_com_cx = ({ keyName, path, key }: { keyName: string; path: string; key: number }) => {
+  const chartName = keyName;
+  const dateKey = '日期'
+  const dateName = '日期'
+  const leftKey = keyName
+  const leftName = keyName
+  const rightKeys = {
   }
-  const sampleRate = 1; // 抽样率
+  const sampleRate = 1;
   type DataRes = {
     [dateKey]: string;
     [leftKey]: number;
@@ -181,16 +180,15 @@ const Index_pmi_com_cx = ({ keyName, path }: { keyName: string; path: string }) 
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [key]);
 
   console.log(`${chartName} -> data`, data)
   const config = {
     title: {
       title: chartName,
-      subtitle: `${leftName} 与 ${chartName} `, // 
+      subtitle: `${leftName} 与 ${chartName} `,
     },
     xField: (d: { date: string }) => new Date(d.date),
-    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
     children: [
       {
         data: data.leftData,
@@ -232,15 +230,15 @@ const Index_pmi_com_cx = ({ keyName, path }: { keyName: string; path: string }) 
   </>
 };
 
-const Macro_china_ppi_yearly = () => {
-  const chartName = '中国 PPI 年率报告'; // 图表名称
-  const dateKey = '日期' // 日期键名
-  const dateName = '日期' // 日期键名
-  const leftKey = '今值' // 左y轴键名
-  const leftName = '中国 PPI 年率报告' // 左y轴名称
-  const rightKeys = { // 右y轴键名: 右y轴名称
+const Macro_china_ppi_yearly = ({ key }: { key: number }) => {
+  const chartName = '中国 PPI 年率报告';
+  const dateKey = '日期'
+  const dateName = '日期'
+  const leftKey = '今值'
+  const leftName = '中国 PPI 年率报告'
+  const rightKeys = {
   }
-  const sampleRate = 1; // 抽样率
+  const sampleRate = 1;
   type DataRes = {
     [dateKey]: string;
     [leftKey]: number;
@@ -282,16 +280,15 @@ const Macro_china_ppi_yearly = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [key]);
 
   console.log(`${chartName} -> data`, data)
   const config = {
     title: {
       title: chartName,
-      subtitle: `${leftName} 与 ${chartName} `, // 
+      subtitle: `${leftName} 与 ${chartName} `,
     },
     xField: (d: { date: string }) => new Date(d.date),
-    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
     children: [
       {
         data: data.leftData,
@@ -333,15 +330,15 @@ const Macro_china_ppi_yearly = () => {
   </>
 };
 
-const Macro_china_cpi_yearly = () => {
-  const chartName = '中国 CPI 年率报告'; // 图表名称
-  const dateKey = '日期' // 日期键名
-  const dateName = '日期' // 日期键名
-  const leftKey = '今值' // 左y轴键名
-  const leftName = '中国 CPI 年率报告' // 左y轴名称
-  const rightKeys = { // 右y轴键名: 右y轴名称
+const Macro_china_cpi_yearly = ({ key }: { key: number }) => {
+  const chartName = '中国 CPI 年率报告';
+  const dateKey = '日期'
+  const dateName = '日期'
+  const leftKey = '今值'
+  const leftName = '中国 CPI 年率报告'
+  const rightKeys = {
   }
-  const sampleRate = 1; // 抽样率
+  const sampleRate = 1;
   type DataRes = {
     [dateKey]: string;
     [leftKey]: number;
@@ -383,16 +380,15 @@ const Macro_china_cpi_yearly = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [key]);
 
   console.log(`${chartName} -> data`, data)
   const config = {
     title: {
       title: chartName,
-      subtitle: `${leftName} 与 ${chartName} `, // 
+      subtitle: `${leftName} 与 ${chartName} `,
     },
     xField: (d: { date: string }) => new Date(d.date),
-    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
     children: [
       {
         data: data.leftData,
@@ -434,19 +430,19 @@ const Macro_china_cpi_yearly = () => {
   </>
 };
 
-const Macro_china_lpr = () => {
-  const chartName = 'LPR品种数据'; // 图表名称
-  const dateKey = 'TRADE_DATE' // 日期键名
-  const dateName = '日期' // 日期键名
-  const leftKey = ''; // 左y轴键名
-  const leftName = '' // 左y轴名称
-  const rightKeys = { // 右y轴键名: 右y轴名称
+const Macro_china_lpr = ({ key }: { key: number }) => {
+  const chartName = 'LPR品种数据';
+  const dateKey = 'TRADE_DATE'
+  const dateName = '日期'
+  const leftKey = '';
+  const leftName = ''
+  const rightKeys = {
     LPR1Y: 'LPR_1Y利率(%)',
     LPR5Y: 'LPR_5Y利率(%)',
     RATE_1: '短期贷款利率:6个月至1年(含)(%)',
     RATE_2: '中长期贷款利率:5年以上(%)',
   }
-  const sampleRate = 1; // 抽样率
+  const sampleRate = 1;
   type DataRes = {
     [dateKey]: string;
     [leftKey]: number;
@@ -488,16 +484,15 @@ const Macro_china_lpr = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [key]);
 
   console.log(`${chartName} -> data`, data)
   const config = {
     title: {
       title: chartName,
-      subtitle: `${leftName} 与 ${chartName} `, // 
+      subtitle: `${leftName} 与 ${chartName} `,
     },
     xField: (d: { date: string }) => new Date(d.date),
-    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
     children: [
       {
         data: data.leftData,
@@ -539,11 +534,11 @@ const Macro_china_lpr = () => {
   </>
 };
 
-const Macro_china_urban_unemployment = () => {
+const Macro_china_urban_unemployment = ({ key }: { key: number }) => {
   const [data, setData] = useState([]);
   const fetchData = async () => {
     try {
-      const response = await apiClient.get(`/api/public/macro_china_urban_unemployment`) // 城镇调查失业率
+      const response = await apiClient.get(`/api/public/macro_china_urban_unemployment`)
       setData(response?.data || [])
     } catch (error) {
       console.log('error', error)
@@ -552,7 +547,7 @@ const Macro_china_urban_unemployment = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [key]);
 
   console.log('Macro_china_urban_unemployment data', data)
   const config = {
@@ -566,26 +561,110 @@ const Macro_china_urban_unemployment = () => {
 }
 
 const Index = () => {
-  return <>
-    {/* 国内生产总值GDP */}
-    {useMemo(() => <Macro_china_gdp />, [])}
+  const [activeKey, setActiveKey] = useState('1');
+  const [refreshKeys, setRefreshKeys] = useState({
+    '1': 0,
+    '2': 0,
+    '3': 0,
+    '4': 0,
+    '5': 0,
+    '6': 0,
+  });
 
-    {/* PMI */}
-    {useMemo(() => <Index_pmi_render />, [])}
+  console.log('refreshKeys, ', refreshKeys)
 
-    {/* 中国 PPI 年率报告 */}
-    {useMemo(() => <Macro_china_ppi_yearly />, [])}
+  const items = [
+    {
+      key: '1',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>国内生产总值GDP</span>
+          <Button
+            icon={<ReloadOutlined />}
+            size="small"
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '1': prev['1'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <Macro_china_gdp key={refreshKeys['1']} />, [refreshKeys['1']]),
+    },
+    {
+      key: '2',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>PMI</span>
+          <Button
+            icon={<ReloadOutlined />}
+            size="small"
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '2': prev['2'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <Index_pmi_render key={refreshKeys['2']} />, [refreshKeys['2']]),
+    },
+    {
+      key: '3',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>中国 PPI 年率报告</span>
+          <Button
+            icon={<ReloadOutlined />}
+            size="small"
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '3': prev['3'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <Macro_china_ppi_yearly key={refreshKeys['3']} />, [refreshKeys['3']]),
+    },
+    {
+      key: '4',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>中国 CPI 年率报告</span>
+          <Button
+            icon={<ReloadOutlined />}
+            size="small"
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '4': prev['4'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <Macro_china_cpi_yearly key={refreshKeys['4']} />, [refreshKeys['4']]),
+    },
+    {
+      key: '5',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>LPR品种数据</span>
+          <Button
+            icon={<ReloadOutlined />}
+            size="small"
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '5': prev['5'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <Macro_china_lpr key={refreshKeys['5']} />, [refreshKeys['5']]),
+    },
+    {
+      key: '6',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>城镇调查失业率</span>
+          <Button
+            icon={<ReloadOutlined />}
+            size="small"
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '6': prev['6'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <Macro_china_urban_unemployment key={refreshKeys['6']} />, [refreshKeys['6']]),
+    },
+  ];
 
-    {/* 中国 CPI 年率报告 */}
-    {useMemo(() => <Macro_china_cpi_yearly />, [])}
-
-    {/* LPR品种数据 */}
-    {useMemo(() => <Macro_china_lpr />, [])}
-
-    {/* 城镇调查失业率 */}
-    {useMemo(() => <Macro_china_urban_unemployment />, [])}
-
-  </>
+  return (
+    <div style={{ padding: '24px' }}>
+      <Tabs activeKey={activeKey} items={items} onChange={setActiveKey} />
+    </div>
+  );
 };
 
 export default Index;

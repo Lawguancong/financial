@@ -42,6 +42,19 @@ export const akshareApi = {
     return response;
   },
 
+  /**
+   * 获取A股破净股统计数据
+   * @param params 
+   * @returns Promise<T> 破净股统计数据
+   */
+  getStockABelowNetAsset: async <T>(params = {}) => {
+    const url = import.meta.env.VITE_API_API_TYPE === 'akshare' 
+      ? `/api/stock/a/below-net-asset?${queryString.stringify(params)}` 
+      : `/api/public/stock_a_below_net_asset?${queryString.stringify(params)}`;
+    const response = await apiClient.get<T>(url);
+    return response;
+  },
+
   // 更多AKShare接口可以在这里添加
 };
 

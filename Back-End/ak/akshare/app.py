@@ -64,6 +64,28 @@ def get_stock_a_ttm_lyr():
             'message': '获取数据失败: {}'.format(str(e))
         })
 
+
+@app.route('/api/stock/a/below-net-asset', methods=['GET'])
+def get_stock_a_below_net_asset():
+    """获取A股破净股统计数据"""
+    try:
+        symbol = request.args.get('symbol', '全部A股')
+        result = ak.stock_a_below_net_asset_statistics(symbol=symbol).to_dict(orient='records')
+        print(symbol)
+        print(result)
+        return jsonify({
+            'success': True,
+            'data': result,
+            'message': '获取数据成功'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'data': None,
+            'message': '获取数据失败: {}'.format(str(e))
+        })
+
+
 # 更多akshare接口可以在这里添加
 
 if __name__ == '__main__':

@@ -37,6 +37,12 @@ const AkshareTest: React.FC = () => {
       // message.error('请求失败，请检查后端服务是否运行');
       console.error('Error fetching stock data:', error);
     }
+    try {
+      const response = await akshareApi.getStockABelowNetAsset({symbol: '全部A股'});
+      console.log('获取A股破净股统计数据成功:', response);
+    } catch (error) {
+      console.error('Error fetching below net asset data:', error);
+    }
   };
 
   // 组件加载时获取数据

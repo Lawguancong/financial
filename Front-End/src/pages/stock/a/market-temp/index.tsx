@@ -332,26 +332,35 @@ const Stock_margin_account_info = ({ key }: { key: number }) => {
   const chartName = '两融账户信息';
   const dateKey = '日期'
   const dateName = '日期'
-  const leftKey = '';
-  const leftName = ''
+  const leftKey = '中证全指';
+  const leftName = '中证全指';
   const rightKeys = {
+    沪深300: '沪深300',
+    总市值: '总市值(A股+B股+H股)',//A股收盘价*已发行股票总股本（A股+B股+H股）
+    GDP: 'GDP(上年)', //上年度国内生产总值（例如：2019年，则取2018年GDP）
     融资余额: '融资余额(亿)',
     融券余额: '融券余额(亿)',
     融资买入额: '融资买入额(亿)',
     融券卖出额: '融券卖出额(亿)',
-    证券公司数量: '证券公司数量(家)',
-    营业部数量: '营业部数量(家)',
-    个人投资者数量: '个人投资者数量(万名)',
+    // 证券公司数量: '证券公司数量(家)',
+    // 营业部数量: '营业部数量(家)',
+    个人投资者数量: '个人投资者数量(名)',
     机构投资者数量: '机构投资者数量(家)',
     参与交易的投资者数量: '参与交易的投资者数量(名)',
     有融资融券负债的投资者数量: '有融资融券负债的投资者数量(名)',
+    ['参与交易的投资者数量/个人投资者数量']: '参与交易的投资者数量/个人投资者数量(%)',
+    ['有融资融券负债的投资者数量/个人投资者数量']: '有融资融券负债的投资者数量/个人投资者数量(%)',
     担保物总价值: '担保物总价值(亿)',
     平均维持担保比例: '平均维持担保比例(%)',
-    // todo 流通市值
     ['融资余额/总市值']: '融资余额/总市值(%)',
     ['融券余额/总市值']: '融券余额/总市值(%)',
     ['融资买入额/总市值']: '融资买入额/总市值(%)',
     ['融券卖出额/总市值']: '融券卖出额/总市值(%)',
+    ['融资余额/GDP']: '融资余额/GDP(%)',
+    ['融券余额/GDP']: '融券余额/GDP(%)',
+    ['融资买入额/GDP']: '融资买入额/GDP(%)',
+    ['融券卖出额/GDP']: '融券卖出额/GDP(%)',
+    // todo 流通市值
   }
   const sampleRate = 1;
   type DataRes = {
@@ -376,46 +385,74 @@ const Stock_margin_account_info = ({ key }: { key: number }) => {
   }>({ leftData: [], rightData: [] });
   const fetchData = async () => {
     try {
-      const response = await apiClient.get('/api/public/stock_margin_account_info')
-      console.log(`${chartName} -> response`, response)
+      console.log('111111 start', new Date().valueOf())
+      console.log(`${chartName} -> response`)
+      const [marginRes, buffettRes, csindexRes] = await Promise.all([
+        apiClient.get('/api/public/stock_margin_account_info'),
+        apiClient.get('/api/public/stock_buffett_index_lg'),
+        apiClient.get(`/api/public/stock_zh_index_hist_csindex?symbol=000985&start_date=20050101&end_date=${moment().format('YYYYMMDD')}`)
+      ])
 
-      const response111 = await apiClient.get('/api/public/stock_buffett_index_lg')
-      const data1 = response.data?.map(item => ({
-        ...item,
-        日期: moment(item.日期).format('YYYY-MM-DD'),
-      }))
-      const data2 = response111.data?.map(item => ({
-        ...item,
-        日期: moment(item.日期).format('YYYY-MM-DD'),
-      }))
-      console.log(`1111111 两融数据，巴菲特指标数据`, response.data, response111.data)
-      console.log(`1111111 data1 data2`, data1, data2)
+      console.log(`1111111 两融数据，巴菲特指标数据`, marginRes.data, buffettRes.data)
+      console.log(`1111111 中证全指`, csindexRes.data)
 
-       // 合并data1和data2中日期相同的数据到data3
-      const data3 = [];
-      if (data1 && data2) {
-        // 遍历data1中的每条数据
-        data1.forEach(item1 => {
-          // 查找data2中日期相同的数据
-          const item2 = data2.find(item => item.日期 === item1.日期);
-          if (item2) {
-            // 合并两条数据
-            data3.push({
-              ...item2,
-              ...item1,
-              ['融资余额/总市值']: Number((item1['融资余额'] / item2['总市值'] * 100).toFixed(2)),
-              ['融券余额/总市值']: Number((item1['融券余额'] / item2['总市值'] * 100).toFixed(2)),
-              ['融资买入额/总市值']: Number((item1['融资买入额'] / item2['总市值'] * 100).toFixed(2)),
-              ['融券卖出额/总市值']: Number((item1['融券卖出额'] / item2['总市值'] * 100).toFixed(2)),
-            });
-          }
-        });
-      }
-      console.log(`1111111 data3`, data3);
+      // 构建 buffettDataMap，同时格式化日期
+      const buffettDataMap = new Map();
+      (buffettRes.data || []).forEach(item => {
+        const formattedDate = moment(item.日期).format('YYYY-MM-DD')
+        buffettDataMap.set(formattedDate, { ...item, 日期: formattedDate })
+      })
 
-    
+      // 合并 marginData 和 buffettData，同时格式化 margin 日期
+      const mergedMarginBuffettData = [];
+      (marginRes.data || []).forEach(item => {
+        const formattedDate = moment(item.日期).format('YYYY-MM-DD')
+        const buffettItem = buffettDataMap.get(formattedDate);
+        if (buffettItem) {
+          const marginItem = { ...item, 日期: formattedDate };
+          mergedMarginBuffettData.push({
+            ...buffettItem,
+            ...marginItem,
+            ['沪深300']: buffettItem['收盘价'] || null,
+            ['个人投资者数量']: Number((marginItem['个人投资者数量'] * 10000).toFixed(2)) || null,
+            ['参与交易的投资者数量/个人投资者数量']: Number((marginItem['参与交易的投资者数量'] / marginItem['个人投资者数量'] / 100).toFixed(2)) || null,
+            ['有融资融券负债的投资者数量/个人投资者数量']: Number((marginItem['有融资融券负债的投资者数量'] / marginItem['个人投资者数量'] / 100).toFixed(2)) || null,
+            ['融资余额/总市值']: Number((marginItem['融资余额'] / buffettItem['总市值'] * 100).toFixed(2)) || null,
+            ['融券余额/总市值']: Number((marginItem['融券余额'] / buffettItem['总市值'] * 100).toFixed(2)) || null,
+            ['融资买入额/总市值']: Number((marginItem['融资买入额'] / buffettItem['总市值'] * 100).toFixed(2)) || null,
+            ['融券卖出额/总市值']: Number((marginItem['融券卖出额'] / buffettItem['总市值'] * 100).toFixed(2)) || null,
+            ['融资余额/GDP']: Number((marginItem['融资余额'] / buffettItem['GDP'] * 100).toFixed(2)) || null,
+            ['融券余额/GDP']: Number((marginItem['融券余额'] / buffettItem['GDP'] * 100).toFixed(2)) || null,
+            ['融资买入额/GDP']: Number((marginItem['融资买入额'] / buffettItem['GDP'] * 100).toFixed(2)) || null,
+            ['融券卖出额/GDP']: Number((marginItem['融券卖出额'] / buffettItem['GDP'] * 100).toFixed(2)) || null,
+          });
+        }
+      });
+      console.log(`1111111 mergedMarginBuffettData`, mergedMarginBuffettData);
 
-      const dataFormat = data3?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
+      // 构建 csindexDataMap
+      const csindexDataMap = new Map();
+      (csindexRes.data || []).forEach(item => {
+        const formattedDate = moment(item.日期).format('YYYY-MM-DD')
+        csindexDataMap.set(formattedDate, item)
+      });
+
+      // 合并 mergedMarginBuffettData 和 csindexData
+      const finalMergedData = [];
+      mergedMarginBuffettData.forEach(mergedItem => {
+        const csindexItem = csindexDataMap.get(mergedItem.日期);
+        if (csindexItem) {
+          finalMergedData.push({
+            ...mergedItem,
+            ['中证全指']: csindexItem['收盘'] || null,
+          })
+        }
+      })
+      console.log(`1111111 中证全指 finalMergedData`, finalMergedData);
+
+      console.log('2222222 end', new Date().valueOf())
+
+      const dataFormat = finalMergedData?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
         date: item[dateKey],
         key,
         label: labelMap[key as keyof typeof labelMap],
@@ -601,7 +638,7 @@ const Stock_a_congestion_lg = ({ key }: { key: number }) => {
 {/* 两融交易额 */ }
 
 const Index: React.FC = () => {
-  const [activeKey, setActiveKey] = useState('1');
+  const [activeKey, setActiveKey] = useState('4');
   const [refreshKeys, setRefreshKeys] = useState({
     '1': 0,
     '2': 0,

@@ -111,23 +111,42 @@ export const menuConfigs: MenuItemConfig[] = [
   //   path: 'commodity',
   //   component: lazy(() => import('@/pages/Commodity')),
   // },
-  // {
-  //   key: 'realestate',
-  //   label: '房地产',
-  //   icon: <ApartmentOutlined />,
-  //   path: 'realestate',
-  //   component: lazy(() => import('@/pages/RealEstate')),
-  // },
+  {
+    key: 'realestate',
+    label: '房地产',
+    icon: <ApartmentOutlined />,
+    children: [
+      {
+        key: 'realestate/cn',
+        label: '国内',
+        path: 'realestate/cn',
+        children: [
+          {
+            key: 'realestate/cn/macro',
+            label: '宏观',
+            path: 'realestate/cn/macro',
+            component: lazy(() => import('@/pages/realestate/cn/macro')),
+          },
+        ],
+      },
+    ],
+  },
   {
     key: 'fund',
     label: '基金',
     icon: <FundOutlined />,
     children: [
       {
-        key: 'fund/cn/open',
+        key: 'fund/cn',
         label: '国内',
-        path: 'fund/cn/open',
+        path: 'fund/cn',
         children: [
+            {
+            key: 'fund/cn/market-temp',
+            label: '市场温度',
+            path: 'fund/cn/market-temp',
+            component: lazy(() => import('@/pages/fund/cn/market-temp')),
+          },
           {
             key: 'fund/cn/open',
             label: '开放式基金',
@@ -141,8 +160,8 @@ export const menuConfigs: MenuItemConfig[] = [
                 component: lazy(() => import('@/pages/fund/cn/open/detail')),
               }
             ]
-
           },
+        
         ],
       },
     ],

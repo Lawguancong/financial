@@ -9,6 +9,7 @@ import { useSetState } from 'ahooks';
 import { pick } from 'lodash-es';
 import { Tabs, Button } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
+import { Macro_china_stock_market_cap } from '../macro/components';
 
 const Stock_buffett_index_lg = ({ key }: { key: number }) => {
   const sampleRate = 10;
@@ -352,6 +353,8 @@ const Stock_margin_account_info = ({ key }: { key: number }) => {
     ['有融资融券负债的投资者数量/个人投资者数量']: '有融资融券负债的投资者数量/个人投资者数量(%)',
     担保物总价值: '担保物总价值(亿)',
     平均维持担保比例: '平均维持担保比例(%)',
+    ['两融余额/总市值']: '两融余额/总市值(%)',
+    ['两融余额/GDP']: '两融余额/GDP(%)',
     ['融资余额/总市值']: '融资余额/总市值(%)',
     ['融券余额/总市值']: '融券余额/总市值(%)',
     ['融资买入额/总市值']: '融资买入额/总市值(%)',
@@ -385,7 +388,6 @@ const Stock_margin_account_info = ({ key }: { key: number }) => {
   }>({ leftData: [], rightData: [] });
   const fetchData = async () => {
     try {
-      console.log('111111 start', new Date().valueOf())
       console.log(`${chartName} -> response`)
       const [marginRes, buffettRes, csindexRes] = await Promise.all([
         apiClient.get('/api/public/stock_margin_account_info'),
@@ -417,10 +419,12 @@ const Stock_margin_account_info = ({ key }: { key: number }) => {
             ['个人投资者数量']: Number((marginItem['个人投资者数量'] * 10000).toFixed(2)) || null,
             ['参与交易的投资者数量/个人投资者数量']: Number((marginItem['参与交易的投资者数量'] / marginItem['个人投资者数量'] / 100).toFixed(2)) || null,
             ['有融资融券负债的投资者数量/个人投资者数量']: Number((marginItem['有融资融券负债的投资者数量'] / marginItem['个人投资者数量'] / 100).toFixed(2)) || null,
+            ['两融余额/总市值']: Number(((marginItem['融资余额'] + marginItem['融券余额']) / buffettItem['总市值'] * 100).toFixed(2)) || null,
             ['融资余额/总市值']: Number((marginItem['融资余额'] / buffettItem['总市值'] * 100).toFixed(2)) || null,
             ['融券余额/总市值']: Number((marginItem['融券余额'] / buffettItem['总市值'] * 100).toFixed(2)) || null,
             ['融资买入额/总市值']: Number((marginItem['融资买入额'] / buffettItem['总市值'] * 100).toFixed(2)) || null,
             ['融券卖出额/总市值']: Number((marginItem['融券卖出额'] / buffettItem['总市值'] * 100).toFixed(2)) || null,
+            ['两融余额/GDP']: Number(((marginItem['融资余额'] + marginItem['融券余额']) / buffettItem['GDP'] * 100).toFixed(2)) || null,
             ['融资余额/GDP']: Number((marginItem['融资余额'] / buffettItem['GDP'] * 100).toFixed(2)) || null,
             ['融券余额/GDP']: Number((marginItem['融券余额'] / buffettItem['GDP'] * 100).toFixed(2)) || null,
             ['融资买入额/GDP']: Number((marginItem['融资买入额'] / buffettItem['GDP'] * 100).toFixed(2)) || null,
@@ -449,9 +453,6 @@ const Stock_margin_account_info = ({ key }: { key: number }) => {
         }
       })
       console.log(`1111111 中证全指 finalMergedData`, finalMergedData);
-
-      console.log('2222222 end', new Date().valueOf())
-
       const dataFormat = finalMergedData?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
         date: item[dateKey],
         key,
@@ -629,10 +630,18 @@ const Stock_a_congestion_lg = ({ key }: { key: number }) => {
 
 {/* todo 破净统计 stock_a_below_net_asset_statistics */ }
 
+// 居民存款之比
+
 {/* todo 融资余额/全A流通市值 占比 */ }
 {/* todo 融券余额/全A流通市值 占比 */ }
 {/* todo 融资余额/全A总市值 占比 */ }
 {/* todo 融券余额/全A总市值 占比 */ }
+
+// 成交额
+
+// 基金发行热度 发行规模
+
+// 波动率VIX指标
 
 {/* 两融余额 */ }
 {/* 两融交易额 */ }
@@ -646,6 +655,7 @@ const Index: React.FC = () => {
     '4': 0,
     '5': 0,
     '6': 0,
+    '7': 0,
   });
 
   console.log('refreshKeys, ', refreshKeys)
@@ -734,6 +744,20 @@ const Index: React.FC = () => {
         </div>
       ),
       children: useMemo(() => <Stock_a_congestion_lg key={refreshKeys['5']} />, [refreshKeys['5']]),
+    },
+    {
+      key: '6',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>全国股票交易统计表</span>
+          <Button
+            icon={<ReloadOutlined />}
+            size="small"
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '6': prev['6'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <Macro_china_stock_market_cap key={refreshKeys['6']} />, [refreshKeys['6']]),
     },
   ];
 

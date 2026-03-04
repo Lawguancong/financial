@@ -82,6 +82,12 @@ export const menuConfigs: MenuItemConfig[] = [
               },
             ],
           },
+          {
+            key: 'stock/a/option-volatility',
+            label: '期权波动',
+            path: 'stock/a/option-volatility',
+            component: lazy(() => import('@/pages/stock/a/option-volatility')),
+          },
         ],
       },
       // {

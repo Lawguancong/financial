@@ -64,12 +64,6 @@ const StockDetail: React.FC = () => {
       setLoading(false);
     }
   };
-  useEffect(() => {
-    console.log('个股详情 useEffect')
-    console.log('个股详情 loading', loading)
-    // todo useEffect 执行2次，导致请求2次接口，2次setSate渲染，导致图表渲染2次，图表有bug
-    // fetchStockDetail();
-  }, [symbol, period]);
 
   const color = (d: StockDetailData) => {
     const trend = Math.sign(d.收盘 - d.开盘);

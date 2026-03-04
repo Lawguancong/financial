@@ -20,7 +20,6 @@ const DemoLine = (props) => {
     axis: {
       x: {
         title: 'x轴标题',
-        // padding: 0, // todo 有bug
         size: 40
       },
       y: {
@@ -47,108 +46,6 @@ const DemoLine = (props) => {
 
 
 
-
-const Fund_aum_trend_em = () => {
-  const chartName = '基金规模走势'; // 图表名称
-  const dateKey = 'date' // 日期键名
-  const dateName = '日期' // 日期键名
-  const leftKey = 'value' // 左y轴键名
-  const leftName = '元' // 左y轴名称
-  const rightKeys = { // 右y轴键名: 右y轴名称
-    // congestion: '拥挤度',
-  }
-  const sampleRate = 1; // 抽样率
-  type DataRes = {
-    [dateKey]: string;
-    [leftKey]: number;
-  } & {
-    [K in keyof typeof rightKeys]: number;
-  };
-
-  const labelMap = {
-    [dateKey]: dateName,
-    [leftKey]: leftName,
-    ...rightKeys
-  }
-  const [data, setData] = useState<{
-    leftData: DataRes[];
-    rightData: {
-      date: string;
-      key: string;
-      value: number;
-    }[];
-  }>({ leftData: [], rightData: [] });
-  const fetchData = async () => {
-    try {
-      const response = await axios.get('http://127.0.0.1:8080/api/public/fund_aum_trend_em')
-      console.log(`${chartName} -> response`, response)
-      const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
-        date: item[dateKey],
-        key,
-        label: labelMap[key as keyof typeof labelMap],
-        value: item[key as keyof DataRes],
-      }))).flat()
-      setData({
-        leftData: dataFormat?.filter((item: { key: string }) => item.key === leftKey),
-        rightData: dataFormat?.filter((item: { key: string }) => item.key !== leftKey)
-      })
-    } catch (error) {
-      console.log('error', error)
-    }
-  }
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  console.log(`${chartName} -> data`, data)
-  const config = {
-    title: {
-      title: chartName,
-      subtitle: `${leftName} 与 ${chartName} `, // 
-    },
-    xField: (d: { date: string }) => new Date(d.date),
-    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
-    children: [
-      {
-        data: data.leftData,
-        type: 'line',
-        yField: 'value',
-        colorField: 'label',
-        shapeField: 'smooth',
-        style: {
-          stroke: '#5B8FF9',
-          lineWidth: 2,
-        },
-        axis: {
-          y: {
-            title: leftName,
-            style: { titleFill: '#5B8FF9' },
-          },
-        },
-      },
-      {
-        data: data.rightData,
-        type: 'line',
-        yField: 'value',
-        colorField: 'label',
-        shapeField: 'smooth',
-        axis: {
-          y: {
-            position: 'right',
-            title: chartName,
-            style: { titleFill: '#6c6868ff' },
-          },
-        },
-      },
-
-    ],
-  };
-
-  return <>
-    <DualAxes {...config} />
-  </>
-};
 
 const DemoDualAxes = () => {
   const uvBillData = [
@@ -369,7 +266,14 @@ const Home = () => {
 
 
   //  "index_csindex_all"  # 中证指数网站-指数列表
-  //  "stock_zh_index_value_csindex"  # 中证指数-指数估值
+
+  //  "stock_zh_index_value_csindex"  # 中证指数-指数估值 
+  // 市盈率 股息率
+
+
+  // 中国股票指数成份
+  // 接口: index_stock_cons
+
   return <>
     {/* Demo */}
     {useMemo(() => <DemoDualAxes />, [])}
@@ -386,9 +290,6 @@ const Home = () => {
     {/* todo 基金 */}
     {/* 基金基本信息-指数型 */}
     {/* 接口: fund_info_index_em */}
-
-    {/* 基金规模走势 */}
-    {/* {useMemo(() => <Fund_aum_trend_em />, [])} */}
 
 
   </>

@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Spin, Typography, Card, Radio } from 'antd';
-import { Stock } from '@ant-design/plots';
+import { Stock, Line } from '@ant-design/plots';
 import apiClient from '@/utils/axios';
 import { useSearchParams } from 'react-router-dom';
 import moment from 'moment';
-import testData from './data.json';
+// import testData from './data.json';
+import { calculateRSI } from '@/utils/stockUtils';
 
 const { Title } = Typography;
 
@@ -27,7 +28,25 @@ const StockDetail: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [adjust, setAdjust] = useState<string>('');
   const [period, setPeriod] = useState<string>('daily');
-  const [data, setData] = useState<StockDetailData[]>(testData[period as 'daily' | 'weekly' | 'monthly'] || []);
+  // const [rawData, setRawData] = useState<StockDetailData[]>(testData[period as 'daily' | 'weekly' | 'monthly'] || []);
+  const [rawData, setRawData] = useState<StockDetailData[]>([]);
+  console.log('1111 rawData', rawData);
+
+  // 计算 RSI6
+  // const data = useMemo(() => {
+  //   return calculateRSI({
+  //     data: rawData,
+  //     closeKey: '收盘',
+  //     period: 6
+  //   });
+  // }, [rawData]);
+    const data = calculateRSI({
+      data: rawData,
+      closeKey: '收盘',
+      period: 6
+    });
+
+  console.log('1111 data', data);
   // const [data, setData] = useState<StockDetailData[]>([]);
 
   // const [startDate, setStartDate] = useState<string>(moment().subtract(60, 'month').format('YYYYMMDD'));
@@ -57,7 +76,7 @@ const StockDetail: React.FC = () => {
         params,
       });
       console.log('个股详情 -> response', response);
-      setData(response?.data || []);
+      setRawData(response?.data || []);
     } catch (error) {
       console.log('error', error);
     } finally {
@@ -97,7 +116,7 @@ const StockDetail: React.FC = () => {
       stroke: color,
     },
     tooltip: {
-      title: (d: StockDetailData) => moment(d.日期).format('YYYYMMDD'),
+      title: (d: any) => moment(d.日期).format('YYYYMMDD'),
       items: [
         { field: '开盘', name: '开盘价' },
         { field: '收盘', name: '收盘价' },
@@ -109,6 +128,7 @@ const StockDetail: React.FC = () => {
         { field: '涨跌幅', name: '涨跌幅' },
         { field: '涨跌额', name: '涨跌额' },
         { field: '换手率', name: '换手率' },
+        { field: '__RSI__', name: 'RSI6' },
       ],
     },
     axis: {
@@ -127,6 +147,66 @@ const StockDetail: React.FC = () => {
       }
     },
   };
+
+  // RSI6 图表配置
+  const rsiChartConfig = {
+    data,
+    xField: (d: StockDetailData) => moment(d.日期).format('YYYYMMDD'),
+    yField: '__RSI__',
+    smooth: true,
+     axis: {
+      x: false
+    },
+    yAxis: {
+      min: 0,
+      max: 100,
+      title: {
+        text: 'RSI6',
+      },
+    },
+    tooltip: {
+      title: (d: any) => moment(d.日期).format('YYYYMMDD'),
+      items: [
+        { field: '__RSI__', name: 'RSI6' },
+      ],
+    },
+    // annotations: [
+    //   {
+    //     type: 'line',
+    //     start: ['min', 70],
+    //     end: ['max', 70],
+    //     style: {
+    //       stroke: '#e41a1c',
+    //       lineDash: [4, 4],
+    //     },
+    //   },
+    //   {
+    //     type: 'line',
+    //     start: ['min', 30],
+    //     end: ['max', 30],
+    //     style: {
+    //       stroke: '#4daf4a',
+    //       lineDash: [4, 4],
+    //     },
+    //   },
+    // ],
+    slider: {
+      x: {
+        values: getSliderRange(),
+        labelFormatter: (d: string) => d,
+      },
+    },
+    // interaction: {
+    //   sliderWheel: true,
+    //   sliderFilter: {
+    //     adaptiveMode: 'filter',
+    //   }
+    // },
+  };
+
+  useEffect(() => {
+    fetchStockDetail();
+  }, [period, adjust]);
 
   console.log('render渲染 个股详情')
 
@@ -150,8 +230,11 @@ const StockDetail: React.FC = () => {
         </div>
       </Card>
       <Spin spinning={loading}>
+        <Card style={{ marginBottom: '16px' }}>
+          {/* <Stock {...chartConfig} /> */}
+        </Card>
         <Card>
-          <Stock {...chartConfig} />
+          <Line {...rsiChartConfig} />
         </Card>
       </Spin>
     </div>

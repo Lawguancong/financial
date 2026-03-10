@@ -128,3 +128,94 @@ export const calculatePercentiles = (
     percentile85,
   };
 };
+
+export const calculateRSI = <T extends Record<string, unknown>>(
+  params: {
+    data: T[];
+    closeKey?: string;
+    period?: number;
+  }
+): (T & { __RSI__: number })[] => {
+  const { data, closeKey = '收盘', period = 6 } = params;
+  if (!data || data.length < period + 1) {
+    return [];
+  }
+
+  // 计算每日涨幅和跌幅
+  const gains = [];
+  const losses = [];
+  
+  for (let i = 1; i < data.length; i++) {
+    const currentClose = data[i][closeKey] as number;
+    const previousClose = data[i - 1][closeKey] as number;
+    const change = currentClose - previousClose;
+    gains.push(Math.max(change, 0));
+    losses.push(Math.max(-change, 0));
+  }
+
+  // 计算RSI
+  const result = [];
+  let avgGain = 0;
+  let avgLoss = 0;
+
+  for (let i = 0; i < data.length; i++) {
+    if (i < period) {
+      // 前period个数据点，RSI设为50
+      result.push({ ...data[i], __RSI__: 50 });
+    } else if (i === period) {
+      // 初始6日：使用简单平均
+      let totalGain = 0;
+      let totalLoss = 0;
+      for (let j = 0; j < period; j++) {
+        totalGain += gains[j];
+        totalLoss += losses[j];
+      }
+      avgGain = totalGain / period;
+      avgLoss = totalLoss / period;
+      
+      // 计算RS和RSI
+      let rsi = 50;
+      if (avgGain > 0 && avgLoss === 0) {
+        rsi = 100;
+      } else if (avgLoss > 0 && avgGain === 0) {
+        rsi = 0;
+      } else if (avgLoss !== 0) {
+        const rs = avgGain / avgLoss;
+        rsi = 100 - (100 / (1 + rs));
+      }
+      rsi = Math.max(0, Math.min(100, rsi));
+      
+      result.push({
+        ...data[i],
+        __RSI__: parseFloat(rsi.toFixed(2))
+      });
+    } else {
+      // 后续每日：使用EMA平滑递推
+      // EMA公式：AvgUpt = (AvgUpt-1 × (period-1) + ΔPt) / period
+      const currentGain = gains[i - 1];
+      const currentLoss = losses[i - 1];
+      
+      avgGain = (avgGain * (period - 1) + currentGain) / period;
+      avgLoss = (avgLoss * (period - 1) + currentLoss) / period;
+      
+      // 计算RS和RSI
+      let rsi = 50;
+      if (avgGain > 0 && avgLoss === 0) {
+        rsi = 100;
+      } else if (avgLoss > 0 && avgGain === 0) {
+        rsi = 0;
+      } else if (avgLoss !== 0) {
+        const rs = avgGain / avgLoss;
+        rsi = 100 - (100 / (1 + rs));
+      }
+      rsi = Math.max(0, Math.min(100, rsi));
+      
+      result.push({
+        ...data[i],
+        __RSI__: parseFloat(rsi.toFixed(2))
+      });
+    }
+  }
+
+  return result;
+};

@@ -1,11 +1,27 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Spin, Typography, Card, Radio } from 'antd';
+import { Spin, Typography, Card, Radio, Row, Col } from 'antd';
 import { Stock, Line } from '@ant-design/plots';
 import apiClient from '@/utils/axios';
 import { useSearchParams } from 'react-router-dom';
 import moment from 'moment';
-// import testData from './data.json';
-import { calculateRSI } from '@/utils/stockUtils';
+import testData from './data.json';
+import { calculateRSI, convertToKLine } from '@/utils/stockUtils';
+console.log('222 testData 原始数据', (testData))
+const weeklyData = convertToKLine({ dailyData: testData.daily, period: 'weekly' });
+const monthlyData = convertToKLine({ dailyData: testData.daily, period: 'monthly' });
+const quarterlyData = convertToKLine({ dailyData: testData.daily, period: 'quarterly' });
+
+// 计算周K、月K、季K的RSI6
+const weeklyRSIData = calculateRSI({ data: weeklyData, closeKey: '收盘', period: 6 });
+const monthlyRSIData = calculateRSI({ data: monthlyData, closeKey: '收盘', period: 6 });
+const quarterlyRSIData = calculateRSI({ data: quarterlyData, closeKey: '收盘', period: 6 });
+
+console.log('222 weeklyData 周K', weeklyData)
+console.log('222 monthlyData 月K', monthlyData)
+console.log('222 quarterlyData 季K', quarterlyData)
+console.log('222 weeklyRSIData 周K RSI', weeklyRSIData)
+console.log('222 monthlyRSIData 月K RSI', monthlyRSIData)
+console.log('222 quarterlyRSIData 季K RSI', quarterlyRSIData)
 
 const { Title } = Typography;
 
@@ -46,7 +62,7 @@ const StockDetail: React.FC = () => {
       period: 6
     });
 
-  console.log('1111 data', data);
+  console.log('22222 原始数据', data);
   // const [data, setData] = useState<StockDetailData[]>([]);
 
   // const [startDate, setStartDate] = useState<string>(moment().subtract(60, 'month').format('YYYYMMDD'));
@@ -235,6 +251,71 @@ const StockDetail: React.FC = () => {
         </Card>
         <Card>
           <Line {...rsiChartConfig} />
+        </Card>
+        <Card style={{ marginTop: '16px' }}>
+          <Title level={5}>不同周期 RSI6</Title>
+          <Row gutter={16}>
+            <Col span={8}>
+              <div style={{ height: 300 }}>
+                <div>周K：RSI6</div>
+                <Line
+                  data={weeklyRSIData}
+                  xField={(d: any) => moment(d.日期).format('YYYYMMDD')}
+                  yField="__RSI__"
+                  smooth={true}
+                  yAxis={{
+                    min: 0,
+                    max: 100,
+                    title: { text: '周K RSI6' },
+                  }}
+                  tooltip={{
+                    title: (d: any) => moment(d.日期).format('YYYYMMDD'),
+                    items: [{ field: '__RSI__', name: 'RSI6' }],
+                  }}
+                />
+              </div>
+            </Col>
+            <Col span={8}>
+              <div style={{ height: 300 }}>
+                <div>月K：RSI6</div>
+                <Line
+                  data={monthlyRSIData}
+                  xField={(d: any) => moment(d.日期).format('YYYYMMDD')}
+                  yField="__RSI__"
+                  smooth={true}
+                  yAxis={{
+                    min: 0,
+                    max: 100,
+                    title: { text: '月K RSI6' },
+                  }}
+                  tooltip={{
+                    title: (d: any) => moment(d.日期).format('YYYYMMDD'),
+                    items: [{ field: '__RSI__', name: 'RSI6' }],
+                  }}
+                />
+              </div>
+            </Col>
+            <Col span={8}>
+              <div style={{ height: 300 }}>
+                <div>季K：RSI6</div>
+                <Line
+                  data={quarterlyRSIData}
+                  xField={(d: any) => moment(d.日期).format('YYYYMMDD')}
+                  yField="__RSI__"
+                  smooth={true}
+                  yAxis={{
+                    min: 0,
+                    max: 100,
+                    title: { text: '季K RSI6' },
+                  }}
+                  tooltip={{
+                    title: (d: any) => moment(d.日期).format('YYYYMMDD'),
+                    items: [{ field: '__RSI__', name: 'RSI6' }],
+                  }}
+                />
+              </div>
+            </Col>
+          </Row>
         </Card>
       </Spin>
     </div>

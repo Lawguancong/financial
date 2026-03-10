@@ -129,13 +129,13 @@ export const calculatePercentiles = (
   };
 };
 
-export const calculateRSI = <T extends Record<string, unknown>>(
+export const calculateRSI = (
   params: {
-    data: T[];
+    data: KLineData[];
     closeKey?: string;
     period?: number;
   }
-): (T & { __RSI__: number })[] => {
+): (KLineData & { __RSI__: number })[] => {
   const { data, closeKey = '收盘', period = 6 } = params;
   if (!data || data.length < period + 1) {
     return [];
@@ -219,3 +219,120 @@ export const calculateRSI = <T extends Record<string, unknown>>(
 
   return result;
 };
+
+// K线数据类型
+export interface KLineData {
+  日期: string;
+  股票代码: string;
+  开盘: number;
+  收盘: number;
+  最高: number;
+  最低: number;
+  成交量: number;
+  成交额: number;
+  振幅?: number;
+  涨跌幅?: number;
+  涨跌额?: number;
+  换手率?: number;
+}
+
+// 周期类型
+export type KLinePeriod = 'weekly' | 'monthly' | 'quarterly';
+
+// 转换日K数据为指定周期的K线数据
+export const convertToKLine = (params: {
+  dailyData: KLineData[];
+  period: KLinePeriod;
+}): KLineData[] => {
+  const { dailyData, period } = params;
+  
+  if (!dailyData || dailyData.length === 0) {
+    return [];
+  }
+
+  // 按指定周期分组
+  const groups: { [key: string]: KLineData[] } = {};
+  
+  dailyData.forEach(item => {
+    const date = moment(item.日期);
+    const year = date.year();
+    let key: string;
+    
+    switch (period) {
+      case 'weekly':
+        const week = date.week(); // 周数
+        key = `${year}-W${week}`;
+        break;
+      case 'monthly':
+        const month = date.month() + 1; // 月份从1开始
+        key = `${year}-M${month}`;
+        break;
+      case 'quarterly':
+        const monthQ = date.month() + 1; // 月份从1开始
+        const quarter = Math.floor((monthQ - 1) / 3) + 1; // 季度
+        key = `${year}-Q${quarter}`;
+        break;
+      default:
+        key = '';
+    }
+    
+    if (key) {
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(item);
+    }
+  });
+
+  // 处理每个周期的K线
+  const kLineData: KLineData[] = [];
+  
+  Object.values(groups).forEach(group => {
+    if (group.length === 0) return;
+    
+    // 按日期排序
+    group.sort((a, b) => new Date(a.日期).getTime() - new Date(b.日期).getTime());
+    
+    // 计算K线数据
+    const firstDay = group[0];
+    const lastDay = group[group.length - 1];
+    
+    const highPrices = group.map(item => item.最高);
+    const lowPrices = group.map(item => item.最低);
+    const volumes = group.map(item => item.成交量);
+    const amounts = group.map(item => item.成交额);
+    
+    const kLine: KLineData = {
+      日期: lastDay.日期,
+      股票代码: firstDay.股票代码,
+      开盘: firstDay.开盘,
+      收盘: lastDay.收盘,
+      最高: Math.max(...highPrices),
+      最低: Math.min(...lowPrices),
+      成交量: volumes.reduce((sum, vol) => sum + vol, 0),
+      成交额: amounts.reduce((sum, amt) => sum + amt, 0)
+    };
+    
+    kLineData.push(kLine);
+  });
+
+  // 按日期排序
+  kLineData.sort((a, b) => new Date(a.日期).getTime() - new Date(b.日期).getTime());
+  
+  return kLineData;
+};
+
+// // 转换日K数据为周K数据
+// export const convertToWeeklyK = (dailyData: KLineData[]): KLineData[] => {
+//   return convertToKLine(dailyData, 'weekly');
+// };
+
+// // 转换日K数据为月K数据
+// export const convertToMonthlyK = (dailyData: KLineData[]): KLineData[] => {
+//   return convertToKLine(dailyData, 'monthly');
+// };
+
+// // 转换日K数据为季K数据
+// export const convertToQuarterlyK = (dailyData: KLineData[]): KLineData[] => {
+//   return convertToKLine(dailyData, 'quarterly');
+// };

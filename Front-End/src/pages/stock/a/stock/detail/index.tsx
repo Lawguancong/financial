@@ -1,27 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Spin, Typography, Card, Radio, Row, Col } from 'antd';
-import { Stock, Line } from '@ant-design/plots';
+import { Stock, Line, Area, DualAxes } from '@ant-design/plots';
 import apiClient from '@/utils/axios';
 import { useSearchParams } from 'react-router-dom';
 import moment from 'moment';
 import testData from './data.json';
-import { calculateRSI, convertToKLine } from '@/utils/stockUtils';
-console.log('222 testData 原始数据', (testData))
-const weeklyData = convertToKLine({ dailyData: testData.daily, period: 'weekly' });
-const monthlyData = convertToKLine({ dailyData: testData.daily, period: 'monthly' });
-const quarterlyData = convertToKLine({ dailyData: testData.daily, period: 'quarterly' });
+import { calculateRSI, convertToKLine, filterKLineByRSI, findThreeConsecutiveRises } from '@/utils/stockUtils';
+// console.log('222 testData 原始数据', (testData))
 
-// 计算周K、月K、季K的RSI6
-const weeklyRSIData = calculateRSI({ data: weeklyData, closeKey: '收盘', period: 6 });
-const monthlyRSIData = calculateRSI({ data: monthlyData, closeKey: '收盘', period: 6 });
-const quarterlyRSIData = calculateRSI({ data: quarterlyData, closeKey: '收盘', period: 6 });
 
-console.log('222 weeklyData 周K', weeklyData)
-console.log('222 monthlyData 月K', monthlyData)
-console.log('222 quarterlyData 季K', quarterlyData)
-console.log('222 weeklyRSIData 周K RSI', weeklyRSIData)
-console.log('222 monthlyRSIData 月K RSI', monthlyRSIData)
-console.log('222 quarterlyRSIData 季K RSI', quarterlyRSIData)
+
+
 
 const { Title } = Typography;
 
@@ -46,7 +35,34 @@ const StockDetail: React.FC = () => {
   const [period, setPeriod] = useState<string>('daily');
   // const [rawData, setRawData] = useState<StockDetailData[]>(testData[period as 'daily' | 'weekly' | 'monthly'] || []);
   const [rawData, setRawData] = useState<StockDetailData[]>([]);
-  console.log('1111 rawData', rawData);
+  const [rsiData, setRsiData] = useState({
+    dailyRSIData: [],
+    weeklyRSIData: [],
+    monthlyRSIData: [],
+    quarterlyRSIData: [],
+  });
+
+  console.log('222 response?.data 日数据', rawData)
+  console.log('222 findThreeConsecutiveRises', findThreeConsecutiveRises({ rawData }))
+  console.log('222 weeklyData 周数据', rsiData.weeklyRSIData)
+  console.log('222 monthlyData 月数据', rsiData.monthlyRSIData)
+  console.log('222 quarterlyData 季数据', rsiData.quarterlyRSIData)
+
+
+  console.log('222 dailyRSIData 日K RSI6', rsiData.dailyRSIData)
+  console.log('222 weeklyRSIData 周K RSI6', rsiData.weeklyRSIData)
+  console.log('222 monthlyRSIData 月K RSI6', rsiData.monthlyRSIData)
+  console.log('222 quarterlyRSIData 季K RSI6', rsiData.quarterlyRSIData)
+
+  console.log('222 sort 季K RSI6', [...rsiData.quarterlyRSIData].sort((a, b) => a?.__RSI6__ - b?.__RSI6__))
+  console.log('222 sort 季K RSI6', [...rsiData.quarterlyRSIData].sort((a, b) => b?.__RSI6__ - a?.__RSI6__))
+  console.log('222 filterKLineByRSI', filterKLineByRSI({
+    dailyData: rsiData.dailyRSIData,
+    weeklyData: rsiData.weeklyRSIData,
+    monthlyData: rsiData.monthlyRSIData,
+    quarterlyData: rsiData.quarterlyRSIData,
+    rsiThreshold: 28,
+  }))
 
   // 计算 RSI6
   // const data = useMemo(() => {
@@ -56,11 +72,11 @@ const StockDetail: React.FC = () => {
   //     period: 6
   //   });
   // }, [rawData]);
-    const data = calculateRSI({
-      data: rawData,
-      closeKey: '收盘',
-      period: 6
-    });
+  const data = calculateRSI({
+    data: rawData,
+    closeKey: '收盘',
+    period: 6
+  });
 
   console.log('22222 原始数据', data);
   // const [data, setData] = useState<StockDetailData[]>([]);
@@ -68,6 +84,7 @@ const StockDetail: React.FC = () => {
   // const [startDate, setStartDate] = useState<string>(moment().subtract(60, 'month').format('YYYYMMDD'));
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>(moment().format('YYYYMMDD'));
+
   const [searchParams] = useSearchParams();
 
   const symbol = searchParams.get('symbol') || '';
@@ -91,8 +108,25 @@ const StockDetail: React.FC = () => {
       const response = await apiClient.get('/api/public/stock_zh_a_hist', {
         params,
       });
-      console.log('个股详情 -> response', response);
       setRawData(response?.data || []);
+
+
+      const weeklyData = convertToKLine({ dailyData: response?.data || [], period: 'weekly' });
+      const monthlyData = convertToKLine({ dailyData: response?.data || [], period: 'monthly' });
+      const quarterlyData = convertToKLine({ dailyData: response?.data || [], period: 'quarterly' });
+
+      // 计算周K、月K、季K的RSI6
+      const dailyRSIData = calculateRSI({ data: response?.data || [], closeKey: '收盘', period: 6 });
+      const weeklyRSIData = calculateRSI({ data: weeklyData, closeKey: '收盘', period: 6 });
+      const monthlyRSIData = calculateRSI({ data: monthlyData, closeKey: '收盘', period: 6 });
+      const quarterlyRSIData = calculateRSI({ data: quarterlyData, closeKey: '收盘', period: 6 });
+
+      setRsiData({
+        dailyRSIData,
+        weeklyRSIData,
+        monthlyRSIData,
+        quarterlyRSIData,
+      })
     } catch (error) {
       console.log('error', error);
     } finally {
@@ -144,7 +178,7 @@ const StockDetail: React.FC = () => {
         { field: '涨跌幅', name: '涨跌幅' },
         { field: '涨跌额', name: '涨跌额' },
         { field: '换手率', name: '换手率' },
-        { field: '__RSI__', name: 'RSI6' },
+        { field: '__RSI6__', name: 'RSI6' },
       ],
     },
     axis: {
@@ -168,9 +202,9 @@ const StockDetail: React.FC = () => {
   const rsiChartConfig = {
     data,
     xField: (d: StockDetailData) => moment(d.日期).format('YYYYMMDD'),
-    yField: '__RSI__',
+    yField: '__RSI6__',
     smooth: true,
-     axis: {
+    axis: {
       x: false
     },
     yAxis: {
@@ -183,7 +217,7 @@ const StockDetail: React.FC = () => {
     tooltip: {
       title: (d: any) => moment(d.日期).format('YYYYMMDD'),
       items: [
-        { field: '__RSI__', name: 'RSI6' },
+        { field: '__RSI6__', name: 'RSI6' },
       ],
     },
     // annotations: [
@@ -250,18 +284,18 @@ const StockDetail: React.FC = () => {
           {/* <Stock {...chartConfig} /> */}
         </Card>
         <Card>
-          <Line {...rsiChartConfig} />
+          {/* <Line {...rsiChartConfig} /> */}
         </Card>
         <Card style={{ marginTop: '16px' }}>
           <Title level={5}>不同周期 RSI6</Title>
           <Row gutter={16}>
-            <Col span={8}>
+            <Col span={12}>
               <div style={{ height: 300 }}>
-                <div>周K：RSI6</div>
+                <div>日K：RSI6</div>
                 <Line
-                  data={weeklyRSIData}
+                  data={rsiData.dailyRSIData}
                   xField={(d: any) => moment(d.日期).format('YYYYMMDD')}
-                  yField="__RSI__"
+                  yField="__RSI6__"
                   smooth={true}
                   yAxis={{
                     min: 0,
@@ -270,18 +304,38 @@ const StockDetail: React.FC = () => {
                   }}
                   tooltip={{
                     title: (d: any) => moment(d.日期).format('YYYYMMDD'),
-                    items: [{ field: '__RSI__', name: 'RSI6' }],
+                    items: [{ field: '__RSI6__', name: 'RSI6' }],
                   }}
                 />
               </div>
             </Col>
-            <Col span={8}>
+            <Col span={12}>
+              <div style={{ height: 300 }}>
+                <div>周K：RSI6</div>
+                <Line
+                  data={rsiData.weeklyRSIData}
+                  xField={(d: any) => moment(d.日期).format('YYYYMMDD')}
+                  yField="__RSI6__"
+                  smooth={true}
+                  yAxis={{
+                    min: 0,
+                    max: 100,
+                    title: { text: '周K RSI6' },
+                  }}
+                  tooltip={{
+                    title: (d: any) => moment(d.日期).format('YYYYMMDD'),
+                    items: [{ field: '__RSI6__', name: 'RSI6' }],
+                  }}
+                />
+              </div>
+            </Col>
+            <Col span={12}>
               <div style={{ height: 300 }}>
                 <div>月K：RSI6</div>
                 <Line
-                  data={monthlyRSIData}
+                  data={rsiData.monthlyRSIData}
                   xField={(d: any) => moment(d.日期).format('YYYYMMDD')}
-                  yField="__RSI__"
+                  yField="__RSI6__"
                   smooth={true}
                   yAxis={{
                     min: 0,
@@ -290,18 +344,18 @@ const StockDetail: React.FC = () => {
                   }}
                   tooltip={{
                     title: (d: any) => moment(d.日期).format('YYYYMMDD'),
-                    items: [{ field: '__RSI__', name: 'RSI6' }],
+                    items: [{ field: '__RSI6__', name: 'RSI6' }],
                   }}
                 />
               </div>
             </Col>
-            <Col span={8}>
+            <Col span={12}>
               <div style={{ height: 300 }}>
                 <div>季K：RSI6</div>
                 <Line
-                  data={quarterlyRSIData}
+                  data={rsiData.quarterlyRSIData}
                   xField={(d: any) => moment(d.日期).format('YYYYMMDD')}
-                  yField="__RSI__"
+                  yField="__RSI6__"
                   smooth={true}
                   yAxis={{
                     min: 0,
@@ -310,12 +364,18 @@ const StockDetail: React.FC = () => {
                   }}
                   tooltip={{
                     title: (d: any) => moment(d.日期).format('YYYYMMDD'),
-                    items: [{ field: '__RSI__', name: 'RSI6' }],
+                    items: [{ field: '__RSI6__', name: 'RSI6' }],
                   }}
                 />
               </div>
             </Col>
           </Row>
+        </Card>
+        <Card style={{ marginTop: '16px' }}>
+          <Title level={5}>换手率趋势</Title>
+          <div style={{ height: 450 }}>
+           
+          </div>
         </Card>
       </Spin>
     </div>

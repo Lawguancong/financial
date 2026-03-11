@@ -135,7 +135,7 @@ export const calculateRSI = (
     closeKey?: string;
     period?: number;
   }
-): (KLineData & { __RSI__: number })[] => {
+): (KLineData & { __RSI6__: number })[] => {
   const { data, closeKey = '收盘', period = 6 } = params;
   if (!data || data.length < period + 1) {
     return [];
@@ -161,7 +161,7 @@ export const calculateRSI = (
   for (let i = 0; i < data.length; i++) {
     if (i < period) {
       // 前period个数据点，RSI设为50
-      result.push({ ...data[i], __RSI__: 50 });
+      result.push({ ...data[i], __RSI6__: 50 });
     } else if (i === period) {
       // 初始6日：使用简单平均
       let totalGain = 0;
@@ -187,7 +187,7 @@ export const calculateRSI = (
       
       result.push({
         ...data[i],
-        __RSI__: parseFloat(rsi.toFixed(2))
+        __RSI6__: parseFloat(rsi.toFixed(2))
       });
     } else {
       // 后续每日：使用EMA平滑递推
@@ -212,7 +212,7 @@ export const calculateRSI = (
       
       result.push({
         ...data[i],
-        __RSI__: parseFloat(rsi.toFixed(2))
+        __RSI6__: parseFloat(rsi.toFixed(2))
       });
     }
   }
@@ -336,3 +336,164 @@ export const convertToKLine = (params: {
 // export const convertToQuarterlyK = (dailyData: KLineData[]): KLineData[] => {
 //   return convertToKLine(dailyData, 'quarterly');
 // };
+
+// 过滤日K数据，基于周K、月K、季K的RSI6阈值
+// 条件：季K的RSI6 < threshold 且对应月K的RSI6 < threshold 且对应周K的RSI6 < threshold
+export const filterKLineByRSI = (params: {
+  dailyData: KLineData[];
+  weeklyData: KLineData[];
+  monthlyData: KLineData[];
+  quarterlyData: KLineData[];
+  rsiThreshold?: number;
+}): KLineData[] => {
+  const { dailyData, weeklyData, monthlyData, quarterlyData, rsiThreshold = 28 } = params;
+  
+  if (!dailyData || dailyData.length === 0) {
+    return [];
+  }
+
+  // 计算各周期的RSI6
+  const weeklyRSI = calculateRSI({ data: weeklyData, period: 6 });
+  const monthlyRSI = calculateRSI({ data: monthlyData, period: 6 });
+  const quarterlyRSI = calculateRSI({ data: quarterlyData, period: 6 });
+
+  // 构建周期数据的映射，键为日期，值为对应的RSI6
+  const weeklyRSIMap = new Map(weeklyRSI.map(item => [moment(item.日期).format('YYYY-MM-DD'), item.__RSI6__]));
+  const monthlyRSIMap = new Map(monthlyRSI.map(item => [moment(item.日期).format('YYYY-MM-DD'), item.__RSI6__]));
+  const quarterlyRSIMap = new Map(quarterlyRSI.map(item => [moment(item.日期).format('YYYY-MM-DD'), item.__RSI6__]));
+
+  // 过滤日K数据
+  return dailyData.filter(dailyItem => {
+    const dayDate = moment(dailyItem.日期);
+    const dailyRSIValue = dailyItem['__RSI6__'];
+    
+    // 找到包含该日的周K日期（周K的日期是该周的最后一个交易日）
+    const weekKey = `${dayDate.year()}-W${dayDate.week()}`;
+    let weeklyRSIValue = 100; // 默认为100，不满足条件
+    for (const [date, rsi] of weeklyRSIMap.entries()) {
+      const weekDate = moment(date);
+      if (weekDate.year() === dayDate.year() && weekDate.week() === dayDate.week()) {
+        weeklyRSIValue = rsi;
+        break;
+      }
+    }
+    
+    // 找到包含该日的月K日期（月K的日期是该月的最后一个交易日）
+    const monthKey = `${dayDate.year()}-M${dayDate.month() + 1}`;
+    let monthlyRSIValue = 100; // 默认为100，不满足条件
+    for (const [date, rsi] of monthlyRSIMap.entries()) {
+      const monthDate = moment(date);
+      if (monthDate.year() === dayDate.year() && monthDate.month() === dayDate.month()) {
+        monthlyRSIValue = rsi;
+        break;
+      }
+    }
+    
+    // 找到包含该日的季K日期（季K的日期是该季的最后一个交易日）
+    const quarter = Math.floor((dayDate.month() + 1 - 1) / 3) + 1;
+    const quarterKey = `${dayDate.year()}-Q${quarter}`;
+    let quarterlyRSIValue = 100; // 默认为100，不满足条件
+    for (const [date, rsi] of quarterlyRSIMap.entries()) {
+      const quarterDate = moment(date);
+      const dateQuarter = Math.floor((quarterDate.month() + 1 - 1) / 3) + 1;
+      if (quarterDate.year() === dayDate.year() && dateQuarter === quarter) {
+        quarterlyRSIValue = rsi;
+        break;
+      }
+    }
+    
+    // 检查是否满足所有条件
+    return dailyRSIValue < 15 && weeklyRSIValue < 20 && monthlyRSIValue < 25 && quarterlyRSIValue < 30;
+  });
+};
+
+// 查找3连阳或以上且第1阳的换手率在过去3年10%低位的情况
+export const findThreeConsecutiveRises = (params: {
+  rawData: KLineData[];
+}): { startIndex: number; data: KLineData[] }[] => {
+  const { rawData } = params;
+  
+  if (!rawData || rawData.length < 3) {
+    return [];
+  }
+  
+  // 检查整个数据集的历史是否足够3年
+  if (rawData.length >= 2) {
+    const firstDate = moment(rawData[0].日期);
+    const lastDate = moment(rawData[rawData.length - 1].日期);
+    const yearsDiff = lastDate.diff(firstDate, 'years');
+    if (yearsDiff < 3) {
+      return [];
+    }
+  } else {
+    return [];
+  }
+
+  const result: { startIndex: number; data: KLineData[] }[] = [];
+  let i = 0;
+  
+  // 遍历查找连续阳线
+  while (i <= rawData.length - 3) {
+    let consecutiveRises = 0;
+    let currentIndex = i;
+    
+    // 计算连续阳线的长度
+    while (currentIndex < rawData.length && rawData[currentIndex].收盘 > rawData[currentIndex].开盘) {
+      consecutiveRises++;
+      currentIndex++;
+    }
+    
+    // 检查是否有3连阳或以上
+    if (consecutiveRises >= 3) {
+      const day1 = rawData[i];
+      
+      // 计算第1阳的日期
+      const firstRiseDate = moment(day1.日期);
+      
+      // 检查第1阳的日期之前是否有至少3年的历史数据
+      const dataStartDate = moment(rawData[0].日期);
+      const yearsSinceStart = firstRiseDate.diff(dataStartDate, 'years');
+      if (yearsSinceStart < 3) {
+        // 第1阳的日期之前历史数据不足3年，跳过
+        i = currentIndex;
+        continue;
+      }
+      
+      // 计算过去3年的开始日期
+      const threeYearsAgo = firstRiseDate.clone().subtract(3, 'years');
+      
+      // 提取过去3年的换手率数据
+      const pastThreeYearsData = rawData.filter(item => {
+        const itemDate = moment(item.日期);
+        return itemDate.isAfter(threeYearsAgo) && itemDate.isBefore(firstRiseDate) && item.换手率 !== undefined;
+      });
+      
+      const turnoverRates = pastThreeYearsData.map(item => item.换手率!).filter(rate => !isNaN(rate));
+      
+      if (turnoverRates.length > 0) {
+        // 计算10%分位数
+        turnoverRates.sort((a, b) => a - b);
+        const percentile10Index = Math.floor(turnoverRates.length * 0.1);
+        const percentile10 = turnoverRates[percentile10Index];
+        
+        // 检查第1阳的换手率是否小于等于10%分位数
+        if (day1.换手率 !== undefined && day1.换手率 <= percentile10) {
+          // 提取连续阳线的数据
+          const consecutiveData = rawData.slice(i, i + consecutiveRises);
+          result.push({
+            startIndex: i,
+            data: consecutiveData
+          });
+        }
+      }
+      
+      // 跳过已经处理过的连续阳线
+      i = currentIndex;
+    } else {
+      // 移动到下一个交易日
+      i++;
+    }
+  }
+  
+  return result;
+};

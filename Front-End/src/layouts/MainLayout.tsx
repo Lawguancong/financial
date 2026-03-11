@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout, Menu, theme } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { menuItems, menuPathMap } from '@/config/menuConfig';
@@ -7,12 +7,23 @@ import type { MenuProps } from 'antd';
 const { Header, Content, Sider } = Layout;
 
 const MainLayout: React.FC = () => {
-  const [collapsed, setCollapsed] = useState(false);
+  // 初始状态：小屏幕默认折叠
+  const [collapsed, setCollapsed] = useState(window.innerWidth < 768);
   const navigate = useNavigate();
   const location = useLocation();
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
+
+  // 监听屏幕尺寸变化
+  useEffect(() => {
+    const handleResize = () => {
+      setCollapsed(window.innerWidth < 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const findSelectedKey = (path: string): string => {
     const findKey = (items: MenuProps['items']): string | null => {

@@ -403,7 +403,8 @@ export const filterKLineByRSI = (params: {
     }
     
     // 检查是否满足所有条件
-    return dailyRSIValue < 15 && weeklyRSIValue < 20 && monthlyRSIValue < 25 && quarterlyRSIValue < 30;
+    return dailyRSIValue < 15 && weeklyRSIValue < 20 && monthlyRSIValue < 25 && quarterlyRSIValue < 30 || 
+    dailyRSIValue < 20 && weeklyRSIValue < 20 && monthlyRSIValue < 20
   });
 };
 

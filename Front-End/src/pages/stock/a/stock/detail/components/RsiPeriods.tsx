@@ -1,137 +1,110 @@
-import React from 'react';
+import React, { useMemo, memo } from 'react';
 import { Line } from '@ant-design/plots';
-import { Row, Col } from 'antd';
 import moment from 'moment';
 import { calculateRSI, convertToKLine } from '@/utils';
 
-interface RsiData {
-  日期: string;
-  __RSI6__: number;
-}
-
 interface RsiPeriodsProps {
   data: any[];
-  // dailyRSIData: RsiData[];
-  // weeklyRSIData: RsiData[];
-  // monthlyRSIData: RsiData[];
-  // quarterlyRSIData: RsiData[];
 }
 
-const RsiPeriods: React.FC<RsiPeriodsProps> = ({
-  data
-}) => {
+// 静态样式配置
+const containerStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '16px' };
+const chartContainerStyle: React.CSSProperties = { height: 300 };
+const labelStyle: React.CSSProperties = { fontWeight: 'bold', marginBottom: '8px' };
 
-  const weeklyData = convertToKLine({ dailyData: data, period: 'weekly' });
-  const monthlyData = convertToKLine({ dailyData: data, period: 'monthly' });
-  const quarterlyData = convertToKLine({ dailyData: data, period: 'quarterly' });
-  const dailyRSIData = calculateRSI({ data, closeKey: '收盘', period: 6 });
-  const weeklyRSIData = calculateRSI({ data: weeklyData, closeKey: '收盘', period: 6 });
-  const monthlyRSIData = calculateRSI({ data: monthlyData, closeKey: '收盘', period: 6 });
-  const quarterlyRSIData = calculateRSI({ data: quarterlyData, closeKey: '收盘', period: 6 });
+// 图表共享配置 - 静态部分
+const baseChartConfig = {
+  xField: (d: any) => new Date(d.日期),
+  yField: '__RSI6__',
+  height: 200,
+  smooth: true,
+  xAxis: {
+    type: 'time' as const,
+    tickFormatter: (value: string) => moment(value).format('YYYYMMDD'),
+  },
+  yAxis: {
+    min: 0,
+    max: 100,
+  },
+  tooltip: {
+    title: (d: any) => moment(d.日期).format('YYYYMMDD'),
+    items: [{ field: '__RSI6__', name: 'RSI6' }],
+  },
+};
+
+const RsiPeriods: React.FC<RsiPeriodsProps> = ({ data }) => {
+  // 使用 useMemo 缓存所有计算结果
+  const { dailyRSIData, weeklyRSIData, monthlyRSIData, quarterlyRSIData } = useMemo(() => {
+    if (data.length === 0) {
+      return {
+        dailyRSIData: [],
+        weeklyRSIData: [],
+        monthlyRSIData: [],
+        quarterlyRSIData: [],
+      };
+    }
+
+    const weeklyData = convertToKLine({ dailyData: data, period: 'weekly' });
+    const monthlyData = convertToKLine({ dailyData: data, period: 'monthly' });
+    const quarterlyData = convertToKLine({ dailyData: data, period: 'quarterly' });
+
+    return {
+      dailyRSIData: calculateRSI({ data, closeKey: '收盘', period: 6 }),
+      weeklyRSIData: calculateRSI({ data: weeklyData, closeKey: '收盘', period: 6 }),
+      monthlyRSIData: calculateRSI({ data: monthlyData, closeKey: '收盘', period: 6 }),
+      quarterlyRSIData: calculateRSI({ data: quarterlyData, closeKey: '收盘', period: 6 }),
+    };
+  }, [data]);
+
+  // 缓存各图表配置
+  const dailyConfig = useMemo(() => ({
+    ...baseChartConfig,
+    data: dailyRSIData,
+    yAxis: { ...baseChartConfig.yAxis, title: { text: '日K RSI6' } },
+  }), [dailyRSIData]);
+
+  const weeklyConfig = useMemo(() => ({
+    ...baseChartConfig,
+    data: weeklyRSIData,
+    yAxis: { ...baseChartConfig.yAxis, title: { text: '周K RSI6' } },
+  }), [weeklyRSIData]);
+
+  const monthlyConfig = useMemo(() => ({
+    ...baseChartConfig,
+    data: monthlyRSIData,
+    yAxis: { ...baseChartConfig.yAxis, title: { text: '月K RSI6' } },
+  }), [monthlyRSIData]);
+
+  const quarterlyConfig = useMemo(() => ({
+    ...baseChartConfig,
+    data: quarterlyRSIData,
+    yAxis: { ...baseChartConfig.yAxis, title: { text: '季K RSI6' } },
+  }), [quarterlyRSIData]);
+
+  if (data.length === 0) {
+    return <div>暂无数据</div>;
+  }
+
   return (
-    <>
-      <div >
-        <div style={{ height: 300 }}>
-          <div>日K：RSI6</div>
-          <Line
-            data={dailyRSIData}
-            xField={(d: any) => new Date(d.日期)}
-            yField="__RSI6__"
-            height={200}
-            smooth={true}
-            xAxis={{
-              type: 'time',
-              tickFormatter: (value: string) => moment(value).format('YYYYMMDD'),
-            }}
-            yAxis={{
-              min: 0,
-              max: 100,
-              title: { text: '日K RSI6' },
-            }}
-            tooltip={{
-              title: (d: any) => moment(d.日期).format('YYYYMMDD'),
-              items: [{ field: '__RSI6__', name: 'RSI6' }],
-            }}
-          />
-        </div>
+    <div style={containerStyle}>
+      <div style={chartContainerStyle}>
+        <div style={labelStyle}>日K：RSI6</div>
+        <Line {...dailyConfig} />
       </div>
-      <div >
-        <div style={{ height: 300 }}>
-          <div>周K：RSI6</div>
-          <Line
-            data={weeklyRSIData}
-            xField={(d: any) => new Date(d.日期)}
-            yField="__RSI6__"
-            height={200}
-            smooth={true}
-            xAxis={{
-              type: 'time',
-              tickFormatter: (value: string) => moment(value).format('YYYYMMDD'),
-            }}
-            yAxis={{
-              min: 0,
-              max: 100,
-              title: { text: '周K RSI6' },
-            }}
-            tooltip={{
-              title: (d: any) => moment(d.日期).format('YYYYMMDD'),
-              items: [{ field: '__RSI6__', name: 'RSI6' }],
-            }}
-          />
-        </div>
+      <div style={chartContainerStyle}>
+        <div style={labelStyle}>周K：RSI6</div>
+        <Line {...weeklyConfig} />
       </div>
-      <div >
-        <div style={{ height: 300 }}>
-          <div>月K：RSI6</div>
-          <Line
-            data={monthlyRSIData}
-            xField={(d: any) => new Date(d.日期)}
-            yField="__RSI6__"
-            height={200}
-            smooth={true}
-            xAxis={{
-              type: 'time',
-              tickFormatter: (value: string) => moment(value).format('YYYYMMDD'),
-            }}
-            yAxis={{
-              min: 0,
-              max: 100,
-              title: { text: '月K RSI6' },
-            }}
-            tooltip={{
-              title: (d: any) => moment(d.日期).format('YYYYMMDD'),
-              items: [{ field: '__RSI6__', name: 'RSI6' }],
-            }}
-          />
-        </div>
+      <div style={chartContainerStyle}>
+        <div style={labelStyle}>月K：RSI6</div>
+        <Line {...monthlyConfig} />
       </div>
-      <div >
-        <div style={{ height: 300 }}>
-          <div>季K：RSI6</div>
-          <Line
-            data={quarterlyRSIData}
-            xField={(d: any) => new Date(d.日期)}
-            yField="__RSI6__"
-            height={200}
-            smooth={true}
-            xAxis={{
-              type: 'time',
-              tickFormatter: (value: string) => moment(value).format('YYYYMMDD'),
-            }}
-            yAxis={{
-              min: 0,
-              max: 100,
-              title: { text: '季K RSI6' },
-            }}
-            tooltip={{
-              title: (d: any) => moment(d.日期).format('YYYYMMDD'),
-              items: [{ field: '__RSI6__', name: 'RSI6' }],
-            }}
-          />
-        </div>
+      <div style={chartContainerStyle}>
+        <div style={labelStyle}>季K：RSI6</div>
+        <Line {...quarterlyConfig} />
       </div>
-    </>
+    </div>
   );
 };
 
-export default RsiPeriods;
+export default memo(RsiPeriods);

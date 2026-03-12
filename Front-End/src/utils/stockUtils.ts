@@ -405,7 +405,12 @@ export const filterKLineByRSI = (params: {
     // 检查是否满足所有条件
     // todo 指标优化
     // return dailyRSIValue > (100 - 20) && weeklyRSIValue > (100 - 25) && monthlyRSIValue > (100 - 28) && quarterlyRSIValue > (100 - 30); // 超买 
-    return dailyRSIValue < 15 && weeklyRSIValue < 20 && monthlyRSIValue < 30 && quarterlyRSIValue < 30 // 超卖
+    // return dailyRSIValue < 15 && weeklyRSIValue < 24 && monthlyRSIValue < 27 && quarterlyRSIValue < 30 // 超卖
+    return dailyRSIValue < 15 && weeklyRSIValue < 24 && monthlyRSIValue < 27 && quarterlyRSIValue < 30 // 超卖
+    || dailyRSIValue < 10 && weeklyRSIValue < 20 && monthlyRSIValue < 25
+    || dailyRSIValue < 8 && weeklyRSIValue < 11
+
+
     // || dailyRSIValue < 20 && weeklyRSIValue < 20 && monthlyRSIValue < 20 
     // || dailyRSIValue < 15 && quarterlyRSIValue < 20
     // || dailyRSIValue < 12 && weeklyRSIValue < 20 &&  monthlyRSIValue < 25

@@ -29,14 +29,15 @@ const RsiPeriods: React.FC<RsiPeriodsProps> = ({
   const monthlyRSIData = calculateRSI({ data: monthlyData, closeKey: '收盘', period: 6 });
   const quarterlyRSIData = calculateRSI({ data: quarterlyData, closeKey: '收盘', period: 6 });
   return (
-    <Row gutter={16}>
-      <Col span={12}>
+    <>
+      <div >
         <div style={{ height: 300 }}>
           <div>日K：RSI6</div>
           <Line
             data={dailyRSIData}
-            xField="日期"
+            xField={(d: any) => new Date(d.日期)}
             yField="__RSI6__"
+            height={200}
             smooth={true}
             xAxis={{
               type: 'time',
@@ -53,14 +54,15 @@ const RsiPeriods: React.FC<RsiPeriodsProps> = ({
             }}
           />
         </div>
-      </Col>
-      <Col span={12}>
+      </div>
+      <div >
         <div style={{ height: 300 }}>
           <div>周K：RSI6</div>
           <Line
             data={weeklyRSIData}
-            xField="日期"
+            xField={(d: any) => new Date(d.日期)}
             yField="__RSI6__"
+            height={200}
             smooth={true}
             xAxis={{
               type: 'time',
@@ -77,14 +79,15 @@ const RsiPeriods: React.FC<RsiPeriodsProps> = ({
             }}
           />
         </div>
-      </Col>
-      <Col span={12}>
+      </div>
+      <div >
         <div style={{ height: 300 }}>
           <div>月K：RSI6</div>
           <Line
             data={monthlyRSIData}
-            xField="日期"
+            xField={(d: any) => new Date(d.日期)}
             yField="__RSI6__"
+            height={200}
             smooth={true}
             xAxis={{
               type: 'time',
@@ -101,14 +104,15 @@ const RsiPeriods: React.FC<RsiPeriodsProps> = ({
             }}
           />
         </div>
-      </Col>
-      <Col span={12}>
+      </div>
+      <div >
         <div style={{ height: 300 }}>
           <div>季K：RSI6</div>
           <Line
             data={quarterlyRSIData}
-            xField="日期"
+            xField={(d: any) => new Date(d.日期)}
             yField="__RSI6__"
+            height={200}
             smooth={true}
             xAxis={{
               type: 'time',
@@ -125,8 +129,8 @@ const RsiPeriods: React.FC<RsiPeriodsProps> = ({
             }}
           />
         </div>
-      </Col>
-    </Row>
+      </div>
+    </>
   );
 };
 

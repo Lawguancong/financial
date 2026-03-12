@@ -31,7 +31,7 @@ interface StockDetailData {
 
 const StockDetail: React.FC = () => {
   const [loading, setLoading] = useState(false);
-  const [adjust, setAdjust] = useState<string>('');
+  const [adjust, setAdjust] = useState<string>('hfq');// 默认后复权
   const [period, setPeriod] = useState<string>('daily');
   const [symbolInfo, setSymbolInfo] = useState<Record<string, string>>({});
   // console.log('symbolInfo', symbolInfo)
@@ -253,7 +253,7 @@ const StockDetail: React.FC = () => {
         </div>
       </Card>
       <Spin spinning={loading}>
-        <Tabs defaultActiveKey="rsi-filter">
+        <Tabs defaultActiveKey="three-rises">
           <TabPane tab="价格与换手率" key="price-turnover">
             <Card style={{ marginTop: '16px' }}>
               <Title level={5}>价格与换手率</Title>
@@ -276,6 +276,12 @@ const StockDetail: React.FC = () => {
               />
             </Card>
           </TabPane>
+          <TabPane tab="三连阳日期标记" key="three-rises">
+            <Card style={{ marginTop: '16px' }}>
+              <Title level={5}>三连阳日期标记</Title>
+              <ThreeConsecutiveRisesComponent data={rawData} />
+            </Card>
+          </TabPane>
           {/* <TabPane tab="换手率趋势" key="turnover">
             <Card style={{ marginTop: '16px' }}>
               <Title level={5}>换手率趋势</Title>
@@ -283,12 +289,7 @@ const StockDetail: React.FC = () => {
             </Card>
           </TabPane>
           
-          <TabPane tab="三连阳日期标记" key="three-rises">
-            <Card style={{ marginTop: '16px' }}>
-              <Title level={5}>三连阳日期标记</Title>
-              <ThreeConsecutiveRisesComponent data={rawData} />
-            </Card>
-          </TabPane>
+          
           <TabPane tab="不同周期 RSI6" key="rsi-periods">
             <Card style={{ marginTop: '16px' }}>
               <Title level={5}>不同周期 RSI6</Title>

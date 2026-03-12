@@ -22,7 +22,7 @@ export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
     ?.filter(value => typeof value === 'number' && !isNaN(value))
     ?.sort((a, b) => a - b);
 
-    
+
   // 计算15%和85%百分位
   const percentile15 = values?.[Math.floor(values.length * 0.15)];
   const percentile85 = values?.[Math.floor(values.length * 0.85)];
@@ -144,7 +144,7 @@ export const calculateRSI = (
   // 计算每日涨幅和跌幅
   const gains = [];
   const losses = [];
-  
+
   for (let i = 1; i < data.length; i++) {
     const currentClose = data[i][closeKey] as number;
     const previousClose = data[i - 1][closeKey] as number;
@@ -172,7 +172,7 @@ export const calculateRSI = (
       }
       avgGain = totalGain / period;
       avgLoss = totalLoss / period;
-      
+
       // 计算RS和RSI
       let rsi = 50;
       if (avgGain > 0 && avgLoss === 0) {
@@ -184,7 +184,7 @@ export const calculateRSI = (
         rsi = 100 - (100 / (1 + rs));
       }
       rsi = Math.max(0, Math.min(100, rsi));
-      
+
       result.push({
         ...data[i],
         __RSI6__: parseFloat(rsi.toFixed(2))
@@ -194,10 +194,10 @@ export const calculateRSI = (
       // EMA公式：AvgUpt = (AvgUpt-1 × (period-1) + ΔPt) / period
       const currentGain = gains[i - 1];
       const currentLoss = losses[i - 1];
-      
+
       avgGain = (avgGain * (period - 1) + currentGain) / period;
       avgLoss = (avgLoss * (period - 1) + currentLoss) / period;
-      
+
       // 计算RS和RSI
       let rsi = 50;
       if (avgGain > 0 && avgLoss === 0) {
@@ -209,7 +209,7 @@ export const calculateRSI = (
         rsi = 100 - (100 / (1 + rs));
       }
       rsi = Math.max(0, Math.min(100, rsi));
-      
+
       result.push({
         ...data[i],
         __RSI6__: parseFloat(rsi.toFixed(2))
@@ -245,19 +245,19 @@ export const convertToKLine = (params: {
   period: KLinePeriod;
 }): KLineData[] => {
   const { dailyData, period } = params;
-  
+
   if (!dailyData || dailyData.length === 0) {
     return [];
   }
 
   // 按指定周期分组
   const groups: { [key: string]: KLineData[] } = {};
-  
+
   dailyData.forEach(item => {
     const date = moment(item.日期);
     const year = date.year();
     let key: string;
-    
+
     switch (period) {
       case 'weekly':
         const week = date.week(); // 周数
@@ -275,7 +275,7 @@ export const convertToKLine = (params: {
       default:
         key = '';
     }
-    
+
     if (key) {
       if (!groups[key]) {
         groups[key] = [];
@@ -286,22 +286,22 @@ export const convertToKLine = (params: {
 
   // 处理每个周期的K线
   const kLineData: KLineData[] = [];
-  
+
   Object.values(groups).forEach(group => {
     if (group.length === 0) return;
-    
+
     // 按日期排序
     group.sort((a, b) => new Date(a.日期).getTime() - new Date(b.日期).getTime());
-    
+
     // 计算K线数据
     const firstDay = group[0];
     const lastDay = group[group.length - 1];
-    
+
     const highPrices = group.map(item => item.最高);
     const lowPrices = group.map(item => item.最低);
     const volumes = group.map(item => item.成交量);
     const amounts = group.map(item => item.成交额);
-    
+
     const kLine: KLineData = {
       日期: lastDay.日期,
       股票代码: firstDay.股票代码,
@@ -312,13 +312,13 @@ export const convertToKLine = (params: {
       成交量: volumes.reduce((sum, vol) => sum + vol, 0),
       成交额: amounts.reduce((sum, amt) => sum + amt, 0)
     };
-    
+
     kLineData.push(kLine);
   });
 
   // 按日期排序
   kLineData.sort((a, b) => new Date(a.日期).getTime() - new Date(b.日期).getTime());
-  
+
   return kLineData;
 };
 
@@ -347,7 +347,7 @@ export const filterKLineByRSI = (params: {
   rsiThreshold?: number;
 }): KLineData[] => {
   const { dailyData, weeklyData, monthlyData, quarterlyData, rsiThreshold = 28 } = params;
-  
+
   if (!dailyData || dailyData.length === 0) {
     return [];
   }
@@ -366,7 +366,7 @@ export const filterKLineByRSI = (params: {
   return dailyData.filter(dailyItem => {
     const dayDate = moment(dailyItem.日期);
     const dailyRSIValue = dailyItem['__RSI6__'];
-    
+
     // 找到包含该日的周K日期（周K的日期是该周的最后一个交易日）
     const weekKey = `${dayDate.year()}-W${dayDate.week()}`;
     let weeklyRSIValue = 100; // 默认为100，不满足条件
@@ -377,7 +377,7 @@ export const filterKLineByRSI = (params: {
         break;
       }
     }
-    
+
     // 找到包含该日的月K日期（月K的日期是该月的最后一个交易日）
     const monthKey = `${dayDate.year()}-M${dayDate.month() + 1}`;
     let monthlyRSIValue = 100; // 默认为100，不满足条件
@@ -388,7 +388,7 @@ export const filterKLineByRSI = (params: {
         break;
       }
     }
-    
+
     // 找到包含该日的季K日期（季K的日期是该季的最后一个交易日）
     const quarter = Math.floor((dayDate.month() + 1 - 1) / 3) + 1;
     const quarterKey = `${dayDate.year()}-Q${quarter}`;
@@ -401,10 +401,14 @@ export const filterKLineByRSI = (params: {
         break;
       }
     }
-    
+
     // 检查是否满足所有条件
-    return dailyRSIValue < 15 && weeklyRSIValue < 20 && monthlyRSIValue < 25 && quarterlyRSIValue < 30 || 
-    dailyRSIValue < 20 && weeklyRSIValue < 20 && monthlyRSIValue < 20
+    // todo 指标优化
+    // return dailyRSIValue > (100 - 20) && weeklyRSIValue > (100 - 25) && monthlyRSIValue > (100 - 28) && quarterlyRSIValue > (100 - 30); // 超买 
+    return dailyRSIValue < 15 && weeklyRSIValue < 20 && monthlyRSIValue < 30 && quarterlyRSIValue < 30 // 超卖
+    // || dailyRSIValue < 20 && weeklyRSIValue < 20 && monthlyRSIValue < 20 
+    // || dailyRSIValue < 15 && quarterlyRSIValue < 20
+    // || dailyRSIValue < 12 && weeklyRSIValue < 20 &&  monthlyRSIValue < 25
   });
 };
 
@@ -413,11 +417,11 @@ export const findThreeConsecutiveRises = (params: {
   rawData: KLineData[];
 }): { startIndex: number; data: KLineData[] }[] => {
   const { rawData } = params;
-  
+
   if (!rawData || rawData.length < 3) {
     return [];
   }
-  
+
   // 检查整个数据集的历史是否足够3年
   if (rawData.length >= 2) {
     const firstDate = moment(rawData[0].日期);
@@ -432,25 +436,25 @@ export const findThreeConsecutiveRises = (params: {
 
   const result: { startIndex: number; data: KLineData[] }[] = [];
   let i = 0;
-  
+
   // 遍历查找连续阳线
   while (i <= rawData.length - 3) {
     let consecutiveRises = 0;
     let currentIndex = i;
-    
+
     // 计算连续阳线的长度
     while (currentIndex < rawData.length && rawData[currentIndex].收盘 > rawData[currentIndex].开盘) {
       consecutiveRises++;
       currentIndex++;
     }
-    
+
     // 检查是否有3连阳或以上
     if (consecutiveRises >= 3) {
       const day1 = rawData[i];
-      
+
       // 计算第1阳的日期
       const firstRiseDate = moment(day1.日期);
-      
+
       // 检查第1阳的日期之前是否有至少3年的历史数据
       const dataStartDate = moment(rawData[0].日期);
       const yearsSinceStart = firstRiseDate.diff(dataStartDate, 'years');
@@ -459,26 +463,26 @@ export const findThreeConsecutiveRises = (params: {
         i = currentIndex;
         continue;
       }
-      
+
       // 计算过去3年的开始日期
       const threeYearsAgo = firstRiseDate.clone().subtract(3, 'years');
-      
+
       // 提取过去3年的换手率数据
       const pastThreeYearsData = rawData.filter(item => {
         const itemDate = moment(item.日期);
         return itemDate.isAfter(threeYearsAgo) && itemDate.isBefore(firstRiseDate) && item.换手率 !== undefined;
       });
-      
+
       const turnoverRates = pastThreeYearsData.map(item => item.换手率!).filter(rate => !isNaN(rate));
-      
+
       if (turnoverRates.length > 0) {
         // 计算10%分位数
         turnoverRates.sort((a, b) => a - b);
-        const percentile10Index = Math.floor(turnoverRates.length * 0.1);
-        const percentile10 = turnoverRates[percentile10Index];
-        
+        const percentile05Index = Math.floor(turnoverRates.length * 0.05);
+        const percentile05 = turnoverRates[percentile05Index];
+
         // 检查第1阳的换手率是否小于等于10%分位数
-        if (day1.换手率 !== undefined && day1.换手率 <= percentile10) {
+        if (day1.换手率 !== undefined && day1.换手率 <= percentile05) {
           // 提取连续阳线的数据
           const consecutiveData = rawData.slice(i, i + consecutiveRises);
           result.push({
@@ -487,7 +491,7 @@ export const findThreeConsecutiveRises = (params: {
           });
         }
       }
-      
+
       // 跳过已经处理过的连续阳线
       i = currentIndex;
     } else {
@@ -495,6 +499,6 @@ export const findThreeConsecutiveRises = (params: {
       i++;
     }
   }
-  
+
   return result;
 };

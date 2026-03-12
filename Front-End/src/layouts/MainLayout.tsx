@@ -7,8 +7,8 @@ import type { MenuProps } from 'antd';
 const { Header, Content, Sider } = Layout;
 
 const MainLayout: React.FC = () => {
-  // 初始状态：小屏幕默认折叠
-  const [collapsed, setCollapsed] = useState(window.innerWidth < 768);
+  // 初始状态：默认折叠
+  const [collapsed, setCollapsed] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
   const {

@@ -33,13 +33,70 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data }) => {
       const monthlyRSIData = calculateRSI({ data: monthlyData, closeKey: '收盘', period: 6 });
       const quarterlyRSIData = calculateRSI({ data: quarterlyData, closeKey: '收盘', period: 6 });
 
+      // 创建日期映射，用于快速查找周、月、季RSI
+      // 统一使用 YYYYMMDD 格式作为 key
+      const weeklyRSIMap = new Map(weeklyRSIData.map(item => [moment(item.日期).format('YYYYMMDD'), item.__RSI6__]));
+      const monthlyRSIMap = new Map(monthlyRSIData.map(item => [moment(item.日期).format('YYYYMMDD'), item.__RSI6__]));
+      const quarterlyRSIMap = new Map(quarterlyRSIData.map(item => [moment(item.日期).format('YYYYMMDD'), item.__RSI6__]));
+      console.log('11weeklyRSIMap', weeklyRSIMap);
+      console.log('11monthlyRSIMap', monthlyRSIMap);
+      console.log('11quarterlyRSIMap', quarterlyRSIMap);
+
+      // 创建辅助函数：根据日期找到对应的周、月、季RSI
+      const findWeeklyRSI = (date: string) => {
+        const dayMoment = moment(date, 'YYYYMMDD');
+        // 找到该日期所在周的最后一个交易日
+        for (let i = 0; i < 7; i++) {
+          const checkDate = dayMoment.clone().add(i, 'days').format('YYYYMMDD');
+          if (weeklyRSIMap.has(checkDate)) {
+            return weeklyRSIMap.get(checkDate);
+          }
+        }
+        return null;
+      };
+
+      const findMonthlyRSI = (date: string) => {
+        const dayMoment = moment(date, 'YYYYMMDD');
+        // 找到该日期所在月的最后一个交易日
+        const monthEnd = dayMoment.endOf('month');
+        for (let i = 0; i < 31; i++) {
+          const checkDate = monthEnd.clone().subtract(i, 'days').format('YYYYMMDD');
+          if (monthlyRSIMap.has(checkDate)) {
+            return monthlyRSIMap.get(checkDate);
+          }
+        }
+        return null;
+      };
+
+      const findQuarterlyRSI = (date: string) => {
+        const dayMoment = moment(date, 'YYYYMMDD');
+        // 找到该日期所在季度的最后一个交易日
+        const quarterEnd = dayMoment.endOf('quarter');
+        for (let i = 0; i < 92; i++) {
+          const checkDate = quarterEnd.clone().subtract(i, 'days').format('YYYYMMDD');
+          if (quarterlyRSIMap.has(checkDate)) {
+            return quarterlyRSIMap.get(checkDate);
+          }
+        }
+        return null;
+      };
+
       const filteredByRSI = filterKLineByRSI({
         dailyData: dailyRSIData,
         weeklyData: weeklyRSIData,
         monthlyData: monthlyRSIData,
         quarterlyData: quarterlyRSIData,
         rsiThreshold: 28,
-      });
+      })?.map(item => ({
+        日期: item.日期,
+        收盘: item.收盘,
+        换手率: item.换手率,
+        ['daily__RSI6__']: item.__RSI6__,
+        ['weekly__RSI6__']: findWeeklyRSI(item.日期),
+        ['monthly__RSI6__']: findMonthlyRSI(item.日期),
+        ['quarterly__RSI6__']: findQuarterlyRSI(item.日期),
+      }))
+      ;
 
       // const rsiAnnotations = filteredByRSI.map(item => ({
       //   type: 'point',
@@ -103,26 +160,26 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data }) => {
     },
     {
       title: '日RSI6',
-      dataIndex: '__RSI6__',
-      key: '__RSI6__',
+      dataIndex: 'daily__RSI6__',
+      key: 'daily__RSI6__',
       render: (value: number) => value?.toFixed(2),
     },
     {
       title: '周RSI6',
-      dataIndex: '__weeklyRSI6__',
-      key: '__weeklyRSI6__',
+      dataIndex: 'weekly__RSI6__',
+      key: 'weekly__RSI6__',
       render: (value: number) => value?.toFixed(2),
     },
     {
       title: '月RSI6',
-      dataIndex: '__monthlyRSI6__',
-      key: '__monthlyRSI6__',
+      dataIndex: 'monthly__RSI6__',
+      key: 'monthly__RSI6__',
       render: (value: number) => value?.toFixed(2),
     },
     {
       title: '季RSI6',
-      dataIndex: '__quarterlyRSI6__',
-      key: '__quarterlyRSI6__',
+      dataIndex: 'quarterly__RSI6__',
+      key: 'quarterly__RSI6__',
       render: (value: number) => value?.toFixed(2),
     },
   ];

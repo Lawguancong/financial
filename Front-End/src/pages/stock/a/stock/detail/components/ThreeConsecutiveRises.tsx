@@ -8,10 +8,16 @@ const { Title } = Typography;
 
 interface StockDetailData {
   日期: string;
-  收盘: number;
+  股票代码: string;
   开盘: number;
+  收盘: number;
   最高: number;
   最低: number;
+  成交量: number;
+  成交额: number;
+  振幅?: number;
+  涨跌幅?: number;
+  涨跌额?: number;
   换手率?: number;
 }
 
@@ -19,19 +25,60 @@ interface ThreeConsecutiveRisesProps {
   data: StockDetailData[];
 }
 
+interface TableRecord {
+  key: string;
+  groupIndex: number;
+  startDate: string;
+  endDate: string;
+  dayDetails: SubTableRecord[];
+}
+
+interface SubTableRecord {
+  key: string;
+  dayIndex: number;
+  日期: string;
+  开盘: number;
+  收盘: number;
+  最高: number;
+  最低: number;
+  换手率?: number;
+}
+
 // 静态样式配置
 const containerStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '20px' };
 const chartStyle: React.CSSProperties = { height: 400 };
 const tableStyle: React.CSSProperties = { marginBottom: '16px' };
 
-// 表格列配置 - 静态定义
+// 父表格列配置
 const columns = [
   {
     title: '组别',
     dataIndex: 'groupIndex',
     key: 'groupIndex',
-    width: 60,
+    width: 120,
+    render: (text: number, record: TableRecord) => {
+      // 防御性检查：确保 groupIndex 存在
+      const groupIndex = record?.groupIndex ?? text ?? 0;
+      const childrenCount = record?.dayDetails?.length ?? 0;
+      return `第 ${groupIndex} 组 (${childrenCount} 天)`;
+    },
   },
+  {
+    title: '开始日期',
+    dataIndex: 'startDate',
+    key: 'startDate',
+    render: (text: string) => moment(text).format('YYYY-MM-DD'),
+  },
+  {
+    title: '结束日期',
+    dataIndex: 'endDate',
+    key: 'endDate',
+    render: (text: string) => moment(text).format('YYYY-MM-DD'),
+  },
+];
+
+// 子表格列配置
+const subColumns = [
   {
     title: '第几天',
     dataIndex: 'dayIndex',
@@ -92,11 +139,27 @@ const ThreeConsecutiveRisesComponent: React.FC<ThreeConsecutiveRisesProps> = ({ 
 
     const threeConsecutiveRises = findThreeConsecutiveRises({ rawData: data });
     
-    const tableData: any[] = [];
+    const tableData: TableRecord[] = [];
     const riseAnnotations: any[] = [];
     
-    threeConsecutiveRises.forEach((item, index) => {
-      item.data.forEach((dataPoint, dataIndex) => {
+    // 优化循环，减少中间变量
+    for (let i = 0; i < threeConsecutiveRises.length; i++) {
+      const item = threeConsecutiveRises[i];
+      const itemData = item.data;
+      
+      // 创建父级行数据
+      const groupData: TableRecord = {
+        key: `group-${i}`,
+        groupIndex: i + 1,
+        startDate: itemData[0]?.日期 || '',
+        endDate: itemData[itemData.length - 1]?.日期 || '',
+        dayDetails: [],
+      };
+      
+      for (let j = 0; j < itemData.length; j++) {
+        const dataPoint = itemData[j];
+        
+        // 添加标注
         riseAnnotations.push({
           type: 'text' as const,
           data: [new Date(dataPoint.日期), dataPoint.收盘],
@@ -109,10 +172,10 @@ const ThreeConsecutiveRisesComponent: React.FC<ThreeConsecutiveRisesProps> = ({ 
           },
         });
         
-        tableData.push({
-          key: `${index}-${dataIndex}`,
-          groupIndex: index + 1,
-          dayIndex: dataIndex + 1,
+        // 添加子表格数据
+        groupData.dayDetails.push({
+          key: `${i}-${j}`,
+          dayIndex: j + 1,
           日期: dataPoint.日期,
           开盘: dataPoint.开盘,
           收盘: dataPoint.收盘,
@@ -120,8 +183,10 @@ const ThreeConsecutiveRisesComponent: React.FC<ThreeConsecutiveRisesProps> = ({ 
           最低: dataPoint.最低,
           换手率: dataPoint.换手率,
         });
-      });
-    });
+      }
+      
+      tableData.push(groupData);
+    }
 
     return {
       annotations: riseAnnotations,
@@ -176,9 +241,22 @@ const ThreeConsecutiveRisesComponent: React.FC<ThreeConsecutiveRisesProps> = ({ 
       <Table
         dataSource={riseData}
         columns={columns}
+        expandable={{
+          expandedRowRender: (record: TableRecord) => (
+            <Table
+              dataSource={record.dayDetails || []}
+              columns={subColumns}
+              pagination={false}
+              size="small"
+              rowKey="key"
+            />
+          ),
+          defaultExpandAllRows: false,
+        }}
         pagination={false}
         style={tableStyle}
         scroll={{ x: 'max-content' }}
+        rowKey="key"
       />
       <div style={chartStyle}>
         <h4>收盘价趋势</h4>

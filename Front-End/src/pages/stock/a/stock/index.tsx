@@ -366,13 +366,10 @@ const Stock: React.FC = () => {
       const response = await apiClient.get('/api/public/stock_zh_a_spot_em');
       console.log('个股列表 -> response', response);
       const responseData = response?.data || [];
-      // setData(responseData.slice(0, 100));
-
       setData(responseData);
-
-      // sessionStorage.setItem('stockListData', JSON.stringify(responseData));
     } catch (error) {
       console.log('error', error);
+
     } finally {
       setLoading(false);
     }

@@ -406,9 +406,11 @@ export const filterKLineByRSI = (params: {
     // todo 指标优化
     // return dailyRSIValue > (100 - 20) && weeklyRSIValue > (100 - 25) && monthlyRSIValue > (100 - 28) && quarterlyRSIValue > (100 - 30); // 超买 
     // return dailyRSIValue < 15 && weeklyRSIValue < 24 && monthlyRSIValue < 27 && quarterlyRSIValue < 30 // 超卖
-    return dailyRSIValue < 15 && weeklyRSIValue < 24 && monthlyRSIValue < 27 && quarterlyRSIValue < 30 // 超卖
+    return  dailyRSIValue < 12 && weeklyRSIValue < 20 && monthlyRSIValue < 25 && quarterlyRSIValue < 30 // 超卖 todo 推荐指数：多少颗星
+    || dailyRSIValue < 12 && weeklyRSIValue < 24 && monthlyRSIValue < 27 && quarterlyRSIValue < 30 // 超卖 todo 多少颗星
     || dailyRSIValue < 10 && weeklyRSIValue < 20 && monthlyRSIValue < 25
-    || dailyRSIValue < 8 && weeklyRSIValue < 11
+    || dailyRSIValue < 15 && weeklyRSIValue < 20 && monthlyRSIValue < 20
+    || dailyRSIValue < 8 && weeklyRSIValue < 10
 
 
     // || dailyRSIValue < 20 && weeklyRSIValue < 20 && monthlyRSIValue < 20 
@@ -417,7 +419,7 @@ export const filterKLineByRSI = (params: {
   });
 };
 
-// 查找3连阳或以上且第1阳的换手率在过去3年10%低位的情况
+// 查找3连阳或以上且第1阳的换手率在过去5年10%低位的情况
 export const findThreeConsecutiveRises = (params: {
   rawData: KLineData[];
 }): { startIndex: number; data: KLineData[] }[] => {
@@ -427,12 +429,12 @@ export const findThreeConsecutiveRises = (params: {
     return [];
   }
 
-  // 检查整个数据集的历史是否足够3年
+  // 检查整个数据集的历史是否足够5年
   if (rawData.length >= 2) {
     const firstDate = moment(rawData[0].日期);
     const lastDate = moment(rawData[rawData.length - 1].日期);
     const yearsDiff = lastDate.diff(firstDate, 'years');
-    if (yearsDiff < 3) {
+    if (yearsDiff < 5) {
       return [];
     }
   } else {
@@ -460,34 +462,39 @@ export const findThreeConsecutiveRises = (params: {
       // 计算第1阳的日期
       const firstRiseDate = moment(day1.日期);
 
-      // 检查第1阳的日期之前是否有至少3年的历史数据
+      // 检查第1阳的日期之前是否有至少5年的历史数据
       const dataStartDate = moment(rawData[0].日期);
       const yearsSinceStart = firstRiseDate.diff(dataStartDate, 'years');
-      if (yearsSinceStart < 3) {
-        // 第1阳的日期之前历史数据不足3年，跳过
+      if (yearsSinceStart < 5) {
+        // 第1阳的日期之前历史数据不足5年，跳过
         i = currentIndex;
         continue;
       }
 
-      // 计算过去3年的开始日期
-      const threeYearsAgo = firstRiseDate.clone().subtract(3, 'years');
+      // 计算过去5年的开始日期
+      const fiveYearsAgo = firstRiseDate.clone().subtract(5, 'years');
 
-      // 提取过去3年的换手率数据
-      const pastThreeYearsData = rawData.filter(item => {
+      // 提取过去5年的换手率数据
+      const pastFiveYearsData = rawData.filter(item => {
         const itemDate = moment(item.日期);
-        return itemDate.isAfter(threeYearsAgo) && itemDate.isBefore(firstRiseDate) && item.换手率 !== undefined;
+        return itemDate.isAfter(fiveYearsAgo) && itemDate.isBefore(firstRiseDate) && item.换手率 !== undefined;
       });
 
-      const turnoverRates = pastThreeYearsData.map(item => item.换手率!).filter(rate => !isNaN(rate));
+      const turnoverRates = pastFiveYearsData.map(item => item.换手率!).filter(rate => !isNaN(rate));
 
       if (turnoverRates.length > 0) {
-        // 计算10%分位数
+        // 计算5%分位数
         turnoverRates.sort((a, b) => a - b);
         const percentile05Index = Math.floor(turnoverRates.length * 0.05);
         const percentile05 = turnoverRates[percentile05Index];
 
-        // 检查第1阳的换手率是否小于等于10%分位数
-        if (day1.换手率 !== undefined && day1.换手率 <= percentile05) {
+        // 检查第1、2、3阳的换手率是否都小于等于5%分位数
+        const day1 = rawData[i];
+        const day2 = rawData[i + 1];
+        const day3 = rawData[i + 2];
+        
+        if (day1.换手率 !== undefined && day2.换手率 !== undefined && day3.换手率 !== undefined &&
+            day1.换手率 <= percentile05 && day2.换手率 <= percentile05 && day3.换手率 <= percentile05) {
           // 提取连续阳线的数据
           const consecutiveData = rawData.slice(i, i + consecutiveRises);
           result.push({

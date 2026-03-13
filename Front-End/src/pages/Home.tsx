@@ -273,6 +273,10 @@ const Home = () => {
   //  "stock_a_high_low_statistics"  # 创新高和新低的股票数量
 
 
+    // const response = await apiClient.get('/api/public/stock_sh_a_spot_em'); // 沪 A 股
+      // const response = await apiClient.get('/api/public/stock_sz_a_spot_em'); // 深 A 股
+      // const response = await apiClient.get('/api/public/stock_bj_a_spot_em'); // 京 A 股
+      
 
   //  "stock_zh_index_value_csindex"  # 中证指数-指数估值 
   // 市盈率 股息率

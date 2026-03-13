@@ -118,7 +118,6 @@ const StockDetail: React.FC = () => {
   const handleAdjustChange = useCallback((e: any) => setAdjust(e.target.value), []);
   const handleTabChange = useCallback((key: string) => setActiveTab(key), []);
 
-  console.log('1111 rawData', rawData)
   // 缓存子组件渲染 - 避免每次渲染重新创建
   const priceAndTurnoverComponent = useMemo(() => (
     <Suspense fallback={<ComponentFallback />}>
@@ -146,23 +145,23 @@ const StockDetail: React.FC = () => {
 
   // 缓存 Tabs 配置
   const tabItems = useMemo(() => [
-    // {
-    //   key: 'price-turnover',
-    //   label: '价格与换手率',
-    //   children: (
-    //     <Card style={cardStyle}>
-    //       <Title level={5}>价格与换手率</Title>
-    //       {priceAndTurnoverComponent}
-    //     </Card>
-    //   ),
-    // },
+    {
+      key: 'price-turnover',
+      label: '价格与换手率',
+      children: (
+        <Card style={cardStyle}>
+          <Title level={5}>价格与换手率</Title>
+          {priceAndTurnoverComponent}
+        </Card>
+      ),
+    },
     {
       key: 'rsi-filter',
-      label: 'RSI 过滤日期标记',
+      label: 'RSI6 超卖（日k/后复权）',
       children: (
         <>
           <Card style={cardStyle}>
-            <Title level={5}>RSI 过滤日期标记</Title>
+            <Title level={5}>RSI6 超卖（日k/后复权）</Title>
             {rsiFilterMarkComponent}
           </Card>
           <Card style={cardStyle}>
@@ -172,16 +171,16 @@ const StockDetail: React.FC = () => {
         </>
       ),
     },
-    // {
-    //   key: 'three-rises',
-    //   label: '三连阳日期标记',
-    //   children: (
-    //     <Card style={cardStyle}>
-    //       <Title level={5}>三连阳日期标记</Title>
-    //       {threeConsecutiveRisesComponent}
-    //     </Card>
-    //   ),
-    // },
+    {
+      key: 'three-rises',
+      label: '低换手三连阳（日k/后复权）',
+      children: (
+        <Card style={cardStyle}>
+          <Title level={5}>低换手三连阳（日k/后复权）</Title>
+          {threeConsecutiveRisesComponent}
+        </Card>
+      ),
+    },
   ], [priceAndTurnoverComponent, rsiFilterMarkComponent, rsiPeriodsComponent, threeConsecutiveRisesComponent]);
 
   return (

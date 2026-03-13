@@ -279,7 +279,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data }) => {
         pagination={false}
         style={tableStyle}
       />
-      <Title level={5}>RSI 过滤日期标记</Title>
+      <Title level={5}>RSI6 超卖（日k/后复权）</Title>
       <div style={chartContainerStyle}>
         <Line {...chartConfig} />
       </div>

@@ -44,10 +44,12 @@ const RsiPeriods: React.FC<RsiPeriodsProps> = ({ data }) => {
       };
     }
 
+    // 计算不同周期的K线数据
     const weeklyData = convertToKLine({ dailyData: data, period: 'weekly' });
     const monthlyData = convertToKLine({ dailyData: data, period: 'monthly' });
     const quarterlyData = convertToKLine({ dailyData: data, period: 'quarterly' });
 
+    // 计算不同周期的RSI
     return {
       dailyRSIData: calculateRSI({ data, closeKey: '收盘', period: 6 }),
       weeklyRSIData: calculateRSI({ data: weeklyData, closeKey: '收盘', period: 6 }),

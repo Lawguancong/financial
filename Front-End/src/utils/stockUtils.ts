@@ -337,6 +337,67 @@ export const convertToKLine = (params: {
 //   return convertToKLine(dailyData, 'quarterly');
 // };
 
+// 添加推荐级别计算逻辑
+const getRecommendationLevel = (dailyRSIValue: number, weeklyRSIValue: number, monthlyRSIValue: number, quarterlyRSIValue: number) => {
+  switch (true) {
+    case dailyRSIValue <= 10 && weeklyRSIValue <= 20 && monthlyRSIValue <= 24 && quarterlyRSIValue <= 28:
+    case dailyRSIValue <= 9 && weeklyRSIValue <= 11 && monthlyRSIValue <= 13:
+      return 5;
+    case dailyRSIValue <= 7 && weeklyRSIValue <= 11:
+    case dailyRSIValue <= 14 && weeklyRSIValue <= 17 && monthlyRSIValue <= 20:
+      return 3;
+    case dailyRSIValue <= 9 && weeklyRSIValue <= 13:
+      return 1;
+    default:
+      return 0;
+  }
+};
+
+// 获取指定日期的各周期RSI值
+const getRSIValues = (dailyItem: KLineData, weeklyRSIMap: Map<string, number>, monthlyRSIMap: Map<string, number>, quarterlyRSIMap: Map<string, number>) => {
+  const dayDate = moment(dailyItem.日期);
+  const dailyRSIValue = dailyItem['__RSI6__'];
+
+  // 找到包含该日的周K日期（周K的日期是该周的最后一个交易日）
+  let weeklyRSIValue = 100; // 默认为100，不满足条件
+  for (const [date, rsi] of weeklyRSIMap.entries()) {
+    const weekDate = moment(date);
+    if (weekDate.year() === dayDate.year() && weekDate.week() === dayDate.week()) {
+      weeklyRSIValue = rsi;
+      break;
+    }
+  }
+
+  // 找到包含该日的月K日期（月K的日期是该月的最后一个交易日）
+  let monthlyRSIValue = 100; // 默认为100，不满足条件
+  for (const [date, rsi] of monthlyRSIMap.entries()) {
+    const monthDate = moment(date);
+    if (monthDate.year() === dayDate.year() && monthDate.month() === dayDate.month()) {
+      monthlyRSIValue = rsi;
+      break;
+    }
+  }
+
+  // 找到包含该日的季K日期（季K的日期是该季的最后一个交易日）
+  const quarter = Math.floor((dayDate.month() + 1 - 1) / 3) + 1;
+  let quarterlyRSIValue = 100; // 默认为100，不满足条件
+  for (const [date, rsi] of quarterlyRSIMap.entries()) {
+    const quarterDate = moment(date);
+    const dateQuarter = Math.floor((quarterDate.month() + 1 - 1) / 3) + 1;
+    if (quarterDate.year() === dayDate.year() && dateQuarter === quarter) {
+      quarterlyRSIValue = rsi;
+      break;
+    }
+  }
+
+  return {
+    dailyRSIValue,
+    weeklyRSIValue,
+    monthlyRSIValue,
+    quarterlyRSIValue
+  };
+};
+
 // 过滤日K数据，基于周K、月K、季K的RSI6阈值
 // 条件：季K的RSI6 < threshold 且对应月K的RSI6 < threshold 且对应周K的RSI6 < threshold
 export const filterKLineByRSI = (params: {
@@ -344,9 +405,9 @@ export const filterKLineByRSI = (params: {
   weeklyData: KLineData[];
   monthlyData: KLineData[];
   quarterlyData: KLineData[];
-  rsiThreshold?: number;
-}): KLineData[] => {
-  const { dailyData, weeklyData, monthlyData, quarterlyData, rsiThreshold = 28 } = params;
+  // rsiThreshold?: number;
+}): (KLineData & { __recommendationLevel__: number })[] => {
+  const { dailyData, weeklyData, monthlyData, quarterlyData } = params;
 
   if (!dailyData || dailyData.length === 0) {
     return [];
@@ -362,61 +423,21 @@ export const filterKLineByRSI = (params: {
   const monthlyRSIMap = new Map(monthlyRSI.map(item => [moment(item.日期).format('YYYY-MM-DD'), item.__RSI6__]));
   const quarterlyRSIMap = new Map(quarterlyRSI.map(item => [moment(item.日期).format('YYYY-MM-DD'), item.__RSI6__]));
 
-  // 过滤日K数据
-  return dailyData.filter(dailyItem => {
-    const dayDate = moment(dailyItem.日期);
-    const dailyRSIValue = dailyItem['__RSI6__'];
+  // 过滤日K数据并计算推荐级别
+  return dailyData.map(dailyItem => {
+    const rsiValues = getRSIValues(dailyItem, weeklyRSIMap, monthlyRSIMap, quarterlyRSIMap);
+    const __recommendationLevel__ = getRecommendationLevel(
+      rsiValues.dailyRSIValue,
+      rsiValues.weeklyRSIValue,
+      rsiValues.monthlyRSIValue,
+      rsiValues.quarterlyRSIValue
+    );
 
-    // 找到包含该日的周K日期（周K的日期是该周的最后一个交易日）
-    const weekKey = `${dayDate.year()}-W${dayDate.week()}`;
-    let weeklyRSIValue = 100; // 默认为100，不满足条件
-    for (const [date, rsi] of weeklyRSIMap.entries()) {
-      const weekDate = moment(date);
-      if (weekDate.year() === dayDate.year() && weekDate.week() === dayDate.week()) {
-        weeklyRSIValue = rsi;
-        break;
-      }
-    }
-
-    // 找到包含该日的月K日期（月K的日期是该月的最后一个交易日）
-    const monthKey = `${dayDate.year()}-M${dayDate.month() + 1}`;
-    let monthlyRSIValue = 100; // 默认为100，不满足条件
-    for (const [date, rsi] of monthlyRSIMap.entries()) {
-      const monthDate = moment(date);
-      if (monthDate.year() === dayDate.year() && monthDate.month() === dayDate.month()) {
-        monthlyRSIValue = rsi;
-        break;
-      }
-    }
-
-    // 找到包含该日的季K日期（季K的日期是该季的最后一个交易日）
-    const quarter = Math.floor((dayDate.month() + 1 - 1) / 3) + 1;
-    const quarterKey = `${dayDate.year()}-Q${quarter}`;
-    let quarterlyRSIValue = 100; // 默认为100，不满足条件
-    for (const [date, rsi] of quarterlyRSIMap.entries()) {
-      const quarterDate = moment(date);
-      const dateQuarter = Math.floor((quarterDate.month() + 1 - 1) / 3) + 1;
-      if (quarterDate.year() === dayDate.year() && dateQuarter === quarter) {
-        quarterlyRSIValue = rsi;
-        break;
-      }
-    }
-
-    // 检查是否满足所有条件
-    // todo 指标优化
-    // return dailyRSIValue > (100 - 20) && weeklyRSIValue > (100 - 25) && monthlyRSIValue > (100 - 28) && quarterlyRSIValue > (100 - 30); // 超买 
-    // return dailyRSIValue < 15 && weeklyRSIValue < 24 && monthlyRSIValue < 27 && quarterlyRSIValue < 30 // 超卖
-    return  dailyRSIValue < 12 && weeklyRSIValue < 20 && monthlyRSIValue < 25 && quarterlyRSIValue < 30 // 超卖 todo 推荐指数：多少颗星
-    || dailyRSIValue < 12 && weeklyRSIValue < 24 && monthlyRSIValue < 27 && quarterlyRSIValue < 30 // 超卖 todo 多少颗星
-    || dailyRSIValue < 10 && weeklyRSIValue < 20 && monthlyRSIValue < 25
-    || dailyRSIValue < 15 && weeklyRSIValue < 20 && monthlyRSIValue < 20
-    || dailyRSIValue < 8 && weeklyRSIValue < 10
-
-
-    // || dailyRSIValue < 20 && weeklyRSIValue < 20 && monthlyRSIValue < 20 
-    // || dailyRSIValue < 15 && quarterlyRSIValue < 20
-    // || dailyRSIValue < 12 && weeklyRSIValue < 20 &&  monthlyRSIValue < 25
-  });
+    return {
+      ...dailyItem,
+      __recommendationLevel__
+    };
+  }).filter(item => item.__recommendationLevel__ > 0);
 };
 
 // 查找3连阳或以上且第1阳的换手率在过去5年10%低位的情况

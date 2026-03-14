@@ -26,6 +26,12 @@ const chartContainerStyle: React.CSSProperties = { height: 450 };
 // 表格列配置 - 静态定义，避免每次渲染重新创建
 const columns = [
   {
+    title: '推荐级别',
+    dataIndex: '__recommendationLevel__',
+    key: '__recommendationLevel__',
+    render: (level: number) => <span style={{ color: '#ffd700' }}>{'★'.repeat(level)}</span>,
+  },
+  {
     title: '日期',
     dataIndex: '日期',
     key: '日期',
@@ -62,6 +68,93 @@ const columns = [
   },
 ];
 
+// 辅助函数：构建周期RSI映射
+const buildRSIMap = (rsiData: any[], period: 'daily' | 'weekly' | 'monthly' | 'quarterly') => {
+  const map: Record<string, number> = {};
+  
+  if (rsiData.length === 0) {
+    return map;
+  }
+  
+  // 按日期排序
+  const sortedData = [...rsiData].sort((a, b) => a.日期.localeCompare(b.日期));
+  
+  sortedData.forEach(item => {
+    const date = moment(item.日期, 'YYYYMMDD');
+    const rsi = item.__RSI6__;
+    
+    let start: moment.Moment;
+    let end: moment.Moment;
+    
+    switch (period) {
+      case 'daily':
+        map[item.日期] = rsi;
+        return;
+      case 'weekly':
+        start = date.clone().startOf('isoWeek');
+        end = date.clone().endOf('isoWeek');
+        break;
+      case 'monthly':
+        start = date.clone().startOf('month');
+        end = date.clone().endOf('month');
+        break;
+      case 'quarterly':
+        start = date.clone().startOf('quarter');
+        end = date.clone().endOf('quarter');
+        break;
+    }
+    
+    // 填充周期内的每一天
+    let current = start!.clone();
+    while (current.isSameOrBefore(end!)) {
+      map[current.format('YYYYMMDD')] = rsi;
+      current.add(1, 'day');
+    }
+  });
+  
+  return map;
+};
+
+// 辅助函数：查找RSI值，带回退逻辑
+const findRSIValue = (date: string, rsiMap: Record<string, number>, maxDays: number = 7) => {
+  // 首先尝试直接查找
+  let rsi = rsiMap[date];
+  if (rsi !== undefined) {
+    return rsi;
+  }
+  
+  // 如果没找到，尝试查找最近的RSI
+  const dateMoment = moment(date, 'YYYYMMDD');
+  for (let i = 1; i <= maxDays; i++) {
+    const prevDate = dateMoment.clone().subtract(i, 'day').format('YYYYMMDD');
+    const nextDate = dateMoment.clone().add(i, 'day').format('YYYYMMDD');
+    
+    if (rsiMap[prevDate] !== undefined) {
+      return rsiMap[prevDate];
+    }
+    if (rsiMap[nextDate] !== undefined) {
+      return rsiMap[nextDate];
+    }
+  }
+  
+  return undefined;
+};
+
+// 辅助函数：获取所有RSI值
+const getRSIValues = (date: string, maps: {
+  daily: Record<string, number>;
+  weekly: Record<string, number>;
+  monthly: Record<string, number>;
+  quarterly: Record<string, number>;
+}) => {
+  return {
+    daily: findRSIValue(date, maps.daily, 1),
+    weekly: findRSIValue(date, maps.weekly, 7),
+    monthly: findRSIValue(date, maps.monthly, 31),
+    quarterly: findRSIValue(date, maps.quarterly, 92),
+  };
+};
+
 const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data }) => {
   // 使用 useMemo 缓存所有计算结果
   const { filteredByRSI, annotations, chartData } = useMemo(() => {
@@ -80,70 +173,13 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data }) => {
     const monthlyRSIData = calculateRSI({ data: monthlyData, closeKey: '收盘', period: 6 });
     const quarterlyRSIData = calculateRSI({ data: quarterlyData, closeKey: '收盘', period: 6 });
 
-    // 构建周期RSI映射 - 使用对象替代 Map 提高性能
-    const weeklyRSIMap: Record<string, number> = {};
-    const monthlyRSIMap: Record<string, number> = {};
-    const quarterlyRSIMap: Record<string, number> = {};
-
-    // 构建周RSI映射 - 为每个周K线数据，填充该周的所有日期
-    if (weeklyRSIData.length > 0) {
-      // 按日期排序
-      const sortedWeeklyData = [...weeklyRSIData].sort((a, b) => a.日期.localeCompare(b.日期));
-      
-      sortedWeeklyData.forEach((item, index) => {
-        const weekEnd = moment(item.日期, 'YYYYMMDD');
-        const weekStart = weekEnd.clone().startOf('isoWeek');
-        const weekEndFixed = weekEnd.clone().endOf('isoWeek');
-        const rsi = item.__RSI6__;
-        
-        // 填充整周的每一天
-        let current = weekStart.clone();
-        while (current.isSameOrBefore(weekEndFixed)) {
-          weeklyRSIMap[current.format('YYYYMMDD')] = rsi;
-          current.add(1, 'day');
-        }
-      });
-    }
-
-    // 构建月RSI映射 - 为每个月K线数据，填充该月的所有日期
-    if (monthlyRSIData.length > 0) {
-      // 按日期排序
-      const sortedMonthlyData = [...monthlyRSIData].sort((a, b) => a.日期.localeCompare(b.日期));
-      
-      sortedMonthlyData.forEach((item, index) => {
-        const monthEnd = moment(item.日期, 'YYYYMMDD');
-        const monthStart = monthEnd.clone().startOf('month');
-        const monthEndFixed = monthEnd.clone().endOf('month');
-        const rsi = item.__RSI6__;
-        
-        // 填充整月的每一天
-        let current = monthStart.clone();
-        while (current.isSameOrBefore(monthEndFixed)) {
-          monthlyRSIMap[current.format('YYYYMMDD')] = rsi;
-          current.add(1, 'day');
-        }
-      });
-    }
-
-    // 构建季RSI映射 - 为每个季K线数据，填充该季的所有日期
-    if (quarterlyRSIData.length > 0) {
-      // 按日期排序
-      const sortedQuarterlyData = [...quarterlyRSIData].sort((a, b) => a.日期.localeCompare(b.日期));
-      
-      sortedQuarterlyData.forEach((item, index) => {
-        const quarterEnd = moment(item.日期, 'YYYYMMDD');
-        const quarterStart = quarterEnd.clone().startOf('quarter');
-        const quarterEndFixed = quarterEnd.clone().endOf('quarter');
-        const rsi = item.__RSI6__;
-        
-        // 填充整季的每一天
-        let current = quarterStart.clone();
-        while (current.isSameOrBefore(quarterEndFixed)) {
-          quarterlyRSIMap[current.format('YYYYMMDD')] = rsi;
-          current.add(1, 'day');
-        }
-      });
-    }
+    // 构建周期RSI映射
+    const rsiMaps = {
+      daily: buildRSIMap(dailyRSIData, 'daily'),
+      weekly: buildRSIMap(weeklyRSIData, 'weekly'),
+      monthly: buildRSIMap(monthlyRSIData, 'monthly'),
+      quarterly: buildRSIMap(quarterlyRSIData, 'quarterly'),
+    };
 
     // 过滤RSI数据
     const filteredData = filterKLineByRSI({
@@ -151,95 +187,89 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data }) => {
       weeklyData: weeklyRSIData,
       monthlyData: monthlyRSIData,
       quarterlyData: quarterlyRSIData,
-      rsiThreshold: 28,
+      // rsiThreshold: 28,
     })?.map(item => {
       const date = item.日期;
-      
-      // 查找周RSI
-      let weeklyRSI = weeklyRSIMap[date];
-      if (weeklyRSI === undefined) {
-        // 如果没找到，尝试查找最近的周RSI
-        const dateMoment = moment(date, 'YYYYMMDD');
-        for (let i = 1; i <= 7; i++) {
-          const prevDate = dateMoment.clone().subtract(i, 'day').format('YYYYMMDD');
-          const nextDate = dateMoment.clone().add(i, 'day').format('YYYYMMDD');
-          if (weeklyRSIMap[prevDate] !== undefined) {
-            weeklyRSI = weeklyRSIMap[prevDate];
-            break;
-          }
-          if (weeklyRSIMap[nextDate] !== undefined) {
-            weeklyRSI = weeklyRSIMap[nextDate];
-            break;
-          }
-        }
-      }
-      
-      // 查找月RSI
-      let monthlyRSI = monthlyRSIMap[date];
-      if (monthlyRSI === undefined) {
-        // 如果没找到，尝试查找最近的月RSI
-        const dateMoment = moment(date, 'YYYYMMDD');
-        for (let i = 1; i <= 31; i++) {
-          const prevDate = dateMoment.clone().subtract(i, 'day').format('YYYYMMDD');
-          const nextDate = dateMoment.clone().add(i, 'day').format('YYYYMMDD');
-          if (monthlyRSIMap[prevDate] !== undefined) {
-            monthlyRSI = monthlyRSIMap[prevDate];
-            break;
-          }
-          if (monthlyRSIMap[nextDate] !== undefined) {
-            monthlyRSI = monthlyRSIMap[nextDate];
-            break;
-          }
-        }
-      }
-      
-      // 查找季RSI
-      let quarterlyRSI = quarterlyRSIMap[date];
-      if (quarterlyRSI === undefined) {
-        // 如果没找到，尝试查找最近的季RSI
-        const dateMoment = moment(date, 'YYYYMMDD');
-        for (let i = 1; i <= 92; i++) {
-          const prevDate = dateMoment.clone().subtract(i, 'day').format('YYYYMMDD');
-          const nextDate = dateMoment.clone().add(i, 'day').format('YYYYMMDD');
-          if (quarterlyRSIMap[prevDate] !== undefined) {
-            quarterlyRSI = quarterlyRSIMap[prevDate];
-            break;
-          }
-          if (quarterlyRSIMap[nextDate] !== undefined) {
-            quarterlyRSI = quarterlyRSIMap[nextDate];
-            break;
-          }
-        }
-      }
+      const rsiValues = getRSIValues(date, rsiMaps);
       
       return {
         日期: date,
         收盘: item.收盘,
         换手率: item.换手率,
-        daily__RSI6__: item.__RSI6__,
-        weekly__RSI6__: weeklyRSI ?? null,
-        monthly__RSI6__: monthlyRSI ?? null,
-        quarterly__RSI6__: quarterlyRSI ?? null,
+        daily__RSI6__: item.__RSI6__, // 直接使用计算好的日线RSI
+        weekly__RSI6__: rsiValues.weekly ?? null,
+        monthly__RSI6__: rsiValues.monthly ?? null,
+        quarterly__RSI6__: rsiValues.quarterly ?? null,
+        __recommendationLevel__: item.__recommendationLevel__,
       };
     }) || [];
 
-    // 构建图表标注
-    const rsiAnnotations = filteredData.map(item => ({
-      type: 'text' as const,
-      data: [new Date(item.日期), item.收盘],
-      style: {
-        text: '●',
-        fontSize: 6,
-        dx: -3,
-        stroke: '#ff4d4f',
-        fill: '#ff4d4f',
-      },
-    }));
+    // 为图表数据添加RSI6字段
+    const chartDataWithRSI = data.map(item => {
+      const date = item.日期;
+      const rsiValues = getRSIValues(date, rsiMaps);
+      
+      return {
+        ...item,
+        daily__RSI6__: rsiValues.daily ?? null,
+        weekly__RSI6__: rsiValues.weekly ?? null,
+        monthly__RSI6__: rsiValues.monthly ?? null,
+        quarterly__RSI6__: rsiValues.quarterly ?? null,
+      };
+    });
+
+    // 过滤掉历史时间不足2年的数据
+    let finalFilteredData = filteredData;
+    if (data.length > 0) {
+      // 计算数据的最早日期
+      const dates = data.map(item => moment(item.日期, 'YYYYMMDD'));
+      const earliestDate = moment.min(dates);
+      const currentDate = moment();
+      const yearsDiff = currentDate.diff(earliestDate, 'years');
+      
+      // 只有历史数据满2年才返回推荐买点
+      if (yearsDiff < 2) {
+        finalFilteredData = [];
+      } else {
+        // 过滤掉上市前2年内的标注点
+        finalFilteredData = finalFilteredData.filter(item => {
+          const itemDate = moment(item.日期, 'YYYYMMDD');
+          return itemDate.diff(earliestDate, 'years') >= 2;
+        });
+      }
+    }
 
     return {
-      filteredByRSI: filteredData,
-      annotations: rsiAnnotations,
-      chartData: data,
+      filteredByRSI: finalFilteredData,
+      annotations: finalFilteredData.map(item => {
+        // 根据推荐级别设置颜色
+        let color = '#008000';
+        let fontSize = 12;
+        const level = item.__recommendationLevel__;
+        if (level === 5) {
+          color = '#008000';
+          fontSize = 12;
+        } else if (level === 3) {
+          color = '#42b242ff';
+          fontSize = 10;
+        } else if (level === 1) {
+          color = '#9fe49fff';
+          fontSize = 8;
+        }
+
+        return {
+          type: 'text' as const,
+          data: [new Date(item.日期), item.收盘],
+          style: {
+            text: '●',
+            fontSize: fontSize,
+            dx: -(fontSize/2),
+            stroke: color,
+            fill: color,
+          },
+        };
+      }),
+      chartData: chartDataWithRSI,
     };
   }, [data]);
 
@@ -259,6 +289,10 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data }) => {
         { field: '开盘', name: '开盘价' },
         { field: '最高', name: '最高价' },
         { field: '最低', name: '最低价' },
+        { field: 'daily__RSI6__', name: '日RSI6' },
+        { field: 'weekly__RSI6__', name: '周RSI6' },
+        { field: 'monthly__RSI6__', name: '月RSI6' },
+        { field: 'quarterly__RSI6__', name: '季RSI6' },
       ],
     },
     annotations,

@@ -147,14 +147,15 @@ const StockDetail: React.FC = () => {
   const tabItems = useMemo(() => [
     {
       key: 'price-turnover',
-      label: '价格与换手率',
+      label: '价格&回撤率&年化收益率',
       children: (
         <Card style={cardStyle}>
-          <Title level={5}>价格与换手率</Title>
+          <Title level={5}>价格&回撤率&年化收益率</Title>
           {priceAndTurnoverComponent}
         </Card>
       ),
     },
+    // todo 估值 市盈率 市净率 股息率 等
     {
       key: 'rsi-filter',
       label: 'RSI6 超卖（日k/后复权）',

@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Table, Typography, InputNumber, Space, Button } from 'antd';
+import { Table, Typography, InputNumber, Space, Button, Input } from 'antd';
 import apiClient from '@/utils/axios';
+
+const { Search } = Input;
 
 const { Link } = Typography;
 
@@ -152,7 +154,7 @@ const handleNavigateToDetail = (record: StockData) => {
   const month = String(today.getMonth() + 1).padStart(2, '0');
   const day = String(today.getDate()).padStart(2, '0');
   const endDate = `${year}${month}${day}`;
-  window.open(`/stock/a/stock/detail?symbol=${record.代码}&symbolName=${record.名称}&end_date=${endDate}`, '_blank');
+  window.open(`/stock/a/stock/detail?symbol=${record.代码}`, '_blank');
 };
 const columns = [
   {
@@ -169,6 +171,31 @@ const columns = [
     width: 100,
     fixed: 'left' as const,
     sorter: stringSorter('代码'),
+    filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }: any) => (
+      <div style={{ padding: 8 }}>
+        <Search
+          placeholder="搜索代码"
+          value={selectedKeys[0] || ''}
+          onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+          onPressEnter={() => confirm()}
+          style={{ width: 188, marginBottom: 8, display: 'block' }}
+        />
+        <Space>
+          <Button type="primary" onClick={() => confirm()} size="small">
+            确定
+          </Button>
+          <Button onClick={() => clearFilters()} size="small">
+            重置
+          </Button>
+        </Space>
+      </div>
+    ),
+    filterIcon: (filtered: boolean) => (
+      <span style={{ color: filtered ? '#1890ff' : undefined }}>🔍</span>
+    ),
+    onFilter: (value: string, record: StockData) => {
+      return record.代码.toLowerCase().includes(value.toLowerCase());
+    },
   },
   {
     title: '名称',
@@ -177,6 +204,31 @@ const columns = [
     width: 150,
     fixed: 'left' as const,
     sorter: stringSorter('名称'),
+    filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }: any) => (
+      <div style={{ padding: 8 }}>
+        <Search
+          placeholder="搜索名称"
+          value={selectedKeys[0] || ''}
+          onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+          onPressEnter={() => confirm()}
+          style={{ width: 188, marginBottom: 8, display: 'block' }}
+        />
+        <Space>
+          <Button type="primary" onClick={() => confirm()} size="small">
+            确定
+          </Button>
+          <Button onClick={() => clearFilters()} size="small">
+            重置
+          </Button>
+        </Space>
+      </div>
+    ),
+    filterIcon: (filtered: boolean) => (
+      <span style={{ color: filtered ? '#1890ff' : undefined }}>🔍</span>
+    ),
+    onFilter: (value: string, record: StockData) => {
+      return record.名称.toLowerCase().includes(value.toLowerCase());
+    },
     render: (name: string, record: StockData) => (
       <Link
         onClick={() => handleNavigateToDetail(record)}

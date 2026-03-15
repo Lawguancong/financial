@@ -236,16 +236,8 @@ const Home = () => {
   // 接口: stock_info_a_code_name
 
 
-  // 个股估值
+  // 个股估值 不好用？ 只有最近10年的好像
   // 接口: stock_value_em
-
-
-  // A 股估值指标（个股）
-  // stock_zh_valuation_baidu
-  // symbol	str	symbol="002044"; A 股代码
-  // indicator	str	indicator="总市值"; choice of {"总市值", "市盈率(TTM)", "市盈率(静)", "市净率", "市现率"}
-  // period	str	period="近一年"; choice of {"近一年", "近三年", "近五年", "近十年", "全部"}
-  // stock_zh_valuation_baidu?symbol=002044&period=全部&indicator=市净率
 
   // 港股估值指标 （个股）
   // 接口: stock_hk_valuation_baidu
@@ -271,12 +263,6 @@ const Home = () => {
 
   //  "stock_hk_indicator_eniu"  # 港股股个股市盈率、市净率和股息率指标
   //  "stock_a_high_low_statistics"  # 创新高和新低的股票数量
-
-
-    // const response = await apiClient.get('/api/public/stock_sh_a_spot_em'); // 沪 A 股
-      // const response = await apiClient.get('/api/public/stock_sz_a_spot_em'); // 深 A 股
-      // const response = await apiClient.get('/api/public/stock_bj_a_spot_em'); // 京 A 股
-      
 
   //  "stock_zh_index_value_csindex"  # 中证指数-指数估值 
   // 市盈率 股息率

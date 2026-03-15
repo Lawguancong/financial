@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback, Suspense, memo } from 'react';
 import { Spin, Typography, Card, Radio, Tabs } from 'antd';
+import type { RadioChangeEvent } from 'antd/es/radio';
 import apiClient from '@/utils/axios';
 import { useSearchParams } from 'react-router-dom';
 
@@ -8,6 +9,7 @@ const PriceAndTurnover = React.lazy(() => import('./components/PriceAndTurnover'
 const RsiFilterMark = React.lazy(() => import('./components/RsiFilterMark'));
 const ThreeConsecutiveRisesComponent = React.lazy(() => import('./components/ThreeConsecutiveRises'));
 const RsiPeriods = React.lazy(() => import('./components/RsiPeriods'));
+const Valuation = React.lazy(() => import('./components/Valuation'));
 
 const { Title } = Typography;
 
@@ -58,7 +60,7 @@ const StockDetail: React.FC = () => {
   const [period, setPeriod] = useState<string>('daily');
   const [symbolInfo, setSymbolInfo] = useState<Record<string, string>>({});
   const [rawData, setRawData] = useState<StockDetailData[]>([]);
-  const [activeTab, setActiveTab] = useState<string>('rsi-filter');
+  const [activeTab, setActiveTab] = useState<string>('valuation');
 
   const [searchParams] = useSearchParams();
   const symbol = searchParams.get('symbol') || '';
@@ -114,8 +116,8 @@ const StockDetail: React.FC = () => {
   }, [fetchStockDetail]);
 
   // 事件处理函数 - 使用 useCallback 缓存
-  const handlePeriodChange = useCallback((e: any) => setPeriod(e.target.value), []);
-  const handleAdjustChange = useCallback((e: any) => setAdjust(e.target.value), []);
+  const handlePeriodChange = useCallback((e: RadioChangeEvent) => setPeriod(e.target.value), []);
+  const handleAdjustChange = useCallback((e: RadioChangeEvent) => setAdjust(e.target.value), []);
   const handleTabChange = useCallback((key: string) => setActiveTab(key), []);
 
   // 缓存子组件渲染 - 避免每次渲染重新创建
@@ -143,6 +145,12 @@ const StockDetail: React.FC = () => {
     </Suspense>
   ), [rawData]);
 
+  const valuationComponent = useMemo(() => (
+    <Suspense fallback={<ComponentFallback />}>
+      <Valuation symbol={symbol} />
+    </Suspense>
+  ), [symbol]);
+
   // 缓存 Tabs 配置
   const tabItems = useMemo(() => [
     {
@@ -155,7 +163,16 @@ const StockDetail: React.FC = () => {
         </Card>
       ),
     },
-    // todo 估值 市盈率 市净率 股息率 等
+    {
+      key: 'valuation',
+      label: '估值',
+      children: (
+        <Card style={cardStyle}>
+          <Title level={5}>估值指标</Title>
+          {valuationComponent}
+        </Card>
+      ),
+    },
     {
       key: 'rsi-filter',
       label: 'RSI6 超卖（日k/后复权）',
@@ -207,7 +224,7 @@ const StockDetail: React.FC = () => {
       </Card>
       <Spin spinning={loading}>
         <Tabs 
-          defaultActiveKey="rsi-filter" 
+          // defaultActiveKey="rsi-filter" 
           activeKey={activeTab}
           onChange={handleTabChange}
           items={tabItems}

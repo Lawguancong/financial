@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Select, Button, Card, Spin, Table } from 'antd';
 import { DualAxes, Line } from '@ant-design/plots';
-import axios from 'axios';
 import { pick } from 'lodash-es';
 import { calculateMaxDrawdown, calculateRSI, calculateStartDate } from '@/utils';
 import moment from 'moment';
@@ -64,19 +63,22 @@ const FundOpenDetail: React.FC = () => {
   }
 
 
-  const chartName = indicator; // 图表名称
-  const dateKey = keyMap[indicator].日期 // 日期键名
-  const dateName = '日期' // 日期键名
-  const leftKey = keyMap[indicator].数据 // 左y轴键名
-  const leftName = keyMap[indicator].数据 // 左y轴名称
+  // 使用useMemo缓存计算结果，减少重复计算
+  const chartName = useMemo(() => indicator, [indicator]);
+  const dateKey = useMemo(() => keyMap[indicator].日期, [indicator]);
+  const dateName = '日期';
+  const leftKey = useMemo(() => keyMap[indicator].数据, [indicator]);
+  const leftName = useMemo(() => keyMap[indicator].数据, [indicator]);
 
-  const rightKeys = { // 右y轴键名: 右y轴名称
+  const rightKeys = useMemo(() => ({
     "累计收益率": '累计收益率(%)',
     ['__最大回撤率__']: '最大回撤率(%)',
     ['__年化收益率__']: "年化收益率(%)",
-    ['__RSI6__']: "RSI6",
-  }
-  const sampleRate = keyMap[indicator].sampleRate // 抽样率
+    ['__RSI6__']: "RSI6（月）",
+  }), []);
+  
+  const sampleRate = useMemo(() => keyMap[indicator].sampleRate, [indicator]);
+  
   type DataRes = {
     [dateKey]: string;
     [leftKey]: number;
@@ -84,11 +86,11 @@ const FundOpenDetail: React.FC = () => {
     [K in keyof typeof rightKeys]: number;
   };
 
-  const labelMap = {
+  const labelMap = useMemo(() => ({
     [dateKey]: dateName,
     [leftKey]: leftName,
     ...rightKeys
-  }
+  }), [dateKey, leftKey, leftName, rightKeys]);
 
   const indicatorOptions = [
     { label: '单位净值走势', value: '单位净值走势' }, // 单位净值：现在卖多少钱（会因分红下跌）
@@ -159,24 +161,20 @@ const FundOpenDetail: React.FC = () => {
       const response = await apiClient.get('/api/public/fund_open_fund_info_em', {
         params,
       })
-      console.log('基金详情 -> response', response);
 
       let filteredData = response?.data || [];
 
       if (timeRange !== '上市以来' && filteredData.length > 0) {
         const firstDate = filteredData[0][keyMap[indicator].日期] as string;
         const startDate = calculateStartDate(firstDate, timeRange);
-        console.log(`111111111 ${chartName} -> firstDate`, firstDate)
-        console.log(`111111111 ${chartName} -> startDate`, startDate)
         filteredData = filteredData.filter((item: Record<string, unknown>) => {
           const itemDate = item[keyMap[indicator].日期] as string;
           return moment(itemDate).format('YYYYMMDD') >= moment(startDate).format('YYYYMMDD');
         });
       }
-      console.log(`111111111 ${chartName} -> filteredData`, filteredData)
 
-      // 过滤每月数据，有重复月的取累计收益率小的值
-      const filteredData_monthly = (() => {
+      // 当指标为累计收益率走势时，过滤每月数据，有重复月的取累计收益率小的值
+      if (indicator === '累计收益率走势' && filteredData.length > 0) {
         const monthlyMap = new Map<string, any>();
 
         filteredData.forEach(item => {
@@ -198,17 +196,46 @@ const FundOpenDetail: React.FC = () => {
         });
 
         // 将Map转换为数组并按日期排序
-        return Array.from(monthlyMap.values()).sort((a, b) => {
+        filteredData = Array.from(monthlyMap.values()).sort((a, b) => {
           const dateA = a[keyMap[indicator].日期];
           const dateB = b[keyMap[indicator].日期];
           return moment(dateA).valueOf() - moment(dateB).valueOf();
         });
-      })();
-      console.log(`22222 ${chartName} -> filteredData_monthly`, filteredData_monthly)
+      }
+
+      // 过滤每月数据，有重复月的取累计收益率小的值
+      // const filteredData_monthly = (() => {
+      //   const monthlyMap = new Map<string, any>();
+
+      //   filteredData.forEach(item => {
+      //     const date = item[keyMap[indicator].日期];
+      //     const monthKey = moment(date).format('YYYY-MM');
+      //     const currentItem = monthlyMap.get(monthKey);
+
+      //     if (!currentItem) {
+      //       // 首次遇到该月，直接添加
+      //       monthlyMap.set(monthKey, item);
+      //     } else {
+      //       // 已有该月数据，比较累计收益率，取较小值
+      //       const currentValue = Number(currentItem['累计收益率']) || 0;
+      //       const newValue = Number(item['累计收益率']) || 0;
+      //       if (newValue < currentValue) {
+      //         monthlyMap.set(monthKey, item);
+      //       }
+      //     }
+      //   });
+
+      //   // 将Map转换为数组并按日期排序
+      //   return Array.from(monthlyMap.values()).sort((a, b) => {
+      //     const dateA = a[keyMap[indicator].日期];
+      //     const dateB = b[keyMap[indicator].日期];
+      //     return moment(dateA).valueOf() - moment(dateB).valueOf();
+      //   });
+      // })();
+      // console.log(`22222 ${chartName} -> filteredData_monthly`, filteredData_monthly)
 
       // 计算每月数据的RSI6
-      const dailyRSIData_fund = calculateRSI({ data: filteredData_monthly, closeKey: '累计收益率', period: 6 });
-      console.log(`2222 ${chartName} -> dailyRSIData_fund`, dailyRSIData_fund)
+      const dailyRSIData_fund = calculateRSI({ data: filteredData, closeKey: '累计收益率', period: 6 });
       setDailyRSIDataFund(dailyRSIData_fund);
 
       // 将RSI6数据合并到filteredData中
@@ -234,7 +261,6 @@ const FundOpenDetail: React.FC = () => {
           value: Number(value),
         };
       })).flat().filter((item): item is { date: string; key: string; label: string; value: number } => item !== null)
-      console.log(`111111111 ${chartName} -> dataFormat`, dataFormat)
       setData({
         leftData: dataFormat?.filter((item: { key: string }) => item.key === leftKey),
         rightData: dataFormat?.filter((item: { key: string }) => item.key !== leftKey)
@@ -254,74 +280,125 @@ const FundOpenDetail: React.FC = () => {
 
   console.log(`${chartName} -> data`, data)
 
-  const config = {
-    title: {
-      title: `${symbolName}(${chartName})`,
-      // subtitle: symbol ? `基金代码: ${symbol}` : '',
-    },
-    xField: (d: { date: string }) => new Date(d.date),
-    children: [
-      {
-        data: data.leftData,
-        type: 'line',
-        yField: 'value',
-        colorField: 'label',
-        shapeField: 'smooth',
-        style: {
-          stroke: '#5B8FF9',
-          lineWidth: 2,
-        },
-        axis: {
-          y: {
-            title: leftName,
-            style: { titleFill: '#5B8FF9' },
-          },
-        },
-      },
-      {
-        data: data.rightData,
-        type: 'line',
-        yField: 'value',
-        colorField: 'label',
-        shapeField: 'smooth',
-        axis: {
-          y: {
-            position: 'right',
-            title: chartName,
-            style: { titleFill: '#6c6868ff' },
-          },
-        },
-      },
-
-    ],
-    annotations: indicator === '累计收益率走势' ? dailyRSIDataFund.filter((item: any) => item.__RSI6__ < 20).map((item: any) => {
-      const level = item.__RSI6__ < 15 ? 5 : item.__RSI6__ < 18 ? 3 : 1;
-      let color = '#008000';
-      let fontSize = 12;
-      if (level === 5) {
-        color = '#008000';
-        fontSize = 12;
-      } else if (level === 3) {
-        color = '#42b242ff';
-        fontSize = 10;
-      } else if (level === 1) {
-        color = '#9fe49fff';
-        fontSize = 8;
-      }
-
-      return {
-        type: 'text' as const,
-        data: [new Date(item.日期), item.累计收益率],
-        style: {
-          text: '●',
-          fontSize: fontSize,
-          dx: -(fontSize/2),
-          stroke: color,
-          fill: color,
-        },
-      };
-    }) : [],
+  // 计算RSI6推荐级别
+  const calculateRecommendationLevel = (rsiValue: number): number => {
+    if (rsiValue < 15) return 5;
+    if (rsiValue < 17.5) return 3;
+    if (rsiValue < 20) return 1;
+    // if (rsiValue > 90) return -5;
+    // if (rsiValue > 85) return -3;
+    // if (rsiValue > 80) return -1;
+    return 0;
   };
+
+  // 获取推荐级别对应的样式
+  const getLevelStyle = (level: number): { color: string; fontSize: number } => {
+    if (level === 5) return { color: '#008000', fontSize: 12 };
+    if (level === 3) return { color: '#42b242ff', fontSize: 10 };
+    if (level === 1) return { color: '#9fe49fff', fontSize: 8 };
+    if (level === -1) return { color: '#ff6666', fontSize: 8 };
+    if (level === -3) return { color: '#ff3333', fontSize: 10 };
+    if (level === -5) return { color: '#ff0000', fontSize: 12 };
+    return {};
+  };
+
+  // 使用useMemo缓存过滤后的RSI数据，减少重复计算
+  const filteredRSIData = useMemo(() => {
+    return dailyRSIDataFund.map((item: any) => ({
+      ...item,
+      __recommendationLevel__: calculateRecommendationLevel(item.__RSI6__)
+    })).filter((item: any) => {
+      const level = item.__recommendationLevel__;
+      return [5, 3, 1, -1, -3, -5].includes(level);
+    });
+  }, [dailyRSIDataFund]);
+
+  console.log('1111 filteredRSIData' ,filteredRSIData)
+
+  // 使用useMemo缓存表格列配置，减少重复创建
+  const tableColumns = useMemo(() => [
+    {
+      title: '推荐级别',
+      dataIndex: '__recommendationLevel__',
+      key: '__recommendationLevel__',
+      render: (level: number) => {
+        const { color, fontSize } = getLevelStyle(level);
+        return <span style={{ color, fontSize }}>{'★'.repeat(Math.abs(level))}</span>;
+      },
+    },
+    {
+      title: '日期',
+      dataIndex: '日期',
+      key: '日期',
+      render: (text: string) => moment(text).format('YYYY-MM-DD'),
+    },
+    {
+      title: 'RSI6',
+      dataIndex: '__RSI6__',
+      key: '__RSI6__',
+      render: (value: number) => value?.toFixed(2),
+    },
+  ], []);
+
+  // 使用useMemo缓存配置对象，减少重复创建
+  const config = useMemo(() => {
+    return {
+      title: {
+        title: `${symbolName}(${chartName})`,
+        // subtitle: symbol ? `基金代码: ${symbol}` : '',
+      },
+      xField: (d: { date: string }) => new Date(d.date),
+      children: [
+        {
+          data: data.leftData,
+          type: 'line',
+          yField: 'value',
+          colorField: 'label',
+          shapeField: 'smooth',
+          style: {
+            stroke: '#5B8FF9',
+            lineWidth: 2,
+          },
+          axis: {
+            y: {
+              title: leftName,
+              style: { titleFill: '#5B8FF9' },
+            },
+          },
+        },
+        {
+          data: data.rightData,
+          type: 'line',
+          yField: 'value',
+          colorField: 'label',
+          shapeField: 'smooth',
+          axis: {
+            y: {
+              position: 'right',
+              title: chartName,
+              style: { titleFill: '#6c6868ff' },
+            },
+          },
+        },
+
+      ],
+      annotations: indicator === '累计收益率走势' ? filteredRSIData.map((item: any) => {
+        const { color, fontSize } = getLevelStyle(item.__recommendationLevel__);
+
+        return {
+          type: 'text' as const,
+          data: [new Date(item.日期), item.累计收益率],
+          style: {
+            text: '●',
+            fontSize: fontSize,
+            dx: -(fontSize/2),
+            stroke: color,
+            fill: color,
+          },
+        };
+      }) : [],
+    };
+  }, [symbolName, chartName, data.leftData, data.rightData, leftName, indicator, filteredRSIData]);
 
   return (
     <div style={{ padding: '24px' }}>
@@ -365,33 +442,11 @@ const FundOpenDetail: React.FC = () => {
       </Card>
 
       <Spin spinning={loading}>
-         {indicator === '累计收益率走势' && dailyRSIDataFund.length > 0 && (
+         {indicator === '累计收益率走势' && filteredRSIData.length > 0 && (
           <Card style={{ marginBottom: '16px' }}>
             <Table
-              dataSource={dailyRSIDataFund.filter((item: any) => item.__RSI6__ < 20).map((item: any) => ({
-                ...item,
-                __recommendationLevel__: item.__RSI6__ < 15 ? 5 : item.__RSI6__ < 18 ? 3 : 1,
-              }))}
-              columns={[
-                {
-                  title: '推荐级别',
-                  dataIndex: '__recommendationLevel__',
-                  key: '__recommendationLevel__',
-                  render: (level: number) => <span style={{ color: '#ffd700' }}>{'★'.repeat(level)}</span>,
-                },
-                {
-                  title: '日期',
-                  dataIndex: '日期',
-                  key: '日期',
-                  render: (text: string) => moment(text).format('YYYY-MM-DD'),
-                },
-                {
-                  title: 'RSI6',
-                  dataIndex: '__RSI6__',
-                  key: '__RSI6__',
-                  render: (value: number) => value?.toFixed(2),
-                },
-              ]}
+              dataSource={filteredRSIData}
+              columns={tableColumns}
               rowKey="日期"
               pagination={false}
             />
@@ -406,10 +461,10 @@ const FundOpenDetail: React.FC = () => {
               data={dailyRSIDataFund}
               xField={(d: { date: string }) => new Date(d.日期)}
               yField="__RSI6__"
-              title={{ text: 'RSI6 走势' }}
+              title={{ text: 'RSI6（月） 走势' }}
               axis={{
                 x: { title: '日期', size: 40 },
-                y: { title: '月 RSI6', size: 60 },
+                y: { title: 'RSI6（月）', size: 60 },
               }}
               // slider={{
               //   x: { labelFormatter: (d: string) => moment(d).format('YYYY-MM-DD') },

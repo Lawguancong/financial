@@ -328,6 +328,8 @@ const Home = () => {
 
   // M0 M1 M2 与各指标的关系
 
+  // todo py 每月跑所有个股和基金的推荐买点
+
   return <>
     {/* Demo */}
     {useMemo(() => <DemoDualAxes />, [])}

@@ -59,15 +59,24 @@ export const rightKeys = {
   "累计收益率": '累计收益率(%)',
   ['__最大回撤率__']: '最大回撤率(%)',
   ['__年化收益率__']: "年化收益率(%)",
-  ['__RSI6__']: "RSI6（月）",
+  ['__monthlyRSI6__']: "RSI6（月）",
+  ['__quarterlyRSI6__']: "RSI6（季）",
 };
 
 // 计算RSI6推荐级别
-export const calculateRecommendationLevel = (rsiValue: number): number => {
-  if (rsiValue < 15) return 5;
-  if (rsiValue < 17.5) return 3;
-  if (rsiValue < 20) return 1;
-  return 0;
+export const calculateRecommendationLevel = ({ __monthlyRSI6__, __quarterlyRSI6__ }) => {
+  switch (true) {
+    case __monthlyRSI6__ < 15 && __quarterlyRSI6__ < 18:
+      return 5;
+    case __monthlyRSI6__ < 15:
+    case __quarterlyRSI6__ < 18:
+      return 3;
+    case __monthlyRSI6__ < 18:
+    case __monthlyRSI6__ < 25 && __quarterlyRSI6__ < 25:
+      return 1;
+    default:
+      return 0;
+  }
 };
 
 // 获取推荐级别对应的样式

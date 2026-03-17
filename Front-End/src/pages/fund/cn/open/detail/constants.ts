@@ -59,8 +59,8 @@ export const rightKeys = {
   "累计收益率": '累计收益率(%)',
   ['__最大回撤率__']: '最大回撤率(%)',
   ['__年化收益率__']: "年化收益率(%)",
-  ['__monthlyRSI6__']: "RSI6（月）",
-  ['__quarterlyRSI6__']: "RSI6（季）",
+  // ['__monthlyRSI6__']: "RSI6（月）",
+  // ['__quarterlyRSI6__']: "RSI6（季）",
 };
 
 // 计算RSI6推荐级别
@@ -75,7 +75,7 @@ export const calculateRecommendationLevel = ({ __monthlyRSI6__, __quarterlyRSI6_
     case __monthlyRSI6__ < 25 && __quarterlyRSI6__ < 25:
       return 1;
     default:
-      return 0;
+      return null;
   }
 };
 

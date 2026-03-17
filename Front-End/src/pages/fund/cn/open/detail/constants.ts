@@ -68,18 +68,19 @@ export const calculateRecommendationLevel = ({ __monthlyRSI6__, __quarterlyRSI6_
   switch (true) {
     case __monthlyRSI6__ < 10 && __quarterlyRSI6__ < 15:
     case __monthlyRSI6__ < 13 && __quarterlyRSI6__ < 13:
-    case __monthlyRSI6__ < 16 && __quarterlyRSI6__ < 11:
+    case __monthlyRSI6__ < 15 && __quarterlyRSI6__ < 10:
       return 5;
-    case __monthlyRSI6__ < 14 && __quarterlyRSI6__ < 19:
-    case __monthlyRSI6__ < 17 && __quarterlyRSI6__ < 17:
+    case __monthlyRSI6__ < 15 && __quarterlyRSI6__ < 20:
+    case __monthlyRSI6__ < 18 && __quarterlyRSI6__ < 18:
     case __monthlyRSI6__ < 20 && __quarterlyRSI6__ < 15:
       return 3;
-    case __monthlyRSI6__ < 18 && __quarterlyRSI6__ < 23:
-    case __monthlyRSI6__ < 21 && __quarterlyRSI6__ < 21:
-    case __monthlyRSI6__ < 24 && __quarterlyRSI6__ < 19:
+    case __monthlyRSI6__ < 25 && __quarterlyRSI6__ < 25:
+    // case __monthlyRSI6__ < 20 && __quarterlyRSI6__ < 25:
+    // case __monthlyRSI6__ < 23 && __quarterlyRSI6__ < 23:
+    // case __monthlyRSI6__ < 25 && __quarterlyRSI6__ < 20:
       return 1;
     default:
-      return null;
+      return 0;
   }
 };
 

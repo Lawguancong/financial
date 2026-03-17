@@ -443,6 +443,7 @@ export const convertToKLine = (params: {
 // 添加推荐级别计算逻辑
 const getRecommendationLevel = (dailyRSIValue: number, weeklyRSIValue: number, monthlyRSIValue: number, quarterlyRSIValue: number) => {
   switch (true) {
+    // todo 优化 推荐级别 区间 
     case dailyRSIValue <= 10 && weeklyRSIValue <= 20 && monthlyRSIValue <= 24 && quarterlyRSIValue <= 28:
     case dailyRSIValue <= 9 && weeklyRSIValue <= 11 && monthlyRSIValue <= 13:
       return 5;

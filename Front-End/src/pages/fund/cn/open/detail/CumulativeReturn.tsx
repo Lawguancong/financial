@@ -368,7 +368,6 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
       <Collapse defaultActiveKey={["1"]} style={{ marginTop: 16 }}>
         <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📈📊📉 RSI·推荐级别 ({RSI6LevelData?.length}条)</span>} key="1">
           <Card style={{ marginTop: '16px' }}>
-
             <Table
               dataSource={RSI6LevelData}
               columns={tableColumns}
@@ -430,9 +429,6 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
                   },
                 };
               })
-              console.log('11111 RSI6LevelData', RSI6LevelData)
-              console.log('11111 annotationsData', annotationsData)
-
               // 添加分位数数据
               const percentileData = [];
               if (RSI6Data.length > 0) {
@@ -498,22 +494,6 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
                       },
                     },
                   ]}
-                  // tooltip={{ // todo 顺序
-                  //   items: [
-                  //     {
-                  //       field: leftKey,
-                  //       name: leftName,
-                  //     },
-                  //     {
-                  //       field: '__monthlyRSI6__',
-                  //       name: 'RSI6（月）',
-                  //     },
-                  //     {
-                  //       field: '__quarterlyRSI6__',
-                  //       name: 'RSI6（季）',
-                  //     },
-                  //   ],
-                  // }}
                   annotations={annotationsData}
                 />
               );

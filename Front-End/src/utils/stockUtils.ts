@@ -119,8 +119,8 @@ export const calculatePercentiles = (
   }
 
   // 计算15%和85%百分位
-  const percentile15 = values[Math.floor(values.length * 0.2)];
-  const percentile85 = values[Math.floor(values.length * 0.8)];
+  const percentile15 = values[Math.floor(values.length * 0.15)];
+  const percentile85 = values[Math.floor(values.length * 0.85)];
 
   // 为每条数据添加百分位信息
   return {

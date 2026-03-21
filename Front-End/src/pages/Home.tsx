@@ -330,6 +330,16 @@ const Home = () => {
 
   // todo py 每月跑所有个股和基金的推荐买点
 
+  // 黄金RSI6 
+  // 原油RSI6
+  // 大宗商品RSI6
+
+  // rsi6 月 季 15% 85% 分位
+
+  // 添加自选 删除 置顶 置底
+
+  // 指数 rsi6 月 季 15% 85% 分位
+
   return <>
     {/* Demo */}
     {useMemo(() => <DemoDualAxes />, [])}

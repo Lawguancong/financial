@@ -64,23 +64,30 @@ export const rightKeys = {
 };
 
 // 计算RSI6推荐级别
-export const calculateRecommendationLevel = ({ __monthlyRSI6__, __quarterlyRSI6__ }) => {
+export const calculateRecommendationLevel = ({ __monthlyRSI6__, __quarterlyRSI6__, __monthly10th__, __monthly90th__, __quarterly10th__, __quarterly90th__ }) => {
   switch (true) {
-    case __monthlyRSI6__ < 10 && __quarterlyRSI6__ < 15:
-    case __monthlyRSI6__ < 13 && __quarterlyRSI6__ < 13:
-    case __monthlyRSI6__ < 15 && __quarterlyRSI6__ < 10:
+    case __monthlyRSI6__ <= 10 && __quarterlyRSI6__ <= 15:
+    case __monthlyRSI6__ <= 13 && __quarterlyRSI6__ <= 13:
+    case __monthlyRSI6__ <= 15 && __quarterlyRSI6__ <= 10:
       return 5;
-    case __monthlyRSI6__ < 15 && __quarterlyRSI6__ < 20:
-    case __monthlyRSI6__ < 18 && __quarterlyRSI6__ < 18:
-    case __monthlyRSI6__ < 20 && __quarterlyRSI6__ < 15:
+    case __monthlyRSI6__ <= 15 && __quarterlyRSI6__ <= 20:
+    case __monthlyRSI6__ <= 18 && __quarterlyRSI6__ <= 18:
+    case __monthlyRSI6__ <= 20 && __quarterlyRSI6__ <= 15:
       return 3;
-    case __monthlyRSI6__ < 25 && __quarterlyRSI6__ < 25:
-    // case __monthlyRSI6__ < 20 && __quarterlyRSI6__ < 25:
-    // case __monthlyRSI6__ < 23 && __quarterlyRSI6__ < 23:
-    // case __monthlyRSI6__ < 25 && __quarterlyRSI6__ < 20:
+    case __monthlyRSI6__ <= 25 && __quarterlyRSI6__ <= 25:
+    // case __monthlyRSI6__ <= __monthly10th__ && __quarterlyRSI6__ <= __quarterly10th__:
+    // case __monthlyRSI6__ <= 20 && __quarterlyRSI6__ <= 25:
+    // case __monthlyRSI6__ <= 23 && __quarterlyRSI6__ <= 23:
+    // case __monthlyRSI6__ <= 25 && __quarterlyRSI6__ <= 20:
       return 1;
+    // case __monthlyRSI6__ > 90 && __quarterlyRSI6__ > 85:
+    //   return -1;
+    // case __monthlyRSI6__ > 95 && __quarterlyRSI6__ > 90:
+    //   return -3;
+    // case __monthlyRSI6__ > 98 && __quarterlyRSI6__ > 95:
+      return -5;
     default:
-      return 0;
+      return null;
   }
 };
 

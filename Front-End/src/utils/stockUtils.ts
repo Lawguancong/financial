@@ -457,6 +457,14 @@ const getRecommendationLevel = (dailyRSIValue: number, weeklyRSIValue: number, m
   }
 };
 
+// 计算分位数
+export const calculatePercentile = (data: number[], percentile: number): number => {
+  if (data.length === 0) return 0;
+  const sortedData = [...data].sort((a, b) => a - b);
+  const index = Math.ceil((percentile / 100) * sortedData.length) - 1;
+  return sortedData[Math.max(0, index)];
+};
+
 // 获取指定日期的各周期RSI值
 const getRSIValues = (dailyItem: KLineData, weeklyRSIMap: Map<string, number>, monthlyRSIMap: Map<string, number>, quarterlyRSIMap: Map<string, number>) => {
   const dayDate = moment(dailyItem.日期);

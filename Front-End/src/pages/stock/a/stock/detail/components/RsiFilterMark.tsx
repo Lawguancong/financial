@@ -313,6 +313,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data }) => {
         pagination={false}
         style={tableStyle}
       />
+      {/* todo 考虑去掉日K 页面卡顿 性能优化 */}
       <Title level={5}>RSI6 超卖（日k/后复权）</Title>
       <div style={chartContainerStyle}>
         <Line {...chartConfig} />

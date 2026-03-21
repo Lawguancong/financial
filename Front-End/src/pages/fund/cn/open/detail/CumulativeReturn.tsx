@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Select, Button, Card, Spin, Table, Collapse } from 'antd';
 import { DualAxes, Line } from '@ant-design/plots';
-import { pick } from 'lodash-es';
-import { calculateMaxDrawdown, calculateRSI, calculateMACD } from '@/utils';
+import { pick, isNumber } from 'lodash-es';
+import { calculateMaxDrawdown, calculateRSI, calculateMACD, calculatePercentile } from '@/utils';
 import moment from 'moment';
 import apiClient from '@/utils/axios';
 import { timeRangeOptions, periodOptions, keyMap, rightKeys, calculateRecommendationLevel, getLevelStyle } from './constants';
@@ -74,8 +74,8 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
     }[];
   }>({ leftData: [], rightData: [] });
   const [RSI6Data, setRSI6Data] = useState<any[]>([]);
-  const [macdData, setMacdData] = useState({ montyly: [], quarterly: [] });
-  const RSI6LevelData = useMemo(() => RSI6Data?.filter((item: any) => [1, 3, 5].includes(item.__recommendationLevel__)), [RSI6Data]);
+  const [macdData, setMacdData] = useState({ montyly: [], quarterly: [], monthly10th: null, monthly90th: null, quarterly10th: null, quarterly90th: null });
+  const RSI6LevelData = useMemo(() => RSI6Data?.filter((item: any) => isNumber(item.__recommendationLevel__)), [RSI6Data]);
 
   const config = useMemo(() => {
     return {
@@ -221,8 +221,22 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
         const monthlyRSI6Data = calculateRSI({ data: monthlyData, closeKey, period: 6 });
         // 计算每季度数据的RSI6
         const quarterlyRSI6Data = calculateRSI({ data: quarterlyData, closeKey, period: 6 });
+
+        // 提取RSI6数值
+        const monthlyRSIValues = monthlyRSI6Data.map(item => item['__RSI6__']).filter(value => typeof value === 'number' && !isNaN(value));
+        const quarterlyRSIValues = quarterlyRSI6Data.map(item => item['__RSI6__']).filter(value => typeof value === 'number' && !isNaN(value));
+
+        // 计算10%和90%分位数
+        const __monthly10th__ = calculatePercentile(monthlyRSIValues, 10);
+        const __monthly90th__ = calculatePercentile(monthlyRSIValues, 90);
+        const __quarterly10th__ = calculatePercentile(quarterlyRSIValues, 10);
+        const __quarterly90th__ = calculatePercentile(quarterlyRSIValues, 90);
+
         console.log('monthlyData 月度数据', monthlyData)
         console.log('monthlyRSI6Data 月度RSI6数据', monthlyRSI6Data)
+        console.log('quarterlyRSI6Data 季度RSI6数据', quarterlyRSI6Data)
+        console.log('月度RSI6 10%分位数:', __monthly10th__, '90%分位数:', __monthly90th__)
+        console.log('季度RSI6 10%分位数:', __quarterly10th__, '90%分位数:', __quarterly90th__)
 
         // 创建季度RSI映射：季度键 -> RSI值
         const quarterlyRSIMap = new Map<string, number>();
@@ -247,7 +261,17 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
             累计收益率: item[closeKey],
             __monthlyRSI6__: __monthlyRSI6__,
             __quarterlyRSI6__: __quarterlyRSI6__,
-            __recommendationLevel__: calculateRecommendationLevel({ __monthlyRSI6__, __quarterlyRSI6__ })
+            __recommendationLevel__: calculateRecommendationLevel({
+              __monthlyRSI6__, __quarterlyRSI6__,
+              __monthly10th__,
+              __monthly90th__,
+              __quarterly10th__,
+              __quarterly90th__,
+            }),
+            __monthly10th__,
+            __monthly90th__,
+            __quarterly10th__,
+            __quarterly90th__,
           };
         });
         setRSI6Data(RSI6Data);
@@ -344,6 +368,7 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
       <Collapse defaultActiveKey={["1"]} style={{ marginTop: 16 }}>
         <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📈📊📉 RSI·推荐级别 ({RSI6LevelData?.length}条)</span>} key="1">
           <Card style={{ marginTop: '16px' }}>
+
             <Table
               dataSource={RSI6LevelData}
               columns={tableColumns}
@@ -352,6 +377,28 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
             />
           </Card>
           <Card style={{ marginTop: '16px' }}>
+            <div>
+              <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontWeight: '500', color: '#666' }}>月度RSI6 10%分位:</span>
+                  <span style={{ color: '#1890ff', fontWeight: '600' }}>{RSI6LevelData?.[0]?.['__monthly10th__']?.toFixed(2) || '-'}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontWeight: '500', color: '#666' }}>月度RSI6 90%分位:</span>
+                  <span style={{ color: '#1890ff', fontWeight: '600' }}>{RSI6LevelData?.[0]?.['__monthly90th__']?.toFixed(2) || '-'}</span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontWeight: '500', color: '#666' }}>季度RSI6 10%分位:</span>
+                  <span style={{ color: '#1890ff', fontWeight: '600' }}>{RSI6LevelData?.[0]?.['__quarterly10th__']?.toFixed(2) || '-'}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontWeight: '500', color: '#666' }}>季度RSI6 90%分位:</span>
+                  <span style={{ color: '#1890ff', fontWeight: '600' }}>{RSI6LevelData?.[0]?.['__quarterly90th__']?.toFixed(2) || '-'}</span>
+                </div>
+              </div>
+            </div>
             {useMemo(() => {
               const leftData = RSI6Data.map(item => ({
                 date: item[dateKey],
@@ -368,6 +415,48 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
                 value: item['__quarterlyRSI6__'],
                 label: 'RSI6（季）'
               }));
+
+              const annotationsData = RSI6LevelData?.map((item: any) => {
+                const { color, fontSize } = getLevelStyle(item.__recommendationLevel__);
+                return {
+                  type: 'text' as const,
+                  data: [new Date(item[dateKey]), item[leftKey]],
+                  style: {
+                    text: '●',
+                    fontSize: fontSize,
+                    dx: -(fontSize / 2),
+                    stroke: color,
+                    fill: color,
+                  },
+                };
+              })
+              console.log('11111 RSI6LevelData', RSI6LevelData)
+              console.log('11111 annotationsData', annotationsData)
+
+              // 添加分位数数据
+              const percentileData = [];
+              if (RSI6Data.length > 0) {
+                const firstDate = RSI6Data[0][dateKey];
+                const lastDate = RSI6Data[RSI6Data.length - 1][dateKey];
+                const __monthly10th__ = RSI6Data[0]['__monthly10th__'];
+                const __monthly90th__ = RSI6Data[0]['__monthly90th__'];
+                const __quarterly10th__ = RSI6Data[0]['__quarterly10th__'];
+                const __quarterly90th__ = RSI6Data[0]['__quarterly90th__'];
+
+                // 月度分位数
+                percentileData.push(
+                  { date: firstDate, value: __monthly10th__, label: '月度10%分位' },
+                  { date: lastDate, value: __monthly10th__, label: '月度10%分位' },
+                  { date: firstDate, value: __monthly90th__, label: '月度90%分位' },
+                  { date: lastDate, value: __monthly90th__, label: '月度90%分位' },
+                  // 季度分位数
+                  { date: firstDate, value: __quarterly10th__, label: '季度10%分位' },
+                  { date: lastDate, value: __quarterly10th__, label: '季度10%分位' },
+                  { date: firstDate, value: __quarterly90th__, label: '季度90%分位' },
+                  { date: lastDate, value: __quarterly90th__, label: '季度90%分位' }
+                );
+              }
+
               return (
                 <DualAxes
                   title={{ title: '累计收益率与RSI6走势' }}
@@ -389,7 +478,7 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
                       },
                     },
                     {
-                      data: [...rightDataMonthly, ...rightDataQuarterly],
+                      data: [...rightDataMonthly, ...rightDataQuarterly, ...percentileData],
                       type: 'line',
                       yField: 'value',
                       colorField: 'label',
@@ -401,7 +490,12 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
                           style: { titleFill: '#6c6868ff' },
                         },
                       },
-                      // 
+                      style: (datum: any) => {
+                        if (datum.label.includes('分位')) {
+                          return { stroke: '#999', lineWidth: 1, lineDash: [5, 5] };
+                        }
+                        return {};
+                      },
                     },
                   ]}
                   // tooltip={{ // todo 顺序
@@ -420,23 +514,10 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
                   //     },
                   //   ],
                   // }}
-                  annotations={RSI6LevelData?.map((item: any) => {
-                    const { color, fontSize } = getLevelStyle(item.__recommendationLevel__);
-                    return {
-                      type: 'text' as const,
-                      data: [new Date(item[dateKey]), item[leftKey]],
-                      style: {
-                        text: '●',
-                        fontSize: fontSize,
-                        dx: -(fontSize / 2),
-                        stroke: color,
-                        fill: color,
-                      },
-                    };
-                  })}
+                  annotations={annotationsData}
                 />
               );
-            }, [RSI6Data, RSI6LevelData])}
+            }, [RSI6Data, RSI6LevelData, macdData])}
           </Card>
         </Collapse.Panel>
       </Collapse>

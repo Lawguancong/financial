@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Table, Typography, Input, Button } from 'antd';
+import { Table, Typography, Input, Button, Tabs } from 'antd';
 import apiClient from '@/utils/axios';
 import moment from 'moment';
 
 const { Link } = Typography;
+const { TabPane } = Tabs;
 
 interface IndexData {
   指数代码: string;
@@ -38,6 +39,8 @@ const Index: React.FC = () => {
     current: 1,
     pageSize: 20,
   });
+  const [activeTab, setActiveTab] = useState<string>('all');
+  const [selectedIndices, setSelectedIndices] = useState<IndexData[]>([]);
 
   const getUniqueValues = (data: IndexData[], key: keyof IndexData): string[] => {
     return Array.from(new Set(data.map(item => String(item[key] || ''))))
@@ -187,7 +190,46 @@ const Index: React.FC = () => {
       width: 60,
       sorter: stringSorter('最新收盘'),
     },
-  ], [data]);
+    {
+      title: '操作',
+      key: 'action',
+      width: 200,
+      fixed: 'right' as const,
+      render: (_, record: IndexData) => {
+        const isSelected = isIndexSelected(record['指数代码']);
+        
+        return (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button
+              type={isSelected ? 'default' : 'primary'}
+              size="small"
+              onClick={() => isSelected ? removeFromSelected(record) : addToSelected(record)}
+            >
+              {isSelected ? '取消自选' : '添加到自选'}
+            </Button>
+            {isSelected && activeTab === 'selected' && (
+              <>
+                <Button
+                  type="link"
+                  size="small"
+                  onClick={() => moveToTop(record)}
+                >
+                  置顶
+                </Button>
+                <Button
+                  type="link"
+                  size="small"
+                  onClick={() => moveToBottom(record)}
+                >
+                  置底
+                </Button>
+              </>
+            )}
+          </div>
+        );
+      },
+    },
+  ], [data, selectedIndices, activeTab]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -203,31 +245,116 @@ const Index: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchData();
+    loadSelectedIndices();
   }, []);
+
+  // 从localStorage加载自选指数
+  const loadSelectedIndices = () => {
+    try {
+      const savedIndices = localStorage.getItem('selectedIndices');
+      if (savedIndices) {
+        setSelectedIndices(JSON.parse(savedIndices));
+      }
+    } catch (error) {
+      console.log('加载自选指数失败:', error);
+    }
+  };
+
+  // 保存自选指数到localStorage
+  const saveSelectedIndices = (indices: IndexData[]) => {
+    try {
+      localStorage.setItem('selectedIndices', JSON.stringify(indices));
+    } catch (error) {
+      console.log('保存自选指数失败:', error);
+    }
+  };
+
+  // 添加到自选
+  const addToSelected = (index: IndexData) => {
+    const isAlreadySelected = selectedIndices.some(i => i['指数代码'] === index['指数代码']);
+    if (!isAlreadySelected) {
+      const newSelectedIndices = [...selectedIndices, index];
+      setSelectedIndices(newSelectedIndices);
+      saveSelectedIndices(newSelectedIndices);
+    }
+  };
+
+  // 从自选中移除
+  const removeFromSelected = (index: IndexData) => {
+    const newSelectedIndices = selectedIndices.filter(i => i['指数代码'] !== index['指数代码']);
+    setSelectedIndices(newSelectedIndices);
+    saveSelectedIndices(newSelectedIndices);
+  };
+
+  // 检查指数是否已在自选中
+  const isIndexSelected = (indexCode: string) => {
+    return selectedIndices.some(i => i['指数代码'] === indexCode);
+  };
+
+  // 置顶功能
+  const moveToTop = (index: IndexData) => {
+    const newSelectedIndices = [index, ...selectedIndices.filter(i => i['指数代码'] !== index['指数代码'])];
+    setSelectedIndices(newSelectedIndices);
+    saveSelectedIndices(newSelectedIndices);
+  };
+
+  // 置底功能
+  const moveToBottom = (index: IndexData) => {
+    const newSelectedIndices = [...selectedIndices.filter(i => i['指数代码'] !== index['指数代码']), index];
+    setSelectedIndices(newSelectedIndices);
+    saveSelectedIndices(newSelectedIndices);
+  };
 
 
 
   return (
     <div style={{ padding: '24px', height: 'calc(100vh - 64px - 32px)', display: 'flex', flexDirection: 'column' }}>
-      <Table
-        columns={columns}
-        dataSource={data}
-        loading={loading}
-        rowKey="指数代码"
-        scroll={{ x: 2000, y: 'calc(100vh - 200px)' }}
-        pagination={{
-          ...pagination,
-          showSizeChanger: true,
-          showTotal: (total) => `共 ${total} 条`,
-          onChange: (page, pageSize) => {
-            setPagination({ current: page, pageSize });
-          },
-          onShowSizeChange: (current, size) => {
-            setPagination({ current: 1, pageSize: size });
-          },
-        }}
-      />
+      <Tabs activeKey={activeTab} onChange={setActiveTab}>
+        <TabPane tab="全部" key="all">
+          <div style={{ marginBottom: '16px', textAlign: 'right' }}>
+            <Button type="primary" onClick={fetchData} loading={loading}>
+              搜索
+            </Button>
+          </div>
+          <Table
+            columns={columns}
+            dataSource={data}
+            loading={loading}
+            rowKey="指数代码"
+            scroll={{ x: 2000, y: 'calc(100vh - 200px)' }}
+            pagination={{
+              ...pagination,
+              showSizeChanger: true,
+              showTotal: (total) => `共 ${total} 条`,
+              onChange: (page, pageSize) => {
+                setPagination({ current: page, pageSize });
+              },
+              onShowSizeChange: (current, size) => {
+                setPagination({ current: 1, pageSize: size });
+              },
+            }}
+          />
+        </TabPane>
+        <TabPane tab="自选" key="selected">
+          <Table
+            columns={columns}
+            dataSource={selectedIndices}
+            rowKey="指数代码"
+            scroll={{ x: 2000, y: 'calc(100vh - 200px)' }}
+            pagination={{
+              ...pagination,
+              showSizeChanger: true,
+              showTotal: (total) => `共 ${total} 条`,
+              onChange: (page, pageSize) => {
+                setPagination({ current: page, pageSize });
+              },
+              onShowSizeChange: (current, size) => {
+                setPagination({ current: 1, pageSize: size });
+              },
+            }}
+          />
+        </TabPane>
+      </Tabs>
     </div>
   );
 };

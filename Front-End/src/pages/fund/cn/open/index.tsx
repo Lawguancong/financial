@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { Select, Button, Table, Card, Spin, Input, Typography } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Select, Button, Table, Card, Spin, Input, Typography, Tabs } from 'antd';
 import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { createRangeFilter, numberSorter } from '@/utils/tableUtils';
 
 const { Link } = Typography;
+const { TabPane } = Tabs;
 
 interface FundData {
   序号: number;
@@ -35,6 +36,8 @@ const FundOpen: React.FC = () => {
     current:1,
     pageSize: 20,
   });
+  const [activeTab, setActiveTab] = useState<string>('all');
+  const [selectedFunds, setSelectedFunds] = useState<FundData[]>([]);
 
   const fundTypeOptions = [
     { label: '全部', value: '全部' },
@@ -62,6 +65,55 @@ const FundOpen: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // 从localStorage加载自选基金
+  const loadSelectedFunds = () => {
+    try {
+      const savedFunds = localStorage.getItem('selectedFunds');
+      console.log('本地缓存 自选基金 savedFunds', JSON.parse(savedFunds || '[]'))
+      if (savedFunds) {
+        setSelectedFunds(JSON.parse(savedFunds));
+      }
+    } catch (error) {
+      console.log('加载自选基金失败:', error);
+    }
+  };
+
+  // 保存自选基金到localStorage
+  const saveSelectedFunds = (funds: FundData[]) => {
+    try {
+      localStorage.setItem('selectedFunds', JSON.stringify(funds));
+    } catch (error) {
+      console.log('保存自选基金失败:', error);
+    }
+  };
+
+  // 添加到自选
+  const addToSelected = (fund: FundData) => {
+    const isAlreadySelected = selectedFunds.some(f => f['基金代码'] === fund['基金代码']);
+    if (!isAlreadySelected) {
+      const newSelectedFunds = [...selectedFunds, fund];
+      setSelectedFunds(newSelectedFunds);
+      saveSelectedFunds(newSelectedFunds);
+    }
+  };
+
+  // 从自选中移除
+  const removeFromSelected = (fund: FundData) => {
+    const newSelectedFunds = selectedFunds.filter(f => f['基金代码'] !== fund['基金代码']);
+    setSelectedFunds(newSelectedFunds);
+    saveSelectedFunds(newSelectedFunds);
+  };
+
+  // 检查基金是否已在自选中
+  const isFundSelected = (fundCode: string) => {
+    return selectedFunds.some(f => f['基金代码'] === fundCode);
+  };
+
+  // 初始化时加载自选基金
+  useEffect(() => {
+    loadSelectedFunds();
+  }, []);
 
   const columns = [
     {
@@ -306,48 +358,126 @@ const FundOpen: React.FC = () => {
       // render: (value: number) => `${value?.toFixed(2)}%`,
       ...createRangeFilter('手续费'),
     },
+    {
+      title: '操作',
+      key: 'action',
+      width: 200,
+      fixed: 'right' as const,
+      render: (_, record: FundData) => {
+        const isSelected = isFundSelected(record['基金代码']);
+        
+        // 置顶功能
+        const moveToTop = (fund: FundData) => {
+          const newSelectedFunds = [fund, ...selectedFunds.filter(f => f['基金代码'] !== fund['基金代码'])];
+          setSelectedFunds(newSelectedFunds);
+          saveSelectedFunds(newSelectedFunds);
+        };
+        
+        // 置底功能
+        const moveToBottom = (fund: FundData) => {
+          const newSelectedFunds = [...selectedFunds.filter(f => f['基金代码'] !== fund['基金代码']), fund];
+          setSelectedFunds(newSelectedFunds);
+          saveSelectedFunds(newSelectedFunds);
+        };
+        
+        return (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button
+              type={isSelected ? 'default' : 'primary'}
+              size="small"
+              onClick={() => isSelected ? removeFromSelected(record) : addToSelected(record)}
+            >
+              {isSelected ? '取消自选' : '添加到自选'}
+            </Button>
+            {isSelected && activeTab === 'selected' && (
+              <>
+                <Button
+                  type="link"
+                  size="small"
+                  onClick={() => moveToTop(record)}
+                >
+                  置顶
+                </Button>
+                <Button
+                  type="link"
+                  size="small"
+                  onClick={() => moveToBottom(record)}
+                >
+                  置底
+                </Button>
+              </>
+            )}
+          </div>
+        );
+      },
+    },
   ];
 
   return (
     <div style={{ padding: '24px' }}>
-      <Card style={{ marginBottom: '16px' }}>
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>基金类型：</span>
-            <Select
-              style={{ width: 200 }}
-              value={fundType}
-              onChange={setFundType}
-              options={fundTypeOptions}
-            />
-          </div>
-          <Button type="primary" onClick={fetchFundData} loading={loading}>
-            搜索
-          </Button>
-        </div>
-      </Card>
+      <Tabs activeKey={activeTab} onChange={setActiveTab}>
+        <TabPane tab="全部" key="all">
+          <Card style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>基金类型：</span>
+                <Select
+                  style={{ width: 200 }}
+                  value={fundType}
+                  onChange={setFundType}
+                  options={fundTypeOptions}
+                />
+              </div>
+              <Button type="primary" onClick={fetchFundData} loading={loading}>
+                搜索
+              </Button>
+            </div>
+          </Card>
 
-      <Spin spinning={loading}>
-        <Card>
-          <Table
-            columns={columns}
-            dataSource={data}
-            rowKey="序号"
-            scroll={{ x: 2000 }}
-            pagination={{
-              ...pagination,
-              showSizeChanger: true,
-              showTotal: (total) => `共 ${total} 条`,
-              onChange: (page, pageSize) => {
-                setPagination({ current: page, pageSize });
-              },
-              onShowSizeChange: (current, size) => {
-                setPagination({ current: 1, pageSize: size });
-              },
-            }}
-          />
-        </Card>
-      </Spin>
+          <Spin spinning={loading}>
+            <Card>
+              <Table
+                columns={columns}
+                dataSource={data}
+                rowKey="序号"
+                scroll={{ x: 2000 }}
+                pagination={{
+                  ...pagination,
+                  showSizeChanger: true,
+                  showTotal: (total) => `共 ${total} 条`,
+                  onChange: (page, pageSize) => {
+                    setPagination({ current: page, pageSize });
+                  },
+                  onShowSizeChange: (current, size) => {
+                    setPagination({ current: 1, pageSize: size });
+                  },
+                }}
+              />
+            </Card>
+          </Spin>
+        </TabPane>
+        <TabPane tab="自选" key="selected">
+          <Card>
+            <Table
+              columns={columns}
+              dataSource={selectedFunds}
+              rowKey="序号"
+              scroll={{ x: 2000 }}
+              pagination={{
+                ...pagination,
+                showSizeChanger: true,
+                showTotal: (total) => `共 ${total} 条`,
+                onChange: (page, pageSize) => {
+                  setPagination({ current: page, pageSize });
+                },
+                onShowSizeChange: (current, size) => {
+                  setPagination({ current: 1, pageSize: size });
+                },
+              }}
+            />
+          </Card>
+        </TabPane>
+      </Tabs>
     </div>
   );
 };

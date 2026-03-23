@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Table, Typography, InputNumber, Space, Button, Input } from 'antd';
+import { Table, Typography, InputNumber, Space, Button, Input, Tabs } from 'antd';
 import apiClient from '@/utils/axios';
 
 const { Search } = Input;
 
 const { Link } = Typography;
+const { TabPane } = Tabs;
 
 interface StockData {
   序号: number;
@@ -156,7 +157,105 @@ const handleNavigateToDetail = (record: StockData) => {
   const endDate = `${year}${month}${day}`;
   window.open(`/stock/a/stock/detail?symbol=${record.代码}`, '_blank');
 };
-const columns = [
+
+
+const Stock: React.FC = () => {
+  const [data, setData] = useState<StockData[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>('all');
+  const [selectedStocks, setSelectedStocks] = useState<StockData[]>([]);
+
+
+
+  const fetchData = async () => {
+    const cachedData = sessionStorage.getItem('stockListData');
+    if (cachedData) {
+      try {
+        const parsedData = JSON.parse(cachedData);
+        setData(parsedData);
+        setLoading(false);
+        return;
+      } catch (error) {
+        console.log('解析缓存数据失败', error);
+      }
+    }
+
+    setLoading(true);
+    try {
+      const response = await apiClient.get('/api/public/stock_zh_a_spot_em');
+      console.log('个股列表 -> response', response);
+      const responseData = response?.data || [];
+      setData(responseData);
+    } catch (error) {
+      console.log('error', error);
+
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSelectedStocks();
+  }, []);
+
+  // 从localStorage加载自选股票
+  const loadSelectedStocks = () => {
+    try {
+      const savedStocks = localStorage.getItem('selectedStocks');
+      if (savedStocks) {
+        setSelectedStocks(JSON.parse(savedStocks));
+      }
+    } catch (error) {
+      console.log('加载自选股票失败:', error);
+    }
+  };
+
+  // 保存自选股票到localStorage
+  const saveSelectedStocks = (stocks: StockData[]) => {
+    try {
+      localStorage.setItem('selectedStocks', JSON.stringify(stocks));
+    } catch (error) {
+      console.log('保存自选股票失败:', error);
+    }
+  };
+
+  // 添加到自选
+  const addToSelected = (stock: StockData) => {
+    const isAlreadySelected = selectedStocks.some(s => s['代码'] === stock['代码']);
+    if (!isAlreadySelected) {
+      const newSelectedStocks = [...selectedStocks, stock];
+      setSelectedStocks(newSelectedStocks);
+      saveSelectedStocks(newSelectedStocks);
+    }
+  };
+
+  // 从自选中移除
+  const removeFromSelected = (stock: StockData) => {
+    const newSelectedStocks = selectedStocks.filter(s => s['代码'] !== stock['代码']);
+    setSelectedStocks(newSelectedStocks);
+    saveSelectedStocks(newSelectedStocks);
+  };
+
+  // 检查股票是否已在自选中
+  const isStockSelected = (stockCode: string) => {
+    return selectedStocks.some(s => s['代码'] === stockCode);
+  };
+
+  // 置顶功能
+  const moveToTop = (stock: StockData) => {
+    const newSelectedStocks = [stock, ...selectedStocks.filter(s => s['代码'] !== stock['代码'])];
+    setSelectedStocks(newSelectedStocks);
+    saveSelectedStocks(newSelectedStocks);
+  };
+
+  // 置底功能
+  const moveToBottom = (stock: StockData) => {
+    const newSelectedStocks = [...selectedStocks.filter(s => s['代码'] !== stock['代码']), stock];
+    setSelectedStocks(newSelectedStocks);
+    saveSelectedStocks(newSelectedStocks);
+  };
+
+  const columns = useMemo(() => [
   {
     title: '序号',
     dataIndex: '序号',
@@ -201,7 +300,7 @@ const columns = [
     title: '名称',
     dataIndex: '名称',
     key: '名称',
-    width: 150,
+    width: 120,
     fixed: 'left' as const,
     sorter: stringSorter('名称'),
     filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }: any) => (
@@ -229,23 +328,10 @@ const columns = [
     onFilter: (value: string, record: StockData) => {
       return record.名称.toLowerCase().includes(value.toLowerCase());
     },
-    render: (name: string, record: StockData) => (
-      <Link
-        onClick={() => handleNavigateToDetail(record)}
-        style={{ cursor: 'pointer', color: '#1890ff' }}
-      >
-        {name}
-      </Link>
+    render: (text: string, record: StockData) => (
+      <Link onClick={() => handleNavigateToDetail(record)}>{text}</Link>
     ),
   },
-  {
-    title: '换手率(%)',
-    dataIndex: '换手率',
-    key: '换手率',
-    width: 120,
-    sorter: numberSorter('换手率'),
-    ...createRangeFilter('换手率'),
-  } as any,
   {
     title: '市盈率(动态)',
     dataIndex: '市盈率-动态',
@@ -301,14 +387,9 @@ const columns = [
     key: '涨跌额',
     width: 100,
     sorter: numberSorter('涨跌额'),
-    render: (value: number) => (
-      <span style={{ color: value >= 0 ? '#f5222d' : '#52c41a' }}>
-        {value}
-      </span>
-    ),
   },
   {
-    title: '成交流(手)',
+    title: '成交量(股)',
     dataIndex: '成交量',
     key: '成交量',
     width: 120,
@@ -320,6 +401,20 @@ const columns = [
     key: '成交额',
     width: 120,
     sorter: numberSorter('成交额'),
+  },
+  {
+    title: '换手率(%)',
+    dataIndex: '换手率',
+    key: '换手率',
+    width: 120,
+    sorter: numberSorter('换手率'),
+  },
+  {
+    title: '量比',
+    dataIndex: '量比',
+    key: '量比',
+    width: 100,
+    sorter: numberSorter('量比'),
   },
   {
     title: '振幅(%)',
@@ -392,61 +487,77 @@ const columns = [
     width: 160,
     sorter: numberSorter('年初至今涨跌幅'),
   },
-];
-
-const Stock: React.FC = () => {
-  const [data, setData] = useState<StockData[]>([]);
-  const [loading, setLoading] = useState(false);
-
-
-
-  const fetchData = async () => {
-    const cachedData = sessionStorage.getItem('stockListData');
-    if (cachedData) {
-      try {
-        const parsedData = JSON.parse(cachedData);
-        setData(parsedData);
-        setLoading(false);
-        return;
-      } catch (error) {
-        console.log('解析缓存数据失败', error);
-      }
-    }
-
-    setLoading(true);
-    try {
-      const response = await apiClient.get('/api/public/stock_zh_a_spot_em');
-      console.log('个股列表 -> response', response);
-      const responseData = response?.data || [];
-      setData(responseData);
-    } catch (error) {
-      console.log('error', error);
-
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-
-
-
+  {
+    title: '操作',
+    key: 'action',
+    width: 200,
+    fixed: 'right' as const,
+    render: (_, record: StockData) => {
+      const isSelected = isStockSelected(record['代码']);
+      
+      return (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button
+            type={isSelected ? 'default' : 'primary'}
+            size="small"
+            onClick={() => isSelected ? removeFromSelected(record) : addToSelected(record)}
+          >
+            {isSelected ? '取消自选' : '添加到自选'}
+          </Button>
+          {isSelected && activeTab === 'selected' && (
+            <>
+              <Button
+                type="link"
+                size="small"
+                onClick={() => moveToTop(record)}
+              >
+                置顶
+              </Button>
+              <Button
+                type="link"
+                size="small"
+                onClick={() => moveToBottom(record)}
+              >
+                置底
+              </Button>
+            </>
+          )}
+        </div>
+      );
+    },
+  },
+], [selectedStocks, activeTab]);
 
   return (
     <div style={{ padding: '24px' }}>
-      {useMemo(() => (
-        <Table
-          columns={columns}
-          dataSource={data}
-          loading={loading}
-          rowKey="代码"
-          scroll={{ x: 3000, y: 'calc(100vh - 200px)' }}
-          pagination={false}
-        />
-      ), [data, loading])}
+      <Tabs activeKey={activeTab} onChange={setActiveTab}>
+        <TabPane tab="全部" key="all">
+          <div style={{ marginBottom: '16px', textAlign: 'right' }}>
+            <Button type="primary" onClick={fetchData} loading={loading}>
+              搜索
+            </Button>
+          </div>
+          {useMemo(() => (
+            <Table
+              columns={columns}
+              dataSource={data}
+              loading={loading}
+              rowKey="代码"
+              scroll={{ x: 3000, y: 'calc(100vh - 200px)' }}
+              pagination={false}
+            />
+          ), [data, loading])}
+        </TabPane>
+        <TabPane tab="自选" key="selected">
+          <Table
+            columns={columns}
+            dataSource={selectedStocks}
+            rowKey="代码"
+            scroll={{ x: 3000, y: 'calc(100vh - 200px)' }}
+            pagination={false}
+          />
+        </TabPane>
+      </Tabs>
     </div>
   );
 };

@@ -110,13 +110,33 @@ export const menuConfigs: MenuItemConfig[] = [
       // },
     ],
   },
-  // {
-  //   key: 'commodity',
-  //   label: '大宗商品',
-  //   icon: <ShoppingOutlined />,
-  //   path: 'commodity',
-  //   component: lazy(() => import('@/pages/Commodity')),
-  // },
+  {
+    key: 'commodity',
+    label: '大宗商品',
+    icon: <ShoppingOutlined />,
+    children: [
+      {
+        key: 'commodity/cn',
+        label: '国内',
+        children: [
+          {
+            key: 'commodity/cn/index',
+            label: '指数',
+            path: 'commodity/cn/index',
+            component: lazy(() => import('@/pages/commodity/cn/index')),
+            children: [
+              {
+                key: 'commodity/cn/index/detail',
+                label: '指数详情',
+                path: 'commodity/cn/index/detail',
+                component: lazy(() => import('@/pages/commodity/cn/index/detail')),
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
   {
     key: 'realestate',
     label: '房地产',

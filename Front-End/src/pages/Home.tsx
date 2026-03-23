@@ -331,6 +331,9 @@ const Home = () => {
   // todo py 每月跑所有个股和基金的推荐买点
 
   // 黄金RSI6 
+  // symbol="Au99.99"; 可以通过 ak.spot_symbol_table_sge() 获取品种表
+  //  "spot_hist_sge"  # 上海黄金交易所-历史行情走势
+
   // 原油RSI6
   // 大宗商品RSI6
 

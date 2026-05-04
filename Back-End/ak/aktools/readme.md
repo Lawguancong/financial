@@ -3,11 +3,21 @@ AKTools 是一款用于快速搭建 AKShare HTTP API 的工具， 通过 AKTools
 https://aktools.akfamily.xyz/
 https://github.com/akfamily/aktools
 
+# 升级pip版本
+pip install --upgrade pip
+
+
 📦 安装依赖（Python 3.11）
 # 使用指定 Python 3.11 环境安装
 pip3 install aktools
 或者
 pip3.11 install aktools
+
+
+# 由于目前版本更新迭代频繁, 请在使用 AKShare 前先升级, 命令如下所示
+pip3 install akshare --upgrade -i https://pypi.org/simple
+pip3.11 install akshare --upgrade -i https://pypi.org/simple
+
 
 ▶️ 启动服务
 # 方法 1：通过 python3.11 直接运行

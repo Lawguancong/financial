@@ -37,6 +37,8 @@ const tableColumns = [
     title: '推荐级别',
     dataIndex: '__recommendationLevel__',
     key: '__recommendationLevel__',
+    width: 100,
+    fixed: 'left',
     render: (level: number) => {
       const { color, fontSize } = getLevelStyle(level);
       return <span style={{ color, fontSize }}>{'★'.repeat(Math.abs(level))}</span>;
@@ -46,20 +48,243 @@ const tableColumns = [
     title: dateName,
     dataIndex: dateKey,
     key: dateKey,
+    width: 140,
+    fixed: 'left',
     render: (text: string) => moment(text).format('YYYY-MM-DD'),
   },
   {
     title: 'RSI6（月）',
     dataIndex: '__monthlyRSI6__',
     key: '__monthlyRSI6__',
+    width: 110,
+    fixed: 'left',
     render: (value: number) => value?.toFixed(2),
   },
   {
     title: 'RSI6（季）',
     dataIndex: '__quarterlyRSI6__',
     key: '__quarterlyRSI6__',
+    width: 110,
+    fixed: 'left',
     render: (value: number) => value?.toFixed(2),
-  }
+  },
+  {
+    title: '累计年限（年）',
+    dataIndex: '__累计年限__',
+    key: '__累计年限__',
+    width: 140,
+    render: (value: number) => value?.toFixed(2),
+  },
+  {
+    title: '年化收益率(%)',
+    dataIndex: '__年化收益率__',
+    key: '__年化收益率__',
+    width: 140,
+    render: (value: number) => value !== null ? value.toFixed(1) : '-',
+  },
+  {
+    title: '累计收益率(%)',
+    dataIndex: '累计收益率',
+    key: '累计收益率',
+    width: 140,
+    render: (value: number) => value?.toFixed(1),
+  },
+
+  {
+    title: '3年后【预期累计】收益率(%)(长期6%年化)',
+    dataIndex: '__EXPECTED_RETURN_3Y_6PCT__',
+    key: '__EXPECTED_RETURN_3Y_6PCT__',
+    width: 140,
+    render: (value: number) => (value * 100)?.toFixed(1),
+  },
+  {
+    title: '3年后【预期累计】收益率(%)(长期8%年化)',
+    dataIndex: '__EXPECTED_RETURN_3Y_8PCT__',
+    key: '__EXPECTED_RETURN_3Y_8PCT__',
+    width: 140,
+    render: (value: number) => (value * 100)?.toFixed(1),
+  },
+  {
+    title: '3年后【预期累计】收益率(%)(长期10%年化)',
+    dataIndex: '__EXPECTED_RETURN_3Y_10PCT__',
+    key: '__EXPECTED_RETURN_3Y_10PCT__',
+    width: 140,
+    render: (value: number) => (value * 100)?.toFixed(1),
+  },
+  {
+    title: '3年后【预期累计】收益率(%)(长期12%年化)',
+    dataIndex: '__EXPECTED_RETURN_3Y_12PCT__',
+    key: '__EXPECTED_RETURN_3Y_12PCT__',
+    width: 140,
+    render: (value: number) => (value * 100)?.toFixed(1),
+  },
+  {
+    title: '3年后【预期累计】收益率(%)(长期15%年化)',
+    dataIndex: '__EXPECTED_RETURN_3Y_15PCT__',
+    key: '__EXPECTED_RETURN_3Y_15PCT__',
+    width: 140,
+    render: (value: number) => (value * 100)?.toFixed(1),
+  },
+
+  {
+    title: '3年后【预期相对】收益率(%)(长期6%年化)',
+    dataIndex: '__RELATIVE_RETURN_3Y_6PCT__',
+    key: '__RELATIVE_RETURN_3Y_6PCT__',
+    width: 140,
+        render: (value: number) => {
+      const CUMULATIVE_RETURN_3Y = value;
+      const YEARS = 3; // 年限
+      const annualizedReturn = Math.pow(1 + CUMULATIVE_RETURN_3Y, 1 / YEARS) - 1;
+      return `${(value * 100)?.toFixed(1)}%(年化${(annualizedReturn * 100)?.toFixed(1)}%)`
+    }
+  },
+  {
+    title: '3年后【预期相对】收益率(%)(长期8%年化)',
+    dataIndex: '__RELATIVE_RETURN_3Y_8PCT__',
+    key: '__RELATIVE_RETURN_3Y_8PCT__',
+    width: 140,
+    render: (value: number) => {
+      const CUMULATIVE_RETURN_3Y = value;
+      const YEARS = 3; // 年限
+      const annualizedReturn = Math.pow(1 + CUMULATIVE_RETURN_3Y, 1 / YEARS) - 1;
+      return `${(value * 100)?.toFixed(1)}%(年化${(annualizedReturn * 100)?.toFixed(1)}%)`
+    }
+  },
+  {
+    title: '3年后【预期相对】收益率(%)(长期10%年化)',
+    dataIndex: '__RELATIVE_RETURN_3Y_10PCT__',
+    key: '__RELATIVE_RETURN_3Y_10PCT__',
+    width: 140,
+    render: (value: number) => {
+      const CUMULATIVE_RETURN_3Y = value;
+      const YEARS = 3; // 年限
+      const annualizedReturn = Math.pow(1 + CUMULATIVE_RETURN_3Y, 1 / YEARS) - 1;
+      return `${(value * 100)?.toFixed(1)}%(年化${(annualizedReturn * 100)?.toFixed(1)}%)`
+    }
+  },
+  {
+    title: '3年后【预期相对】收益率(%)(长期12%年化)',
+    dataIndex: '__RELATIVE_RETURN_3Y_12PCT__',
+    key: '__RELATIVE_RETURN_3Y_12PCT__',
+    width: 140,
+    render: (value: number) => {
+      const CUMULATIVE_RETURN_3Y = value;
+      const YEARS = 3; // 年限
+      const annualizedReturn = Math.pow(1 + CUMULATIVE_RETURN_3Y, 1 / YEARS) - 1;
+      return `${(value * 100)?.toFixed(1)}%(年化${(annualizedReturn * 100)?.toFixed(1)}%)`
+    }
+  },
+  {
+    title: '3年后【预期相对】收益率(%)(长期15%年化)',
+    dataIndex: '__RELATIVE_RETURN_3Y_15PCT__',
+    key: '__RELATIVE_RETURN_3Y_15PCT__',
+    width: 140,
+    render: (value: number) => {
+      const CUMULATIVE_RETURN_3Y = value;
+      const YEARS = 3; // 年限
+      const annualizedReturn = Math.pow(1 + CUMULATIVE_RETURN_3Y, 1 / YEARS) - 1;
+      return `${(value * 100)?.toFixed(1)}%(年化${(annualizedReturn * 100)?.toFixed(1)}%)`
+    }
+  },
+
+
+  {
+    title: '5年后【预期累计】收益率(%)(长期6%年化)',
+    dataIndex: '__EXPECTED_RETURN_5Y_6PCT__',
+    key: '__EXPECTED_RETURN_5Y_6PCT__',
+    width: 140,
+    render: (value: number) => (value * 100)?.toFixed(1),
+  },
+  {
+    title: '5年后【预期累计】收益率(%)(长期8%年化)',
+    dataIndex: '__EXPECTED_RETURN_5Y_8PCT__',
+    key: '__EXPECTED_RETURN_5Y_8PCT__',
+    width: 140,
+    render: (value: number) => (value * 100)?.toFixed(1),
+  },
+  {
+    title: '5年后【预期累计】收益率(%)(长期10%年化)',
+    dataIndex: '__EXPECTED_RETURN_5Y_10PCT__',
+    key: '__EXPECTED_RETURN_5Y_10PCT__',
+    width: 140,
+    render: (value: number) => (value * 100)?.toFixed(1),
+  },
+  {
+    title: '5年后【预期累计】收益率(%)(长期12%年化)',
+    dataIndex: '__EXPECTED_RETURN_5Y_12PCT__',
+    key: '__EXPECTED_RETURN_5Y_12PCT__',
+    width: 140,
+    render: (value: number) => (value * 100)?.toFixed(1),
+  },
+  {
+    title: '5年后【预期累计】收益率(%)(长期15%年化)',
+    dataIndex: '__EXPECTED_RETURN_5Y_15PCT__',
+    key: '__EXPECTED_RETURN_5Y_15PCT__',
+    width: 140,
+    render: (value: number) => (value * 100)?.toFixed(1),
+  },
+
+
+  {
+    title: '5年后【预期相对】收益率(%)(长期6%年化)',
+    dataIndex: '__RELATIVE_RETURN_5Y_6PCT__',
+    key: '__RELATIVE_RETURN_5Y_6PCT__',
+    width: 140,
+    render: (value: number) => {
+      const CUMULATIVE_RETURN_3Y = value;
+      const YEARS = 5; // 年限
+      const annualizedReturn = Math.pow(1 + CUMULATIVE_RETURN_3Y, 1 / YEARS) - 1;
+      return `${(value * 100)?.toFixed(1)}%(年化${(annualizedReturn * 100)?.toFixed(1)}%)`
+    }
+  },
+  {
+    title: '5年后【预期相对】收益率(%)(长期8%年化)',
+    dataIndex: '__RELATIVE_RETURN_5Y_8PCT__',
+    key: '__RELATIVE_RETURN_5Y_8PCT__',
+    width: 140,
+    render: (value: number) => {
+      const CUMULATIVE_RETURN_3Y = value;
+      const YEARS = 5; // 年限
+      const annualizedReturn = Math.pow(1 + CUMULATIVE_RETURN_3Y, 1 / YEARS) - 1;
+      return `${(value * 100)?.toFixed(1)}%(年化${(annualizedReturn * 100)?.toFixed(1)}%)`
+    }
+  },
+  {
+    title: '5年后【预期相对】收益率(%)(长期10%年化)',
+    dataIndex: '__RELATIVE_RETURN_5Y_10PCT__',
+    key: '__RELATIVE_RETURN_5Y_10PCT__',
+    width: 140,
+    render: (value: number) => {
+      const CUMULATIVE_RETURN_3Y = value;
+      const YEARS = 5; // 年限
+      const annualizedReturn = Math.pow(1 + CUMULATIVE_RETURN_3Y, 1 / YEARS) - 1;
+      return `${(value * 100)?.toFixed(1)}%(年化${(annualizedReturn * 100)?.toFixed(1)}%)`
+    }
+  },
+  {
+    title: '5年后【预期相对】收益率(%)(长期12%年化)',
+    dataIndex: '__RELATIVE_RETURN_5Y_12PCT__',
+    key: '__RELATIVE_RETURN_5Y_12PCT__',
+    width: 140,
+    render: (value: number) => {
+      const CUMULATIVE_RETURN_3Y = value;
+      const YEARS = 5; // 年限
+      const annualizedReturn = Math.pow(1 + CUMULATIVE_RETURN_3Y, 1 / YEARS) - 1;
+      return `${(value * 100)?.toFixed(1)}%(年化${(annualizedReturn * 100)?.toFixed(1)}%)`
+    }
+  },
+  {
+    title: '5年后【预期相对】收益率(%)(长期15%年化)',
+    dataIndex: '__RELATIVE_RETURN_5Y_15PCT__',
+    key: '__RELATIVE_RETURN_5Y_15PCT__',
+    width: 140,
+    render: (value: number) => {
+      const CUMULATIVE_RETURN_3Y = value;
+      const YEARS = 5; // 年限
+      const annualizedReturn = Math.pow(1 + CUMULATIVE_RETURN_3Y, 1 / YEARS) - 1;
+      return `${(value * 100)?.toFixed(1)}%(年化${(annualizedReturn * 100)?.toFixed(1)}%)`
+    }
+  },
 ]
 
 const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
@@ -76,7 +301,7 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
   const [RSI6Data, setRSI6Data] = useState<any[]>([]);
   const [macdData, setMacdData] = useState({ montyly: [], quarterly: [], monthly10th: null, monthly90th: null, quarterly10th: null, quarterly90th: null });
   const RSI6LevelData = useMemo(() => RSI6Data?.filter((item: any) => isNumber(item.__recommendationLevel__)), [RSI6Data]);
-
+  console.log('RSI6LevelData', RSI6LevelData)
   const config = useMemo(() => {
     return {
       title: {
@@ -138,7 +363,7 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
       });
 
       const responseData = response?.data || [];
-      console.log('基金返回数据filteredData', responseData);
+      // console.log('基金返回数据filteredData', responseData);
 
       const dataFormat = calculateMaxDrawdown({
         data: responseData,
@@ -156,9 +381,12 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
           value: Number(value),
         };
       })).flat().filter((item): item is { date: string; key: string; label: string; value: number } => item !== null);
+
+      const leftFormat = dataFormat?.filter((item: { key: string }) => item.key === leftKey) || [];
+      const rightFormat = dataFormat?.filter((item: { key: string }) => item.key !== leftKey) || [];
       setData({
-        leftData: dataFormat?.filter((item: { key: string }) => item.key === leftKey) || [],
-        rightData: dataFormat?.filter((item: { key: string }) => item.key !== leftKey) || []
+        leftData: leftFormat,
+        rightData: rightFormat
       });
       if (period === '成立来') {
         // 过滤每月数据，取每月的最后一天数据（收盘价）
@@ -232,11 +460,21 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
         const __quarterly10th__ = calculatePercentile(quarterlyRSIValues, 10);
         const __quarterly90th__ = calculatePercentile(quarterlyRSIValues, 90);
 
+
+        const startDate = monthlyData?.[0]?.[dateKey]; // 开始日期
+
+
+
         console.log('monthlyData 月度数据', monthlyData)
+        console.log('monthlyData 月度数据 startDate', startDate)
         console.log('monthlyRSI6Data 月度RSI6数据', monthlyRSI6Data)
         console.log('quarterlyRSI6Data 季度RSI6数据', quarterlyRSI6Data)
-        console.log('月度RSI6 10%分位数:', __monthly10th__, '90%分位数:', __monthly90th__)
-        console.log('季度RSI6 10%分位数:', __quarterly10th__, '90%分位数:', __quarterly90th__)
+        // console.log('月度RSI6 10%分位数:', __monthly10th__, '90%分位数:', __monthly90th__)
+        // console.log('季度RSI6 10%分位数:', __quarterly10th__, '90%分位数:', __quarterly90th__)
+
+        // console.log('leftFormat', leftFormat)
+        // console.log('rightFormat', rightFormat)
+
 
         // 创建季度RSI映射：季度键 -> RSI值
         const quarterlyRSIMap = new Map<string, number>();
@@ -256,9 +494,72 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
           const quarterKey = `${year}-Q${quarter}`;
           const __monthlyRSI6__ = item['__RSI6__'];
           const __quarterlyRSI6__ = quarterlyRSIMap.get(quarterKey);
+
+          console.log('item', item)
+          console.log('leftFormat', leftFormat)
+          console.log('rightFormat', rightFormat)
+          // console.log('11111', leftFormat?.find(i => i['date'] === date))
+          // console.log('22222', rightFormat?.find(i => i['date'] === date && i['key'] === '__年化收益率__'))
+
+          // console.log('startDate', startDate)
+          console.log('累计年限', moment(date).diff(moment(startDate), 'year', true))
+          const ACCUMULATED_YEARS = moment(date).diff(moment(startDate), 'year', true); // 累计年限
+
+          const __EXPECTED_RETURN_3Y_6PCT__ = Math.pow(1 + 0.06, ACCUMULATED_YEARS + 3) - 1; // 3年后【预期累计】收益率(%)(长期6%年化)
+          const __EXPECTED_RETURN_3Y_8PCT__ = Math.pow(1 + 0.08, ACCUMULATED_YEARS + 3) - 1; // 3年后【预期累计】收益率(%)(长期8%年化)
+          const __EXPECTED_RETURN_3Y_10PCT__ = Math.pow(1 + 0.1, ACCUMULATED_YEARS + 3) - 1; // 3年后【预期累计】收益率(%)(长期10%年化)
+          const __EXPECTED_RETURN_3Y_12PCT__ = Math.pow(1 + 0.12, ACCUMULATED_YEARS + 3) - 1; // 3年后【预期累计】收益率(%)(长期12%年化)
+          const __EXPECTED_RETURN_3Y_15PCT__ = Math.pow(1 + 0.15, ACCUMULATED_YEARS + 3) - 1; // 3年后【预期累计】收益率(%)(长期15%年化)
+
+          const __RELATIVE_RETURN_3Y_6PCT__ = ((__EXPECTED_RETURN_3Y_6PCT__ + 1) / ((item[closeKey] / 100) + 1)) - 1; // 3年后【预期相对】收益率(%)(长期6%年化)
+          const __RELATIVE_RETURN_3Y_8PCT__ = ((__EXPECTED_RETURN_3Y_8PCT__ + 1) / ((item[closeKey] / 100) + 1)) - 1; // 3年后【预期相对】收益率(%)(长期8%年化)
+          const __RELATIVE_RETURN_3Y_10PCT__ = ((__EXPECTED_RETURN_3Y_10PCT__ + 1) / ((item[closeKey] / 100) + 1)) - 1; // 3年后【预期相对】收益率(%)(长期10%年化)
+          const __RELATIVE_RETURN_3Y_12PCT__ = ((__EXPECTED_RETURN_3Y_12PCT__ + 1) / ((item[closeKey] / 100) + 1)) - 1; // 3年后【预期相对】收益率(%)(长期12%年化)
+          const __RELATIVE_RETURN_3Y_15PCT__ = ((__EXPECTED_RETURN_3Y_15PCT__ + 1) / ((item[closeKey] / 100) + 1)) - 1; // 3年后【预期相对】收益率(%)(长期15%年化)
+
+
+
+
+          const __EXPECTED_RETURN_5Y_6PCT__ = Math.pow(1 + 0.06, ACCUMULATED_YEARS + 5) - 1; // 5年后【预期累计】收益率(%)(长期6%年化)
+          const __EXPECTED_RETURN_5Y_8PCT__ = Math.pow(1 + 0.08, ACCUMULATED_YEARS + 5) - 1; // 5年后【预期累计】收益率(%)(长期8%年化)
+          const __EXPECTED_RETURN_5Y_10PCT__ = Math.pow(1 + 0.1, ACCUMULATED_YEARS + 5) - 1; // 5年后【预期累计】收益率(%)(长期10%年化)
+          const __EXPECTED_RETURN_5Y_12PCT__ = Math.pow(1 + 0.12, ACCUMULATED_YEARS + 5) - 1; // 5年后【预期累计】收益率(%)(长期12%年化)
+          const __EXPECTED_RETURN_5Y_15PCT__ = Math.pow(1 + 0.15, ACCUMULATED_YEARS + 5) - 1; // 5年后【预期累计】收益率(%)(长期15%年化)
+
+          const __RELATIVE_RETURN_5Y_6PCT__ = ((__EXPECTED_RETURN_5Y_6PCT__ + 1) / ((item[closeKey] / 100) + 1)) - 1; // 5年后【预期相对】收益率(%)(长期6%年化)
+          const __RELATIVE_RETURN_5Y_8PCT__ = ((__EXPECTED_RETURN_5Y_8PCT__ + 1) / ((item[closeKey] / 100) + 1)) - 1; // 5年后【预期相对】收益率(%)(长期8%年化)
+          const __RELATIVE_RETURN_5Y_10PCT__ = ((__EXPECTED_RETURN_5Y_10PCT__ + 1) / ((item[closeKey] / 100) + 1)) - 1; // 5年后【预期相对】收益率(%)(长期10%年化)
+          const __RELATIVE_RETURN_5Y_12PCT__ = ((__EXPECTED_RETURN_5Y_12PCT__ + 1) / ((item[closeKey] / 100) + 1)) - 1; // 5年后【预期相对】收益率(%)(长期12%年化)
+          const __RELATIVE_RETURN_5Y_15PCT__ = ((__EXPECTED_RETURN_5Y_15PCT__ + 1) / ((item[closeKey] / 100) + 1)) - 1; // 5年后【预期相对】收益率(%)(长期15%年化)
+
+
           return {
-            日期: item[dateKey],
+            日期: date,
             累计收益率: item[closeKey],
+            __累计年限__: ACCUMULATED_YEARS,
+            __年化收益率__: rightFormat?.find(i => i['date'] === date && i['key'] === '__年化收益率__')?.value,
+            __EXPECTED_RETURN_3Y_6PCT__,
+            __EXPECTED_RETURN_3Y_8PCT__,
+            __EXPECTED_RETURN_3Y_10PCT__,
+            __EXPECTED_RETURN_3Y_12PCT__,
+            __EXPECTED_RETURN_3Y_15PCT__,
+
+            __RELATIVE_RETURN_3Y_6PCT__,
+            __RELATIVE_RETURN_3Y_8PCT__,
+            __RELATIVE_RETURN_3Y_10PCT__,
+            __RELATIVE_RETURN_3Y_12PCT__,
+            __RELATIVE_RETURN_3Y_15PCT__,
+
+            __EXPECTED_RETURN_5Y_6PCT__,
+            __EXPECTED_RETURN_5Y_8PCT__,
+            __EXPECTED_RETURN_5Y_10PCT__,
+            __EXPECTED_RETURN_5Y_12PCT__,
+            __EXPECTED_RETURN_5Y_15PCT__,
+            __RELATIVE_RETURN_5Y_6PCT__,
+            __RELATIVE_RETURN_5Y_8PCT__,
+            __RELATIVE_RETURN_5Y_10PCT__,
+            __RELATIVE_RETURN_5Y_12PCT__,
+            __RELATIVE_RETURN_5Y_15PCT__,
             __monthlyRSI6__: __monthlyRSI6__,
             __quarterlyRSI6__: __quarterlyRSI6__,
             __recommendationLevel__: calculateRecommendationLevel({
@@ -274,6 +575,7 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
             __quarterly90th__,
           };
         });
+        console.log('RSI6Data ', RSI6Data)
         setRSI6Data(RSI6Data);
         setMacdData({
           montyly: calculateMACD({ data: monthlyData, closeKey, fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 }),
@@ -352,8 +654,8 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
     return [];
   }, [data.leftData, period]);
 
-  console.log('macdData', macdData)
-  console.log('MACDData', MACDData)
+  // console.log('macdData', macdData)
+  // console.log('MACDData', MACDData)
 
   return (
     <Spin spinning={loading}>
@@ -373,6 +675,7 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
               columns={tableColumns}
               rowKey={dateKey}
               pagination={false}
+              scroll={{ x: 1800 }}
             />
           </Card>
           <Card style={{ marginTop: '16px' }}>

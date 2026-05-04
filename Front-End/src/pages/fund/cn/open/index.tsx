@@ -50,6 +50,7 @@ const FundOpen: React.FC = () => {
   ];
 
   const fetchFundData = async () => {
+    // todo
     setLoading(true);
     try {
       const response = await apiClient.get('/api/public/fund_open_fund_rank_em', {
@@ -177,7 +178,7 @@ const FundOpen: React.FC = () => {
       fixed: 'left' as const,
       render: (name: string, record: FundData) => (
         <Link
-          onClick={() => window.open(`/fund/cn/open/detail?symbol=${record['基金代码']}&symbolName=${encodeURIComponent(name)}`, '_blank')}
+          onClick={() => window.open(`/fund/cn/open/detail?symbol=${record['基金代码']}`, '_blank')}
           style={{ cursor: 'pointer', color: '#1890ff' }}
         >
           {name}

@@ -1,3 +1,6 @@
+node version 
+v20.19.5
+
 @misc{akshare2022,
     author = {Albert King},
     title = {AKShare},

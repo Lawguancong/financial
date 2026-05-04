@@ -187,6 +187,12 @@ export const menuConfigs: MenuItemConfig[] = [
               }
             ]
           },
+          {
+            key: 'fund/cn/manager',
+            label: '基金经理',
+            path: 'fund/cn/manager',
+            component: lazy(() => import('@/pages/fund/cn/manager')),
+          },
         
         ],
       },

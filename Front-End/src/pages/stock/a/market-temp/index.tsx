@@ -363,7 +363,6 @@ const Stock_margin_account_info = ({ key }: { key: number }) => {
     ['融券余额/GDP']: '融券余额/GDP(%)',
     ['融资买入额/GDP']: '融资买入额/GDP(%)',
     ['融券卖出额/GDP']: '融券卖出额/GDP(%)',
-    // todo 流通市值
   }
   const sampleRate = 1;
   type DataRes = {
@@ -623,28 +622,6 @@ const Stock_a_congestion_lg = ({ key }: { key: number }) => {
   </>
 };
 
-
-{/* todo 风险溢价 */ }
-
-{/* todo 十年期国债利率倒数与A股PE中位数走势 */ }
-
-{/* todo 破净统计 stock_a_below_net_asset_statistics */ }
-
-// 居民存款之比
-
-{/* todo 融资余额/全A流通市值 占比 */ }
-{/* todo 融券余额/全A流通市值 占比 */ }
-{/* todo 融资余额/全A总市值 占比 */ }
-{/* todo 融券余额/全A总市值 占比 */ }
-
-// 成交额
-
-// 基金发行热度 发行规模
-
-// 波动率VIX指标
-
-{/* 两融余额 */ }
-{/* 两融交易额 */ }
 
 const Index: React.FC = () => {
   const [activeKey, setActiveKey] = useState('4');

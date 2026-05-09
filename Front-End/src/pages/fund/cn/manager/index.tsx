@@ -4,12 +4,6 @@ import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { createRangeFilter, numberSorter } from '@/utils/tableUtils';
 
-
-
-
-// todo 上涨 & 下跌 正态分布
-// 量化算法 计算 基金 RSI6买点
-
 const { Link } = Typography;
 
 interface FundData {
@@ -32,7 +26,7 @@ const FundOpen: React.FC = () => {
     pageSize: 20,
   });
   const fetchFundData = async () => {
-    // todo
+    // 
     setLoading(true);
     try {
       const response = await apiClient.get('/api/public/fund_manager_em',);

@@ -8,11 +8,6 @@ import queryString from 'query-string';
  */
 export type BackendType = 'original' | 'akshare';
 
-// const API = {
-//   'aktools': 'http://127.0.0.1:6670',
-//   'akshare': 'http://127.0.0.1:6680',
-// }
-
 export const akshareApi = {
   /**
    * 获取A股股息率数据

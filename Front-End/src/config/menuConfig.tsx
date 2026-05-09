@@ -20,13 +20,6 @@ export const menuConfigs: MenuItemConfig[] = [
     path: 'home',
     component: lazy(() => import('@/pages/Home')),
   },
-  // {
-  //   key: 'bond',
-  //   label: '债券',
-  //   icon: <BankOutlined />,
-  //   path: 'bond',
-  //   component: lazy(() => import('@/pages/Bond')),
-  // },
   {
     key: 'stock',
     label: '股票',
@@ -55,103 +48,10 @@ export const menuConfigs: MenuItemConfig[] = [
             component: lazy(() => import('@/pages/stock/a/valuation')),
           },
           {
-            key: 'stock/a/index',
-            label: '指数',
-            path: 'stock/a/index',
-            component: lazy(() => import('@/pages/stock/a/index')),
-            children: [
-              {
-                key: 'stock/a/index/detail',
-                label: '指数详情',
-                path: 'stock/a/index/detail',
-                component: lazy(() => import('@/pages/stock/a/index/detail')),
-              },
-            ],
-          },
-          {
-            key: 'stock/a/stock',
-            label: '个股',
-            path: 'stock/a/stock',
-            component: lazy(() => import('@/pages/stock/a/stock')),
-            children: [
-              {
-                key: 'stock/a/stock/detail',
-                label: '个股详情',
-                path: 'stock/a/stock/detail',
-                component: lazy(() => import('@/pages/stock/a/stock/detail')),
-              },
-            ],
-          },
-          {
             key: 'stock/a/option-volatility',
             label: '期权波动',
             path: 'stock/a/option-volatility',
             component: lazy(() => import('@/pages/stock/a/option-volatility')),
-          },
-        ],
-      },
-      // {
-      //   key: 'stock/hk',
-      //   label: '港股',
-      //   path: 'stock/hk',
-      //   component: lazy(() => import('@/pages/StockHK')),
-      // },
-      // {
-      //   key: 'stock/us',
-      //   label: '美股',
-      //   path: 'stock/us',
-      //   component: lazy(() => import('@/pages/StockUS')),
-      // },
-      // {
-      //   key: 'stock/other',
-      //   label: '其它',
-      //   path: 'stock/other',
-      //   component: lazy(() => import('@/pages/StockOther')),
-      // },
-    ],
-  },
-  {
-    key: 'commodity',
-    label: '大宗商品',
-    icon: <ShoppingOutlined />,
-    children: [
-      {
-        key: 'commodity/cn',
-        label: '国内',
-        children: [
-          {
-            key: 'commodity/cn/index',
-            label: '指数',
-            path: 'commodity/cn/index',
-            component: lazy(() => import('@/pages/commodity/cn/index')),
-            children: [
-              {
-                key: 'commodity/cn/index/detail',
-                label: '指数详情',
-                path: 'commodity/cn/index/detail',
-                component: lazy(() => import('@/pages/commodity/cn/index/detail')),
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-  {
-    key: 'realestate',
-    label: '房地产',
-    icon: <ApartmentOutlined />,
-    children: [
-      {
-        key: 'realestate/cn',
-        label: '国内',
-        path: 'realestate/cn',
-        children: [
-          {
-            key: 'realestate/cn/macro',
-            label: '宏观',
-            path: 'realestate/cn/macro',
-            component: lazy(() => import('@/pages/realestate/cn/macro')),
           },
         ],
       },
@@ -197,45 +97,6 @@ export const menuConfigs: MenuItemConfig[] = [
         ],
       },
     ],
-  },
-  // {
-  //   key: 'futures',
-  //   label: '期货',
-  //   icon: <ThunderboltOutlined />,
-  //   path: 'futures',
-  //   component: lazy(() => import('@/pages/Futures')),
-  // },
-  // {
-  //   key: 'options',
-  //   label: '期权',
-  //   icon: <ExperimentOutlined />,
-  //   path: 'options',
-  //   component: lazy(() => import('@/pages/Options')),
-  // },
-  // {
-  //   key: 'other/level1',
-  //   label: '其它/一级',
-  //   children: [
-  //     {
-  //       key: 'other/level2',
-  //       label: '其它/二级',
-  //       children: [
-  //         {
-  //           key: 'other/level3',
-  //           label: '其它/三级',
-  //           path: 'other/level3',
-  //           component: lazy(() => import('@/pages/OtherLevel3')),
-  //         },
-  //       ],
-  //     },
-  //   ],
-  // },
-  {
-    key: 'api/test',
-    label: 'AKShare API 测试',
-    icon: <CodeOutlined />,
-    path: 'api/test',
-    component: lazy(() => import('@/pages/AkshareTest')),
   },
 ];
 

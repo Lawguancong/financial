@@ -2,12 +2,6 @@
   "name": "financial",
   "scripts": {
     "start:server:aktools": "cd Back-End/ak/aktools && python3 -m aktools --port 6670",
-    "start:frontend:aktools": "cd Front-End && yarn vite --port 6671 --mode aktools",
-
-
-
-    "start:server:akshare": "cd Back-End/ak/akshare && python3 app.py --port 6680",
-    "start:frontend:akshare": "cd Front-End && yarn vite --port 6681 --mode akshare"
-    
+    "start:frontend:aktools": "cd Front-End && yarn vite --port 6671 --mode aktools"
   }
 }

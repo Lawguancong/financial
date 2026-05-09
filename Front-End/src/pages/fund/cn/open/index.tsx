@@ -50,7 +50,6 @@ const FundOpen: React.FC = () => {
   ];
 
   const fetchFundData = async () => {
-    // todo
     setLoading(true);
     try {
       const response = await apiClient.get('/api/public/fund_open_fund_rank_em', {

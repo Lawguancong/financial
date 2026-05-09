@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Select, Button, Card, Spin, Table, Collapse } from 'antd';
 import { DualAxes, Line } from '@ant-design/plots';
 import { pick, isNumber } from 'lodash-es';
-import { calculateMaxDrawdown, calculateRSI, calculateMACD, calculatePercentile } from '@/utils';
+import { calculateMaxDrawdown, calculateRSI, calculatePercentile } from '@/utils';
 import moment from 'moment';
 import apiClient from '@/utils/axios';
 import { timeRangeOptions, periodOptions, keyMap, rightKeys, calculateRecommendationLevel, getLevelStyle } from './constants';
@@ -294,7 +294,6 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
     }[];
   }>({ leftData: [], rightData: [] });
   const [RSI6Data, setRSI6Data] = useState<any[]>([]);
-  const [macdData, setMacdData] = useState({ montyly: [], quarterly: [], monthly10th: null, monthly90th: null, quarterly10th: null, quarterly90th: null });
   const RSI6LevelData = useMemo(() => RSI6Data?.filter((item: any) => isNumber(item.__recommendationLevel__)), [RSI6Data]);
   const annotationsData = useMemo(() => RSI6LevelData?.map((item: any) => {
     const { color, fontSize } = getLevelStyle(item.__recommendationLevel__);
@@ -586,10 +585,6 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
           };
         });
         setRSI6Data(RSI6Data);
-        setMacdData({
-          montyly: calculateMACD({ data: monthlyData, closeKey, fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 }),
-          quarterly: calculateMACD({ data: quarterlyData, closeKey, fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 }),
-        })
       }
     } catch (error) {
       console.log('error', error);
@@ -625,47 +620,6 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
       </Card>
     ), [period]);
   }
-
-  // 计算MACD数据
-  const MACDData = useMemo(() => {
-    if (period === '成立来' && data.leftData.length > 0) {
-      // 过滤每月数据，取每月的最后一天数据（收盘价）
-      const monthlyMap = new Map<string, any>();
-      data.leftData.forEach(item => {
-        const monthKey = moment(item.date).format('YYYY-MM');
-        const currentItem = monthlyMap.get(monthKey);
-
-        if (!currentItem || moment(item.date).isAfter(moment(currentItem.date))) {
-          monthlyMap.set(monthKey, item);
-        }
-      });
-
-      // 将Map转换为数组并按日期排序
-      const monthlyData = Array.from(monthlyMap.values()).sort((a, b) => {
-        return moment(a.date).valueOf() - moment(b.date).valueOf();
-      });
-
-      // 转换为MACD需要的数据格式
-      const macdInputData = monthlyData.map(item => ({
-        日期: item.date,
-        收盘: item.value
-      }));
-
-      // 计算MACD
-      const macdResult = calculateMACD({ data: macdInputData, closeKey: '收盘' });
-
-      // 确保日期格式正确
-      return macdResult.map(item => ({
-        ...item,
-        date: item.日期 // 添加date字段，与xField对应
-      }));
-    }
-    return [];
-  }, [data.leftData, period]);
-
-  // console.log('macdData', macdData)
-  // console.log('MACDData', MACDData)
-
   return (
     <Spin spinning={loading}>
       <RenderSearchCard />
@@ -794,139 +748,7 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
                   annotations={annotationsData}
                 />
               );
-            }, [RSI6Data, RSI6LevelData, macdData])}
-          </Card>
-        </Collapse.Panel>
-      </Collapse>
-      <Collapse defaultActiveKey={["1"]} style={{ marginTop: 16 }}>
-        <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📊 MACD指标</span>} key="1">
-          <Card style={{ marginTop: '16px' }}>
-            {useMemo(() => {
-              if (macdData?.montyly?.length === 0) return null;
-              return (
-                <DualAxes
-                  title={{ title: 'MACD指标走势' }}
-                  xField="日期"
-                  data={macdData?.montyly}
-                  legend={{
-                    position: 'top',
-                    items: [
-                      { name: 'DIF', value: 'DIF' },
-                      { name: 'DEA', value: 'DEA' },
-                      { name: 'MACD柱', value: 'MACD柱' }
-                    ]
-                  }}
-                  children={[
-                    {
-                      type: 'line',
-                      yField: '__MACD_DIF__',
-                      shapeField: 'smooth',
-                      color: '#5B8FF9',
-                      axis: {
-                        y: {
-                          title: 'DIF/DEA',
-                          style: { titleFill: '#5B8FF9' },
-                        },
-                      },
-                      style: { lineWidth: 2 },
-                    },
-                    {
-                      type: 'line',
-                      yField: '__MACD_DEA__',
-                      shapeField: 'smooth',
-                      color: '#6c6868ff',
-                      axis: {
-                        y: {
-                          position: 'right',
-                          title: 'MACD柱',
-                          style: { titleFill: '#6c6868ff' },
-                        },
-                      },
-                      style: { lineWidth: 2 },
-                    },
-                    {
-                      type: 'interval',
-                      yField: '__MACD_BAR__',
-                      color: '#1890ff',
-                      axis: {
-                        y: {
-                          position: 'right',
-                        },
-                      },
-                      style: (datum: any) => {
-                        return {
-                          fill: datum.__MACD_BAR__ >= 0 ? '#52c41a' : '#ff4d4f',
-                        };
-                      },
-                    },
-                  ]}
-                />
-              );
-            }, [macdData?.montyly])}
-          </Card>
-          <Card style={{ marginTop: '16px' }}>
-            {useMemo(() => {
-              if (macdData?.quarterly?.length === 0) return null;
-              return (
-                <DualAxes
-                  title={{ title: 'MACD指标走势' }}
-                  xField="日期"
-                  data={macdData?.quarterly}
-                  legend={{
-                    position: 'top',
-                    items: [
-                      { name: 'DIF', value: 'DIF' },
-                      { name: 'DEA', value: 'DEA' },
-                      { name: 'MACD柱', value: 'MACD柱' }
-                    ]
-                  }}
-                  children={[
-                    {
-                      type: 'line',
-                      yField: '__MACD_DIF__',
-                      shapeField: 'smooth',
-                      color: '#5B8FF9',
-                      axis: {
-                        y: {
-                          title: 'DIF/DEA',
-                          style: { titleFill: '#5B8FF9' },
-                        },
-                      },
-                      style: { lineWidth: 2 },
-                    },
-                    {
-                      type: 'line',
-                      yField: '__MACD_DEA__',
-                      shapeField: 'smooth',
-                      color: '#6c6868ff',
-                      axis: {
-                        y: {
-                          position: 'right',
-                          title: 'MACD柱',
-                          style: { titleFill: '#6c6868ff' },
-                        },
-                      },
-                      style: { lineWidth: 2 },
-                    },
-                    {
-                      type: 'interval',
-                      yField: '__MACD_BAR__',
-                      color: '#1890ff',
-                      axis: {
-                        y: {
-                          position: 'right',
-                        },
-                      },
-                      style: (datum: any) => {
-                        return {
-                          fill: datum.__MACD_BAR__ >= 0 ? '#52c41a' : '#ff4d4f',
-                        };
-                      },
-                    },
-                  ]}
-                />
-              );
-            }, [macdData?.quarterly])}
+            }, [RSI6Data, RSI6LevelData])}
           </Card>
         </Collapse.Panel>
       </Collapse>

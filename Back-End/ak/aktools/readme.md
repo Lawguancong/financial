@@ -1,23 +1,4 @@
-AKTools
-AKTools 是一款用于快速搭建 AKShare HTTP API 的工具， 通过 AKTools 可以利用一行命令来启动 HTTP 服务， 从而让原本专属服务于 Python 用户的开源财经数据接口库 AKShare 的使用突破编程语言的限制。 无论您使用的是 C/C++、Java、Go、Rust、Ruby、PHP、JavaScript、R、Matlab、Stata 等编程语言或软件都可以快速、 轻松获取财经数据，助力您更好地展开研究和开发工作。
-https://aktools.akfamily.xyz/
-https://github.com/akfamily/aktools
-
-# 升级pip版本
-pip install --upgrade pip
-
-
-📦 安装依赖（Python 3.11）
-# 使用指定 Python 3.11 环境安装
-pip3 install aktools
-或者
-pip3.11 install aktools
-
-
-# 由于目前版本更新迭代频繁, 请在使用 AKShare 前先升级, 命令如下所示
-pip3 install akshare --upgrade -i https://pypi.org/simple
-pip3.11 install akshare --upgrade -i https://pypi.org/simple
-
+# 项目介绍 aktools
 
 ▶️ 启动服务
 # 方法 1：通过 python3.11 直接运行

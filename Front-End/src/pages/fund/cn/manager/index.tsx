@@ -4,6 +4,12 @@ import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { createRangeFilter, numberSorter } from '@/utils/tableUtils';
 
+
+
+
+// todo 上涨 & 下跌 正态分布
+// 量化算法 计算 基金 RSI6买点
+
 const { Link } = Typography;
 
 interface FundData {
@@ -15,6 +21,7 @@ interface FundData {
   累计从业时间: number; // 天
   现任基金资产总规模: number; // 亿元
   现任基金最佳回报: number; // %
+  __现任基金最佳年化__: number; // %
 }
 
 const FundOpen: React.FC = () => {
@@ -30,11 +37,25 @@ const FundOpen: React.FC = () => {
     try {
       const response = await apiClient.get('/api/public/fund_manager_em',);
       console.log('基金经理 -> response', response);
-      setData(response?.data?.map((item, idx) => ({
-        ...item,
-        id: idx,
-        ['从业年限']: (item['累计从业时间'] / 365),
-      })));
+      const responseData = response?.data || [];
+      
+      const fundCountByManager = responseData.reduce((acc: Record<string, number>, item) => {
+        const name = item['姓名'];
+        acc[name] = (acc[name] || 0) + 1;
+        return acc;
+      }, {});
+      
+      setData(responseData.map((item, idx) => {
+        const workYear = (item['累计从业时间'] / 365);
+        const bestReturn = workYear >= 1 ? Math.pow(1 + (item['现任基金最佳回报'] / 100), 1 / workYear) - 1 : 0;
+        return {
+          ...item,
+          id: idx,
+          ['从业年限']: workYear,
+          ['__现任基金最佳年化__']: bestReturn * 100,
+          ['管理基金数量']: fundCountByManager[item['姓名']] || 1,
+        }
+      }));
     } catch (error) {
       console.log('error', error);
     } finally {
@@ -52,18 +73,18 @@ const FundOpen: React.FC = () => {
       width: 40,
       fixed: 'left' as const,
     },
-    {
-      title: '序号',
-      dataIndex: '序号',
-      key: '序号',
-      width: 80,
-      fixed: 'left' as const,
-    },
+    // {
+    //   title: '序号',
+    //   dataIndex: '序号',
+    //   key: '序号',
+    //   width: 80,
+    //   fixed: 'left' as const,
+    // },
     {
       title: '姓名',
       dataIndex: '姓名',
       key: '姓名',
-      width: 120,
+      width: 80,
       fixed: 'left' as const,
       filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }: { setSelectedKeys: (keys: React.Key[]) => void; selectedKeys: React.Key[]; confirm: () => void; clearFilters: () => void }) => (
         <div style={{ padding: 8 }}>
@@ -109,7 +130,7 @@ const FundOpen: React.FC = () => {
       title: '所属公司',
       dataIndex: '所属公司',
       key: '所属公司',
-      width: 120,
+      width: 200,
       filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }: { setSelectedKeys: (keys: React.Key[]) => void; selectedKeys: React.Key[]; confirm: () => void; clearFilters: () => void }) => (
         <div style={{ padding: 8 }}>
           <Input
@@ -200,7 +221,7 @@ const FundOpen: React.FC = () => {
       title: '现任基金',
       dataIndex: '现任基金',
       key: '现任基金',
-      width: 200,
+      width: 80,
       render: (name: string, record: FundData) => (
         <Link
           onClick={() => window.open(`/fund/cn/open/detail?symbol=${record['现任基金代码']}`, '_blank')}
@@ -253,28 +274,46 @@ const FundOpen: React.FC = () => {
       title: '从业年限(年)',
       dataIndex: '从业年限',
       key: '从业年限',
-      width: 100,
+      width: 50,
       sorter: numberSorter('从业年限'),
       render: (value: number) => value?.toFixed(1),
       ...createRangeFilter('从业年限'),
     },
-        {
+    {
+      title: '管理基金数量',
+      dataIndex: '管理基金数量',
+      key: '管理基金数量',
+      width: 50,
+      sorter: numberSorter('管理基金数量'),
+      // render: (value: number) => value?.toFixed(1),
+      ...createRangeFilter('管理基金数量'),
+    },
+    {
       title: '现任基金资产总规模(亿元)',
       dataIndex: '现任基金资产总规模',
       key: '现任基金资产总规模',
-      width: 100,
+      width: 50,
       sorter: numberSorter('现任基金资产总规模'),
       render: (value: number) => value?.toFixed(1),
       ...createRangeFilter('现任基金资产总规模'),
     },
-        {
+    {
       title: '现任基金最佳回报(%)',
       dataIndex: '现任基金最佳回报',
       key: '现任基金最佳回报',
-      width: 100,
+      width: 50,
       sorter: numberSorter('现任基金最佳回报'),
       render: (value: number) => value?.toFixed(1),
       ...createRangeFilter('现任基金最佳回报'),
+    },
+    {
+      title: '现任基金最佳年化(%)',
+      dataIndex: '__现任基金最佳年化__',
+      key: '__现任基金最佳年化__',
+      width: 50,
+      sorter: numberSorter('__现任基金最佳年化__'),
+      render: (value: number) => (value)?.toFixed(1),
+      ...createRangeFilter('__现任基金最佳年化__'),
     },
 
   ];

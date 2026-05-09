@@ -1,0 +1,7 @@
+{
+  "name": "financial",
+  "scripts": {
+    "start:server:aktools": "cd Back-End/ak/aktools && python3 -m aktools --port 6670",
+    "start:frontend:aktools": "cd Front-End && yarn vite --port 6671 --mode aktools"
+  }
+}

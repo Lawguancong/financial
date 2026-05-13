@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Table, Typography, InputNumber, Space, Button, Input, Tabs } from 'antd';
 import apiClient from '@/utils/axios';
+import StockHistoryDividend from './StockHistoryDividend';
 
 const { Search } = Input;
 
@@ -556,6 +557,9 @@ const Stock: React.FC = () => {
             scroll={{ x: 3000, y: 'calc(100vh - 200px)' }}
             pagination={false}
           />
+        </TabPane>
+        <TabPane tab="历史分红" key="dividend">
+          <StockHistoryDividend />
         </TabPane>
       </Tabs>
     </div>

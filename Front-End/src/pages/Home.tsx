@@ -214,8 +214,6 @@ const DemoDualAxes2 = (props) => {
 const Home = () => {
   // todo 涨/跌/平 比例图
 
-  // 业绩报表
-  // 接口: stock_yjbb_em
 
 
   // 筹码分布

@@ -929,7 +929,7 @@ const Index = () => {
     '7': 0,
   });
 
-  console.log('refreshKeys, ', refreshKeys)
+  // console.log('refreshKeys, ', refreshKeys)
 
   const items = [
     {

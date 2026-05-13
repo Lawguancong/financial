@@ -89,6 +89,7 @@ export const calculateRecommendationLevel = ({ __monthlyRSI6__, __quarterlyRSI6_
     default:
       return null;
   }
+  
 };
 
 // 获取推荐级别对应的样式

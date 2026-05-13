@@ -21,6 +21,8 @@ import {
   Macro_rmb_deposit,
 } from './components';
 
+import Macro_yjbb from './yjbb/index';
+
 
 
 const Macro_china_gdp = ({ key }: { key: number }) => {
@@ -2220,7 +2222,7 @@ const Macro_china_national_tax_receipts = ({ key }: { key: number }) => {
 };
 
 const Index = () => {
-  const [activeKey, setActiveKey] = useState('1');
+  const [activeKey, setActiveKey] = useState('33');
   const [refreshKeys, setRefreshKeys] = useState({
     '1': 0, '2': 0, '3': 0, '4': 0, '5': 0, '6': 0, '7': 0, '8': 0, '9': 0, '10': 0,
     '11': 0, '12': 0, '13': 0, '14': 0, '15': 0, '16': 0, '17': 0, '18': 0, '19': 0, '20': 0,
@@ -2228,7 +2230,7 @@ const Index = () => {
     '31': 0, '32': 0, '33': 0,
   });
 
-  console.log('refreshKeys, ', refreshKeys)
+  // console.log('refreshKeys, ', refreshKeys)
 
   const items = [
     {
@@ -2665,6 +2667,20 @@ const Index = () => {
         </div>
       ),
       children: useMemo(() => <Macro_rmb_deposit key={refreshKeys['32']} />, [refreshKeys['32']]),
+    },
+    {
+      key: '33',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>业绩报表</span>
+          <Button
+            icon={<ReloadOutlined />}
+            size="small"
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '33': prev['33'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <Macro_yjbb key={refreshKeys['33']} />, [refreshKeys['33']]),
     },
   ];
 

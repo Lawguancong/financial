@@ -69,6 +69,7 @@ const StockHistoryDividend: React.FC = () => {
       width: 100,
       align: 'center',
     },
+    // todo 点击名称跳转详情页 stock_dividend_cninfo 单次获取指定股票的历史分红数据
     {
       title: '名称',
       dataIndex: '名称',

@@ -68,6 +68,9 @@ export const menuConfigs: MenuItemConfig[] = [
               },
             ],
           },
+          // todo 行业
+          // 东方财富-行业板块 单次返回当前时刻所有行业板的实时行情数据
+          // 接口: stock_board_industry_name_em 
           {
             key: 'stock/a/stock',
             label: '个股',
@@ -167,7 +170,7 @@ export const menuConfigs: MenuItemConfig[] = [
         label: '国内',
         path: 'fund/cn',
         children: [
-            {
+          {
             key: 'fund/cn/market-temp',
             label: '市场温度',
             path: 'fund/cn/market-temp',
@@ -193,7 +196,7 @@ export const menuConfigs: MenuItemConfig[] = [
             path: 'fund/cn/manager',
             component: lazy(() => import('@/pages/fund/cn/manager')),
           },
-        
+
         ],
       },
     ],

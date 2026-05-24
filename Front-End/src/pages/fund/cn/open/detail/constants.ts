@@ -75,7 +75,7 @@ export const calculateRecommendationLevel = ({ __monthlyRSI6__, __quarterlyRSI6_
     case __monthlyRSI6__ <= 20 && __quarterlyRSI6__ <= 15:
       return 3;
     case __monthlyRSI6__ <= 25 && __quarterlyRSI6__ <= 25:
-    // case __monthlyRSI6__ <= 30 && __quarterlyRSI6__ <= 30:
+    case __monthlyRSI6__ <= 30 && __quarterlyRSI6__ <= 30:
       return 1;
     // case __monthlyRSI6__ > 90 && __quarterlyRSI6__ > 85:
     //   return -1;

@@ -236,7 +236,22 @@ const Index: React.FC = () => {
     try {
       const response = await apiClient.get('/api/public/index_csindex_all');
       console.log('指数列表 -> response', response);
-      setData(response?.data || []);
+      const newData = response?.data || [];
+      setData(newData);
+
+      // 更新自选指数数据（除指数代码外）
+      if (selectedIndices.length > 0) {
+        const updatedSelectedIndices = selectedIndices.map(selectedIndex => {
+          const matchedIndex = newData.find(index => index['指数代码'] === selectedIndex['指数代码']);
+          if (matchedIndex) {
+            // 保留原指数代码，其他字段用新数据更新
+            return { ...matchedIndex, '指数代码': selectedIndex['指数代码'] };
+          }
+          return selectedIndex;
+        });
+        setSelectedIndices(updatedSelectedIndices);
+        saveSelectedIndices(updatedSelectedIndices);
+      }
     } catch (error) {
       console.log('error', error);
     } finally {

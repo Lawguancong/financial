@@ -59,7 +59,22 @@ const FundOpen: React.FC = () => {
         },
       });
       console.log('开放式基金 -> response', response);
-      setData(response?.data || []);
+      const newData = response?.data || [];
+      setData(newData);
+
+      // 更新自选基金数据（除基金代码外）
+      if (selectedFunds.length > 0) {
+        const updatedSelectedFunds = selectedFunds.map(selectedFund => {
+          const matchedFund = newData.find(fund => fund['基金代码'] === selectedFund['基金代码']);
+          if (matchedFund) {
+            // 保留原基金代码，其他字段用新数据更新
+            return { ...matchedFund, '基金代码': selectedFund['基金代码'] };
+          }
+          return selectedFund;
+        });
+        setSelectedFunds(updatedSelectedFunds);
+        saveSelectedFunds(updatedSelectedFunds);
+      }
     } catch (error) {
       console.log('error', error);
     } finally {

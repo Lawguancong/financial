@@ -174,6 +174,21 @@ const Stock: React.FC = () => {
       try {
         const parsedData = JSON.parse(cachedData);
         setData(parsedData);
+        
+        // 更新自选股票数据（除代码外）
+        if (selectedStocks.length > 0) {
+          const updatedSelectedStocks = selectedStocks.map(selectedStock => {
+            const matchedStock = parsedData.find(stock => stock['代码'] === selectedStock['代码']);
+            if (matchedStock) {
+              // 保留原代码，其他字段用新数据更新
+              return { ...matchedStock, '代码': selectedStock['代码'] };
+            }
+            return selectedStock;
+          });
+          setSelectedStocks(updatedSelectedStocks);
+          saveSelectedStocks(updatedSelectedStocks);
+        }
+        
         setLoading(false);
         return;
       } catch (error) {
@@ -185,8 +200,22 @@ const Stock: React.FC = () => {
     try {
       const response = await apiClient.get('/api/public/stock_zh_a_spot_em');
       console.log('个股列表 -> response', response);
-      const responseData = response?.data || [];
-      setData(responseData);
+      const newData = response?.data || [];
+      setData(newData);
+
+      // 更新自选股票数据（除代码外）
+      if (selectedStocks.length > 0) {
+        const updatedSelectedStocks = selectedStocks.map(selectedStock => {
+          const matchedStock = newData.find(stock => stock['代码'] === selectedStock['代码']);
+          if (matchedStock) {
+            // 保留原代码，其他字段用新数据更新
+            return { ...matchedStock, '代码': selectedStock['代码'] };
+          }
+          return selectedStock;
+        });
+        setSelectedStocks(updatedSelectedStocks);
+        saveSelectedStocks(updatedSelectedStocks);
+      }
     } catch (error) {
       console.log('error', error);
 

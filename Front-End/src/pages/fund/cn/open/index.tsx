@@ -3,6 +3,7 @@ import { Select, Button, Table, Card, Spin, Input, Typography, Tabs } from 'antd
 import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { createRangeFilter, numberSorter } from '@/utils/tableUtils';
+import FundFilterPanel from './components/FundFilterPanel';
 
 const { Link } = Typography;
 const { TabPane } = Tabs;
@@ -33,7 +34,7 @@ const FundOpen: React.FC = () => {
   const [data, setData] = useState<FundData[]>([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({
-    current:1,
+    current: 1,
     pageSize: 20,
   });
   const [activeTab, setActiveTab] = useState<string>('all');
@@ -381,21 +382,21 @@ const FundOpen: React.FC = () => {
       fixed: 'right' as const,
       render: (_, record: FundData) => {
         const isSelected = isFundSelected(record['基金代码']);
-        
+
         // 置顶功能
         const moveToTop = (fund: FundData) => {
           const newSelectedFunds = [fund, ...selectedFunds.filter(f => f['基金代码'] !== fund['基金代码'])];
           setSelectedFunds(newSelectedFunds);
           saveSelectedFunds(newSelectedFunds);
         };
-        
+
         // 置底功能
         const moveToBottom = (fund: FundData) => {
           const newSelectedFunds = [...selectedFunds.filter(f => f['基金代码'] !== fund['基金代码']), fund];
           setSelectedFunds(newSelectedFunds);
           saveSelectedFunds(newSelectedFunds);
         };
-        
+
         return (
           <div style={{ display: 'flex', gap: 8 }}>
             <Button
@@ -492,6 +493,9 @@ const FundOpen: React.FC = () => {
               }}
             />
           </Card>
+        </TabPane>
+        <TabPane tab="筛选" key="filtered">
+          <FundFilterPanel />
         </TabPane>
       </Tabs>
     </div>

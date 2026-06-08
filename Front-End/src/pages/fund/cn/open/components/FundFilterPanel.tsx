@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Select, Button, Table, Card, Spin, Input, Typography } from 'antd';
+import { Select, Button, Table, Card, Spin, Input, Typography, Checkbox, Slider, message } from 'antd';
 import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { createRangeFilter, numberSorter, stringSorter } from '@/utils/tableUtils';
@@ -48,10 +48,20 @@ const FundFilterPanel: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({
     current: 1,
-    pageSize: 20,
+    pageSize: 50,
   });
   const [excludedNames, setExcludedNames] = useState<string[]>(["C"]);
   const [rawData, setRawData] = useState<FundData[]>([]);
+  
+  // 是否计算推荐买点
+  const [calculateRecommendation, setCalculateRecommendation] = useState<boolean>(false);
+  
+  // 区间百分比过滤条件 (使用 Slider)
+  const [yearToDateRange, setYearToDateRange] = useState<[number, number]>([-100, 500]);
+  const [near1YearRange, setNear1YearRange] = useState<[number, number]>([-100, 500]);
+  const [near2YearRange, setNear2YearRange] = useState<[number, number]>([-100, 500]);
+  const [near3YearRange, setNear3YearRange] = useState<[number, number]>([-100, 500]);
+  const [sinceInceptionRange, setSinceInceptionRange] = useState<[number, number]>([-100, 1000]);
 
   const columns = [
     {
@@ -450,26 +460,46 @@ const FundFilterPanel: React.FC = () => {
   const applyFilters = async (rawData: FundData[]): Promise<FundData[]> => {
     let filteredData = [...rawData];
 
-    const top50ByNear1Year = [...filteredData]
-      .sort((a, b) => (a['近1年'] || 0) - (b['近1年'] || 0))
-      .slice(0, 200);
-    const top50ByNear2Year = [...filteredData]
-      .sort((a, b) => (a['近2年'] || 0) - (b['近2年'] || 0))
-      .slice(0, 200);
-    const top50ByNear3Year = [...filteredData]
-      .sort((a, b) => (a['近3年'] || 0) - (b['近3年'] || 0))
-      .slice(0, 200);
-    const top50ByNear1YearCodes = new Set(top50ByNear1Year.map(item => item['基金代码']));
-    const top50ByNear2YearCodes = new Set(top50ByNear2Year.map(item => item['基金代码']));
-    const top50ByNear3YearCodes = new Set(top50ByNear3Year.map(item => item['基金代码']));
-
+    // 过滤掉关键字段为 null 或 undefined 的数据
     filteredData = filteredData.filter(item => {
-      const code = item['基金代码'];
-      return top50ByNear1YearCodes.has(code) &&
-        top50ByNear2YearCodes.has(code) &&
-        top50ByNear3YearCodes.has(code);
+      return item['近1年'] !== null && item['近1年'] !== undefined &&
+             item['近2年'] !== null && item['近2年'] !== undefined &&
+             item['近3年'] !== null && item['近3年'] !== undefined &&
+             item['今年来'] !== null && item['今年来'] !== undefined &&
+             item['成立来'] !== null && item['成立来'] !== undefined;
     });
 
+        // 根据今年来区间过滤
+    filteredData = filteredData.filter(item => {
+      const value = item['今年来'] as number;
+      return value >= yearToDateRange[0] && value <= yearToDateRange[1];
+    });
+    
+    // 根据近1年区间过滤
+    filteredData = filteredData.filter(item => {
+      const value = item['近1年'] as number;
+      return value >= near1YearRange[0] && value <= near1YearRange[1];
+    });
+
+    // 根据近2年区间过滤
+    filteredData = filteredData.filter(item => {
+      const value = item['近2年'] as number;
+      return value >= near2YearRange[0] && value <= near2YearRange[1];
+    });
+
+    // 根据近3年区间过滤
+    filteredData = filteredData.filter(item => {
+      const value = item['近3年'] as number;
+      return value >= near3YearRange[0] && value <= near3YearRange[1];
+    });
+
+    // 根据成立来区间过滤
+    filteredData = filteredData.filter(item => {
+      const value = item['成立来'] as number;
+      return value >= sinceInceptionRange[0] && value <= sinceInceptionRange[1];
+    });
+
+    // 不包含基金简称过滤
     if (excludedNames.length > 0) {
       filteredData = filteredData.filter(item => {
         const fundName = (item['基金简称'] || '').toLowerCase();
@@ -480,19 +510,29 @@ const FundFilterPanel: React.FC = () => {
     }
     console.log(' filteredData', filteredData);
 
-    const results: FundData[] = [];
-    for (const item of filteredData) {
-      const calculatedData = await fetchFundDetailAndCalculate(item['基金代码']);
-      if (calculatedData?.length > 0) {
-        results.push({
-          ...item,
-          ['__推荐买点__']: calculatedData?.map(item => moment(item['日期'])?.format('YYYY-MM-DD'))?.join(','),
-        });
+    // 根据 checkbox 状态决定是否计算推荐买点
+    if (calculateRecommendation) {
+      const results: FundData[] = [];
+      for (const item of filteredData) {
+        message.info(`正在分析【${item['基金简称']}】中...`);
+        const calculatedData = await fetchFundDetailAndCalculate(item['基金代码']);
+        if (calculatedData?.length > 0) {
+          results.push({
+            ...item,
+            ['__推荐买点__']: calculatedData?.map(item => moment(item['日期'])?.format('YYYY-MM-DD'))?.join(','),
+          });
+        } else {
+          results.push({
+            ...item,
+            ['__推荐买点__']: '',
+          });
+        }
       }
+      console.log(' results', results);
+      return results;
     }
-    console.log(' results', results);
 
-    return results;
+    return filteredData;
   };
 
   const fetchFundData = async () => {
@@ -526,7 +566,7 @@ const FundFilterPanel: React.FC = () => {
   return (
     <>
       <Card style={{ marginBottom: '16px' }}>
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span>基金类型：</span>
             <Select
@@ -546,9 +586,152 @@ const FundFilterPanel: React.FC = () => {
               onChange={setExcludedNames}
             />
           </div>
+          <div 
+            onClick={() => setCalculateRecommendation(!calculateRecommendation)}
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '12px',
+              padding: '8px 20px',
+              background: calculateRecommendation 
+                ? 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' 
+                : 'linear-gradient(135deg, #b6bee3ff 0%, #b1aeb5ff 100%)',
+              borderRadius: '25px',
+              transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+              boxShadow: calculateRecommendation 
+                ? '0 8px 25px rgba(56, 239, 125, 0.5), 0 0 0 3px rgba(56, 239, 125, 0.2)' 
+                : '0 4px 15px rgba(102, 126, 234, 0.3)',
+              cursor: 'pointer',
+              transform: calculateRecommendation ? 'scale(1.02)' : 'scale(1)',
+              border: '2px solid transparent',
+              overflow: 'hidden',
+              position: 'relative'
+            }}
+          >
+            <div 
+              style={{
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                background: calculateRecommendation 
+                  ? 'rgba(255,255,255,0.9)' 
+                  : 'rgba(255,255,255,0.7)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.3s ease',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+              }}
+            >
+              <span style={{ fontSize: '14px', fontWeight: 'bold' }}>
+                {calculateRecommendation ? '✓' : '○'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ 
+                fontWeight: 'bold',
+                color: '#fff',
+                fontSize: '14px',
+                textShadow: '0 1px 2px rgba(0,0,0,0.2)'
+              }}>
+                {calculateRecommendation ? '✨ 已启用智能分析' : '💡 计算推荐买点'}
+              </span>
+              <span style={{ 
+                color: 'rgba(255,255,255,0.85)',
+                fontSize: '11px',
+                marginTop: '2px'
+              }}>
+                {calculateRecommendation ? '搜索后将分析最佳买入时机...' : '启用后将计算RSI指标'}
+              </span>
+            </div>
+            <div 
+              style={{
+                width: '16px',
+                height: '16px',
+                borderRadius: '50%',
+                background: calculateRecommendation 
+                  ? 'rgba(255,255,255,0.9)' 
+                  : 'rgba(255,255,255,0.5)',
+                animation: calculateRecommendation ? 'pulse 2s infinite' : 'none'
+              }}
+            />
+            <style>{`
+              @keyframes pulse {
+                0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.7); }
+                50% { box-shadow: 0 0 0 8px rgba(255,255,255,0); }
+              }
+            `}</style>
+          </div>
           <Button type="primary" onClick={fetchFundData} loading={loading}>
             搜索
           </Button>
+        </div>
+        <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ width: '60px' }}>今年：</span>
+            <Slider
+              range
+              min={-100}
+              max={500}
+              value={yearToDateRange}
+              onChange={(value) => setYearToDateRange(value as [number, number])}
+              style={{ flex: 1, minWidth: '300px' }}
+              tooltip={{ formatter: (value) => `${value}%` }}
+            />
+            <span style={{ width: '120px', textAlign: 'right' }}>{yearToDateRange[0]}% ~ {yearToDateRange[1]}%</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ width: '60px' }}>近1年：</span>
+            <Slider
+              range
+              min={-100}
+              max={500}
+              value={near1YearRange}
+              onChange={(value) => setNear1YearRange(value as [number, number])}
+              style={{ flex: 1, minWidth: '300px' }}
+              tooltip={{ formatter: (value) => `${value}%` }}
+            />
+            <span style={{ width: '120px', textAlign: 'right' }}>{near1YearRange[0]}% ~ {near1YearRange[1]}%</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ width: '60px' }}>近2年：</span>
+            <Slider
+              range
+              min={-100}
+              max={500}
+              value={near2YearRange}
+              onChange={(value) => setNear2YearRange(value as [number, number])}
+              style={{ flex: 1, minWidth: '300px' }}
+              tooltip={{ formatter: (value) => `${value}%` }}
+            />
+            <span style={{ width: '120px', textAlign: 'right' }}>{near2YearRange[0]}% ~ {near2YearRange[1]}%</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ width: '60px' }}>近3年：</span>
+            <Slider
+              range
+              min={-100}
+              max={500}
+              value={near3YearRange}
+              onChange={(value) => setNear3YearRange(value as [number, number])}
+              style={{ flex: 1, minWidth: '300px' }}
+              tooltip={{ formatter: (value) => `${value}%` }}
+            />
+            <span style={{ width: '120px', textAlign: 'right' }}>{near3YearRange[0]}% ~ {near3YearRange[1]}%</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ width: '60px' }}>成立来：</span>
+            <Slider
+              range
+              min={-100}
+              max={1000}
+              value={sinceInceptionRange}
+              onChange={(value) => setSinceInceptionRange(value as [number, number])}
+              style={{ flex: 1, minWidth: '300px' }}
+              tooltip={{ formatter: (value) => `${value}%` }}
+            />
+            <span style={{ width: '120px', textAlign: 'right' }}>{sinceInceptionRange[0]}% ~ {sinceInceptionRange[1]}%</span>
+          </div>
         </div>
       </Card>
 

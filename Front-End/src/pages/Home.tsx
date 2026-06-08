@@ -381,6 +381,43 @@ const Home = () => {
   {/* 基金基本信息-指数型 */ }
   {/* 接口: fund_info_index_em */ }
 
+
+  // 基金数据分析
+  // 接口: fund_individual_analysis_xq
+  // 周期	object	-
+  // 较同类风险收益比	int64	注意单位：%
+  // 较同类抗风险波动	int64	注意单位：%
+  // 年化波动率	float64	注意单位：%
+  // 年化夏普比率	float64	-
+  // 最大回撤	float64	注意单位：%
+
+  // 基金盈利概率
+  // 接口: fund_individual_profit_probability_xq
+
+  // 基金持仓
+  // 接口: fund_portfolio_hold_em
+
+  // 新发基金
+  // 接口: fund_new_found_em
+
+  // 开放式基金
+  // 接口: fund_scale_open_sina
+
+
+
+
+  // 基金公司规模
+// 基金规模详情
+// 接口: fund_aum_em
+
+// REITs
+// REITs-实时行情
+// 接口: reits_realtime_em
+
+// REITs-历史行情
+// 接口: reits_hist_em
+
+
   return <>
     {/* Demo */}
     {useMemo(() => <DemoDualAxes />, [])}

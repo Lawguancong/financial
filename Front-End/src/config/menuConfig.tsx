@@ -172,9 +172,15 @@ export const menuConfigs: MenuItemConfig[] = [
         children: [
           {
             key: 'fund/cn/market-temp',
-            label: '市场温度',
+            label: '基金温度',
             path: 'fund/cn/market-temp',
             component: lazy(() => import('@/pages/fund/cn/market-temp')),
+          },
+          {
+            key: 'fund/cn/position',
+            label: '基金仓位',
+            path: 'fund/cn/position',
+            component: lazy(() => import('@/pages/fund/cn/position')),
           },
           {
             key: 'fund/cn/open',

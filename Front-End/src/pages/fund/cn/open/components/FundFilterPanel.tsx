@@ -51,17 +51,18 @@ const FundFilterPanel: React.FC = () => {
     pageSize: 50,
   });
   const [excludedNames, setExcludedNames] = useState<string[]>(["C"]);
+  const [includedNames, setIncludedNames] = useState<string[]>([]);
   const [rawData, setRawData] = useState<FundData[]>([]);
-  
+
   // 是否计算推荐买点
   const [calculateRecommendation, setCalculateRecommendation] = useState<boolean>(false);
-  
+
   // 区间百分比过滤条件 (使用 Slider)
-  const [yearToDateRange, setYearToDateRange] = useState<[number, number]>([-100, 500]);
-  const [near1YearRange, setNear1YearRange] = useState<[number, number]>([-100, 500]);
-  const [near2YearRange, setNear2YearRange] = useState<[number, number]>([-100, 500]);
-  const [near3YearRange, setNear3YearRange] = useState<[number, number]>([-100, 500]);
-  const [sinceInceptionRange, setSinceInceptionRange] = useState<[number, number]>([-100, 1000]);
+  const [near1YearRange, setNear1YearRange] = useState<[number, number]>([-100, 100]);
+  const [near2YearRange, setNear2YearRange] = useState<[number, number]>([-100, 100]);
+  const [near3YearRange, setNear3YearRange] = useState<[number, number]>([-100, 100]);
+  const [yearToDateRange, setYearToDateRange] = useState<[number, number]>([-100, 100]);
+  const [sinceInceptionRange, setSinceInceptionRange] = useState<[number, number]>([-100, 3000]);
 
   const columns = [
     {
@@ -288,15 +289,15 @@ const FundFilterPanel: React.FC = () => {
       render: (value: number) => `${value?.toFixed(2)}%`,
       ...createRangeFilter('成立来'),
     } as any,
-    {
-      title: '自定义',
-      dataIndex: '自定义',
-      key: '自定义',
-      width: 100,
-      sorter: numberSorter('自定义'),
-      render: (value: number) => `${value?.toFixed(2)}%`,
-      ...createRangeFilter('自定义'),
-    } as any,
+    // {
+    //   title: '自定义',
+    //   dataIndex: '自定义',
+    //   key: '自定义',
+    //   width: 100,
+    //   sorter: numberSorter('自定义'),
+    //   render: (value: number) => `${value?.toFixed(2)}%`,
+    //   ...createRangeFilter('自定义'),
+    // } as any,
     {
       title: '手续费',
       dataIndex: '手续费',
@@ -463,18 +464,12 @@ const FundFilterPanel: React.FC = () => {
     // 过滤掉关键字段为 null 或 undefined 的数据
     filteredData = filteredData.filter(item => {
       return item['近1年'] !== null && item['近1年'] !== undefined &&
-             item['近2年'] !== null && item['近2年'] !== undefined &&
-             item['近3年'] !== null && item['近3年'] !== undefined &&
-             item['今年来'] !== null && item['今年来'] !== undefined &&
-             item['成立来'] !== null && item['成立来'] !== undefined;
+        item['近2年'] !== null && item['近2年'] !== undefined &&
+        item['近3年'] !== null && item['近3年'] !== undefined &&
+        item['今年来'] !== null && item['今年来'] !== undefined &&
+        item['成立来'] !== null && item['成立来'] !== undefined;
     });
 
-        // 根据今年来区间过滤
-    filteredData = filteredData.filter(item => {
-      const value = item['今年来'] as number;
-      return value >= yearToDateRange[0] && value <= yearToDateRange[1];
-    });
-    
     // 根据近1年区间过滤
     filteredData = filteredData.filter(item => {
       const value = item['近1年'] as number;
@@ -493,6 +488,12 @@ const FundFilterPanel: React.FC = () => {
       return value >= near3YearRange[0] && value <= near3YearRange[1];
     });
 
+    // 根据今年来区间过滤
+    filteredData = filteredData.filter(item => {
+      const value = item['今年来'] as number;
+      return value >= yearToDateRange[0] && value <= yearToDateRange[1];
+    });
+
     // 根据成立来区间过滤
     filteredData = filteredData.filter(item => {
       const value = item['成立来'] as number;
@@ -505,6 +506,16 @@ const FundFilterPanel: React.FC = () => {
         const fundName = (item['基金简称'] || '').toLowerCase();
         return !excludedNames.some(excludedName =>
           fundName.includes(excludedName.toLowerCase())
+        );
+      });
+    }
+
+    // 包含基金简称过滤
+    if (includedNames.length > 0) {
+      filteredData = filteredData.filter(item => {
+        const fundName = (item['基金简称'] || '').toLowerCase();
+        return includedNames.some(includedName =>
+          fundName.includes(includedName.toLowerCase())
         );
       });
     }
@@ -577,6 +588,16 @@ const FundFilterPanel: React.FC = () => {
             />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>包含基金简称：</span>
+            <Select
+              mode="tags"
+              style={{ width: 300 }}
+              placeholder="输入关键词后回车添加"
+              value={includedNames}
+              onChange={setIncludedNames}
+            />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span>不包含基金简称：</span>
             <Select
               mode="tags"
@@ -586,20 +607,20 @@ const FundFilterPanel: React.FC = () => {
               onChange={setExcludedNames}
             />
           </div>
-          <div 
+          <div
             onClick={() => setCalculateRecommendation(!calculateRecommendation)}
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
+            style={{
+              display: 'flex',
+              alignItems: 'center',
               gap: '12px',
               padding: '8px 20px',
-              background: calculateRecommendation 
-                ? 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' 
+              background: calculateRecommendation
+                ? 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)'
                 : 'linear-gradient(135deg, #b6bee3ff 0%, #b1aeb5ff 100%)',
               borderRadius: '25px',
               transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-              boxShadow: calculateRecommendation 
-                ? '0 8px 25px rgba(56, 239, 125, 0.5), 0 0 0 3px rgba(56, 239, 125, 0.2)' 
+              boxShadow: calculateRecommendation
+                ? '0 8px 25px rgba(56, 239, 125, 0.5), 0 0 0 3px rgba(56, 239, 125, 0.2)'
                 : '0 4px 15px rgba(102, 126, 234, 0.3)',
               cursor: 'pointer',
               transform: calculateRecommendation ? 'scale(1.02)' : 'scale(1)',
@@ -608,13 +629,13 @@ const FundFilterPanel: React.FC = () => {
               position: 'relative'
             }}
           >
-            <div 
+            <div
               style={{
                 width: '24px',
                 height: '24px',
                 borderRadius: '50%',
-                background: calculateRecommendation 
-                  ? 'rgba(255,255,255,0.9)' 
+                background: calculateRecommendation
+                  ? 'rgba(255,255,255,0.9)'
                   : 'rgba(255,255,255,0.7)',
                 display: 'flex',
                 alignItems: 'center',
@@ -628,7 +649,7 @@ const FundFilterPanel: React.FC = () => {
               </span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ 
+              <span style={{
                 fontWeight: 'bold',
                 color: '#fff',
                 fontSize: '14px',
@@ -636,7 +657,7 @@ const FundFilterPanel: React.FC = () => {
               }}>
                 {calculateRecommendation ? '✨ 已启用智能分析' : '💡 计算推荐买点'}
               </span>
-              <span style={{ 
+              <span style={{
                 color: 'rgba(255,255,255,0.85)',
                 fontSize: '11px',
                 marginTop: '2px'
@@ -644,13 +665,13 @@ const FundFilterPanel: React.FC = () => {
                 {calculateRecommendation ? '搜索后将分析最佳买入时机...' : '启用后将计算RSI指标'}
               </span>
             </div>
-            <div 
+            <div
               style={{
                 width: '16px',
                 height: '16px',
                 borderRadius: '50%',
-                background: calculateRecommendation 
-                  ? 'rgba(255,255,255,0.9)' 
+                background: calculateRecommendation
+                  ? 'rgba(255,255,255,0.9)'
                   : 'rgba(255,255,255,0.5)',
                 animation: calculateRecommendation ? 'pulse 2s infinite' : 'none'
               }}
@@ -667,19 +688,7 @@ const FundFilterPanel: React.FC = () => {
           </Button>
         </div>
         <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ width: '60px' }}>今年：</span>
-            <Slider
-              range
-              min={-100}
-              max={500}
-              value={yearToDateRange}
-              onChange={(value) => setYearToDateRange(value as [number, number])}
-              style={{ flex: 1, minWidth: '300px' }}
-              tooltip={{ formatter: (value) => `${value}%` }}
-            />
-            <span style={{ width: '120px', textAlign: 'right' }}>{yearToDateRange[0]}% ~ {yearToDateRange[1]}%</span>
-          </div>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <span style={{ width: '60px' }}>近1年：</span>
             <Slider
@@ -720,11 +729,24 @@ const FundFilterPanel: React.FC = () => {
             <span style={{ width: '120px', textAlign: 'right' }}>{near3YearRange[0]}% ~ {near3YearRange[1]}%</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ width: '60px' }}>今年来：</span>
+            <Slider
+              range
+              min={-100}
+              max={500}
+              value={yearToDateRange}
+              onChange={(value) => setYearToDateRange(value as [number, number])}
+              style={{ flex: 1, minWidth: '300px' }}
+              tooltip={{ formatter: (value) => `${value}%` }}
+            />
+            <span style={{ width: '120px', textAlign: 'right' }}>{yearToDateRange[0]}% ~ {yearToDateRange[1]}%</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <span style={{ width: '60px' }}>成立来：</span>
             <Slider
               range
               min={-100}
-              max={1000}
+              max={10000}
               value={sinceInceptionRange}
               onChange={(value) => setSinceInceptionRange(value as [number, number])}
               style={{ flex: 1, minWidth: '300px' }}

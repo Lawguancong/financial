@@ -647,3 +647,65 @@ export const findThreeConsecutiveRises = (params: {
 
   return result;
 };
+
+// 计算波动率（基于日增长率的标准差）
+export const calculateVolatility = (params: {
+  data: any[];
+  navKey: string; // 净值字段名
+  dateKey: string; // 日期字段名
+  period?: number; // 滚动周期，默认20日
+}): (any & { __波动率__: number })[] => {
+  const { data, navKey, dateKey, period = 20 } = params;
+  
+  if (!data || data.length < period) {
+    return data?.map(item => ({ ...item, __波动率__: 0 })) || [];
+  }
+
+  // 计算日增长率
+  const dataWithGrowth = data.map((item, index) => {
+    const currentItem = { ...item };
+    
+    if (index > 0) {
+      const prevNav = Number(data[index - 1][navKey]);
+      const currentNav = Number(currentItem[navKey]);
+      if (prevNav > 0) {
+        currentItem['__日增长率__'] = ((currentNav - prevNav) / prevNav) * 100;
+      }
+    }
+    
+    return currentItem;
+  });
+
+  // 计算滚动波动率（标准差）
+  const result = dataWithGrowth.map((item, index) => {
+    const currentItem = { ...item };
+    
+    if (index >= period - 1) { // 需要至少period个数据点
+      const growthRates = [];
+      for (let i = index - (period - 1); i <= index; i++) {
+        if (dataWithGrowth[i]['__日增长率__'] !== undefined) {
+          growthRates.push(dataWithGrowth[i]['__日增长率__']);
+        }
+      }
+      
+      if (growthRates.length > 0) {
+        const mean = growthRates.reduce((a, b) => a + b, 0) / growthRates.length;
+        const variance = growthRates.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / growthRates.length;
+        currentItem['__波动率__'] = Math.sqrt(variance);
+      } else {
+        currentItem['__波动率__'] = 0;
+      }
+    } else {
+      currentItem['__波动率__'] = 0;
+    }
+    
+    return currentItem;
+  });
+
+  return result;
+};
+
+// 计算年化波动率
+export const calculateAnnualizedVolatility = (volatility: number, tradingDaysPerYear: number = 252): number => {
+  return volatility * Math.sqrt(tradingDaysPerYear);
+};

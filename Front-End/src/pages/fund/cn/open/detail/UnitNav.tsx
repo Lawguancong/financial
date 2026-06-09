@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Select, Button, Card, Spin, Table } from 'antd';
-import { DualAxes, Line } from '@ant-design/plots';
+import { DualAxes } from '@ant-design/plots';
 import { pick } from 'lodash-es';
-import { calculateMaxDrawdown, calculateRSI, calculateStartDate } from '@/utils';
+import { calculateMaxDrawdown, calculateRSI, calculateStartDate, calculateVolatility, calculateAnnualizedVolatility } from '@/utils';
 import moment from 'moment';
 import apiClient from '@/utils/axios';
 import { timeRangeOptions, keyMap, rightKeys, calculateRecommendationLevel, getLevelStyle } from './constants';
@@ -41,7 +41,7 @@ const UnitNav: React.FC<UnitNavProps> = ({ symbol }) => {
   const labelMap = useMemo(() => ({
     [dateKey]: dateName,
     [leftKey]: leftName,
-    ...memoizedRightKeys
+    ...memoizedRightKeys,
   }), [dateKey, leftKey, leftName, memoizedRightKeys]);
 
   const fetchData = useCallback(async () => {
@@ -70,7 +70,9 @@ const UnitNav: React.FC<UnitNavProps> = ({ symbol }) => {
 
 
   useEffect(() => {
-     let filteredData = responseData;
+    if (!responseData || responseData.length === 0) return;
+    
+    let filteredData = responseData;
 
       if (timeRange !== '上市以来' && filteredData.length > 0) {
         const firstDate = filteredData[0][keyMap[indicator].日期] as string;
@@ -81,8 +83,26 @@ const UnitNav: React.FC<UnitNavProps> = ({ symbol }) => {
         });
       }
 
-      const dataFormat = calculateMaxDrawdown({
+      // 使用公共方法计算波动率
+      const dataWithVolatility = calculateVolatility({
         data: filteredData,
+        navKey: keyMap[indicator].数据,
+        dateKey: keyMap[indicator].日期,
+        period: 20 // 20日滚动波动率
+      });
+
+      // 计算年化波动率
+      const dataWithAnnualizedVolatility = dataWithVolatility.map(item => {
+        const currentItem = { ...item };
+        if (currentItem['__波动率__'] !== undefined && currentItem['__波动率__'] > 0) {
+          // 年化波动率 = 日波动率 * sqrt(252)
+          currentItem['__年化波动率__'] = calculateAnnualizedVolatility(currentItem['__波动率__']);
+        }
+        return currentItem;
+      });
+
+      const dataFormat = calculateMaxDrawdown({
+        data: dataWithAnnualizedVolatility,
         leftKey: keyMap[indicator].数据,
         dateKey: keyMap[indicator].日期,
       })?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...memoizedRightKeys }))).map((key) => {

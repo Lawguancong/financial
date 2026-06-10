@@ -5,6 +5,11 @@ import { BankOutlined, FundOutlined, InfoCircleOutlined, DollarOutlined, TeamOut
 import UnitNav from './UnitNav';
 import CumulativeNav from './CumulativeNav';
 import CumulativeReturn from './CumulativeReturn';
+import FundHoldings from './FundHoldings';
+import FundDividend from './FundDividend';
+import FundIndustryAllocation from './FundIndustryAllocation';
+import FundAssetAllocation from './FundAssetAllocation';
+import FundManager from './FundManager';
 import apiClient from '@/utils/axios';
 
 const { TabPane } = Tabs;
@@ -110,14 +115,6 @@ const FundOpenDetail: React.FC = () => {
                   {symbolInfo?.['基金类型']}
                 </Tag>
               </div>
-              <p style={{ margin: 0, color: 'rgba(255,255,255,0.85)', fontSize: '14px' }}>
-                基金代码：{symbol}
-              </p>
-              {symbolInfo?.['基金全称'] && (
-                <p style={{ margin: '8px 0 0 0', color: 'rgba(255,255,255,0.7)', fontSize: '13px' }}>
-                  {symbolInfo['基金全称']}
-                </p>
-              )}
             </div>
           </div>
         </Card>
@@ -283,7 +280,7 @@ const FundOpenDetail: React.FC = () => {
 
         {/* 走势图Tabs */}
         <Card 
-          style={{ borderRadius: '12px', boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}
+          style={{ borderRadius: '12px', boxShadow: '0 4px 16px rgba(0,0,0,0.08)', marginBottom: '16px' }}
         >
           <Tabs
             activeKey={activeTab}
@@ -292,15 +289,30 @@ const FundOpenDetail: React.FC = () => {
             style={{ marginBottom: '16px' }}
             type="card"
           >
-            <TabPane tab="累计收益率走势" key="累计收益率走势">
+            <TabPane tab="📈 累计收益率走势" key="累计收益率走势">
               {useMemo(() => <CumulativeReturn symbol={symbol} />, [symbol])}
             </TabPane>
-            <TabPane tab="单位净值走势" key="单位净值走势">
+            <TabPane tab="💹 单位净值走势" key="单位净值走势">
               {useMemo(() => <UnitNav symbol={symbol} />, [symbol])}
             </TabPane>
-            <TabPane tab="累计净值走势" key="累计净值走势">
+            <TabPane tab="📊 累计净值走势" key="累计净值走势">
               {useMemo(() => <CumulativeNav symbol={symbol} />, [symbol])}
             </TabPane>
+            <TabPane tab="📋 股票持仓" key="股票持仓">
+              {useMemo(() => <FundHoldings symbol={symbol} />, [symbol])}
+            </TabPane>
+            {/* <TabPane tab="💰 分红信息" key="分红信息">
+              {useMemo(() => <FundDividend symbol={symbol} />, [symbol])}
+            </TabPane> */}
+            <TabPane tab="🏭 行业配置" key="行业配置">
+              {useMemo(() => <FundIndustryAllocation symbol={symbol} />, [symbol])}
+            </TabPane>
+            {/* <TabPane tab="💼 资产配置" key="资产配置">
+              {useMemo(() => <FundAssetAllocation symbol={symbol} />, [symbol])}
+            </TabPane> */}
+            {/* <TabPane tab="👤 基金经理" key="基金经理">
+              {useMemo(() => <FundManager symbol={symbol} />, [symbol])}
+            </TabPane> */}
           </Tabs>
         </Card>
       </Spin>

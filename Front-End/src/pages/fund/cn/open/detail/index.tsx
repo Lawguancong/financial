@@ -10,6 +10,9 @@ import FundDividend from './FundDividend';
 import FundIndustryAllocation from './FundIndustryAllocation';
 import FundAssetAllocation from './FundAssetAllocation';
 import FundManager from './FundManager';
+import FundAnalysis from './FundAnalysis';
+import FundProfitProbability from './FundProfitProbability';
+import FundOverview from './FundOverview';
 import apiClient from '@/utils/axios';
 
 const { TabPane } = Tabs;
@@ -119,8 +122,11 @@ const FundOpenDetail: React.FC = () => {
           </div>
         </Card>
 
+        {/* 基本概况卡片 */}
+        {useMemo(() => <FundOverview symbol={symbol} />, [symbol])}
+
         {/* 基金核心信息卡片 */}
-        <Card 
+        {/* <Card 
           title={
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <InfoCircleOutlined style={{ fontSize: '18px', color: '#1890ff' }} />
@@ -185,7 +191,7 @@ const FundOpenDetail: React.FC = () => {
               );
             })}
           </Row>
-        </Card>
+        </Card> */}
 
         {/* 基金风险信息卡片 */}
         <Card 
@@ -312,6 +318,15 @@ const FundOpenDetail: React.FC = () => {
             </TabPane> */}
             {/* <TabPane tab="👤 基金经理" key="基金经理">
               {useMemo(() => <FundManager symbol={symbol} />, [symbol])}
+            </TabPane> */}
+            <TabPane tab="📊 基金分析" key="基金分析">
+              {useMemo(() => <FundAnalysis symbol={symbol} />, [symbol])}
+            </TabPane>
+            <TabPane tab="🎯 盈利概率" key="盈利概率">
+              {useMemo(() => <FundProfitProbability symbol={symbol} />, [symbol])}
+            </TabPane>
+            {/* <TabPane tab="📋 基本概况" key="基本概况">
+              {useMemo(() => <FundOverview symbol={symbol} />, [symbol])}
             </TabPane> */}
           </Tabs>
         </Card>

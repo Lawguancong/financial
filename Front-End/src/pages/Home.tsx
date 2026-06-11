@@ -295,8 +295,6 @@ const Home = () => {
   // - 基金基本信息(雪球): fund_individual_basic_info_xq (symbol=基金代码，返回基金代码、名称、全称、成立时间、规模等)
   // - 指数型基金基本信息: fund_info_index_em (symbol=分类，indicator=类型，返回基金代码、名称、单位净值、收益率等)
 
-  // 【基金申购状态】
-  // - 申购状态查询: fund_purchase_em (返回基金代码、简称、类型、净值、申购状态、赎回状态、购买起点等)
 
   // 【基金行情】
   // - ETF基金实时行情(东财): fund_etf_spot_em (代码、名称、最新价、IOPV估值、折价率、成交量等)
@@ -308,7 +306,6 @@ const Home = () => {
   // - LOF基金分时行情(东财): fund_lof_minute_em
   // - ETF基金历史行情(东财): fund_etf_hist_em
   // - LOF基金历史行情(东财): fund_lof_hist_em
-  // - 基金历史行情(新浪): fund_hist_sina
 
   // 【基金净值】
   // - 开放式基金实时净值: fund_open_fund_info_em (实时数据)
@@ -323,63 +320,8 @@ const Home = () => {
   // - 场内交易基金历史数据: fund_etf_fund_hist_em
   // - 香港基金历史数据: fund_hk_hist_em
 
-  // 【分红送配】
-  // - 基金累计分红: fund_dividend_accumulate_em
-  // - 基金分红: fund_dividend_em
-  // - 基金拆分: fund_split_em
-  // - 基金分红排行: fund_dividend_rank_em
 
-  // 【基金排行】
-  // - 开放式基金排行: fund_open_fund_rank_em (symbol=类型，返回单位净值、累计净值、收益率等)
-  // - 场内交易基金排行: fund_etf_fund_rank_em
-  // - 货币型基金排行: fund_money_fund_rank_em
-  // - 理财基金排行: fund_wealth_fund_rank_em
-  // - 香港基金排行: fund_hk_rank_em
 
-  // 【基金业绩与分析】
-  // - 基金业绩(雪球): fund_individual_performance_xq
-  // - 净值估算: fund_net_value_estimate_em
-  // - 基金数据分析: fund_individual_analysis_xq (周期、风险收益比、抗风险波动、年化波动率、夏普比率、最大回撤)
-  // - 基金盈利概率: fund_individual_profit_probability_xq
-  // - 基金持仓资产比例: fund_portfolio_hold_em
-  // - 基金基本概况: fund_overview_em
-  // - 基金交易费率: fund_fee_rate_em
-  // - 基金交易规则: fund_trading_rules_em
-
-  // 【基金持仓】
-  // - 基金持仓股票: fund_portfolio_stock_em
-  // - 债券持仓: fund_portfolio_bond_em
-  // - 行业配置: fund_industry_allocation_em
-  // - 重大变动: fund_major_changes_em
-
-  // 【基金评级】
-  // - 基金评级总汇: fund_rating_all_em
-  // - 上海证券评级: fund_rating_sh_em
-  // - 招商证券评级: fund_rating_cmb_em
-  // - 济安金信评级: fund_rating_jajx_em
-
-  // 【基金经理】
-  // - 基金经理信息: fund_manager_info_em
-
-  // 【新发基金】
-  // - 新发基金: fund_new_found_em
-
-  // 【基金规模】
-  // - 开放式基金规模: fund_scale_open_em
-  // - 封闭式基金规模: fund_scale_closed_em
-  // - 分级子基金规模: fund_scale_fractional_em
-  // - ETF基金份额(上交所): fund_etf_share_sse_em
-  // - ETF基金份额(深交所): fund_etf_share_szse_em
-  // - 基金规模日频(深交所): fund_scale_daily_szse_em
-
-  // 【基金公司规模】
-  // - 基金规模详情: fund_aum_em
-  // - 基金规模走势: fund_aum_trend_em
-  // - 基金公司历年管理规模: fund_aum_history_em
-
-  // 【基金资产配置】
-  // - 灵活配置型基金仓位: fund_flexible_position_em
-  // - 基金资产配置: fund_asset_allocation_em
 
   // ==================== REITs ====================
   // - REITs实时行情: reits_realtime_em

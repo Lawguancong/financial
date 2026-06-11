@@ -177,10 +177,28 @@ export const menuConfigs: MenuItemConfig[] = [
             component: lazy(() => import('@/pages/fund/cn/market-temp')),
           },
           {
+            key: 'fund/cn/new-fund',
+            label: '新发基金',
+            path: 'fund/cn/new-fund',
+            component: lazy(() => import('@/pages/fund/cn/new-fund')),
+          },
+          {
             key: 'fund/cn/position',
             label: '基金仓位',
             path: 'fund/cn/position',
             component: lazy(() => import('@/pages/fund/cn/position')),
+          },
+          {
+            key: 'fund/cn/company',
+            label: '基金公司',
+            path: 'fund/cn/company',
+            component: lazy(() => import('@/pages/fund/cn/company')),
+          },
+          {
+            key: 'fund/cn/manager',
+            label: '基金经理',
+            path: 'fund/cn/manager',
+            component: lazy(() => import('@/pages/fund/cn/manager')),
           },
           {
             key: 'fund/cn/open',
@@ -196,13 +214,6 @@ export const menuConfigs: MenuItemConfig[] = [
               }
             ]
           },
-          {
-            key: 'fund/cn/manager',
-            label: '基金经理',
-            path: 'fund/cn/manager',
-            component: lazy(() => import('@/pages/fund/cn/manager')),
-          },
-
         ],
       },
     ],

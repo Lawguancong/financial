@@ -104,6 +104,23 @@ def get_fund_scale_open_sina():
             'message': '获取数据失败: {}'.format(str(e))
         })
 
+@app.route('/api/public/fund_fh_rank_em', methods=['GET'])
+def get_fund_fh_rank_em():
+    """获取东方财富网-基金分红"""
+    try:
+        result = ak.fund_fh_rank_em().to_dict(orient='records')
+        return jsonify({
+            'success': True,
+            'data': result,
+            'message': '获取数据成功'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'data': None,
+            'message': '获取数据失败: {}'.format(str(e))
+        })
+
 
 # 更多akshare接口可以在这里添加
 

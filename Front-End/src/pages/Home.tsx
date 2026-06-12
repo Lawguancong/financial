@@ -305,8 +305,6 @@ const Home = () => {
   // - LOF基金历史行情(东财): fund_lof_hist_em
 
   // 【基金分红】
-  // 基金累计分红 接口: fund_etf_dividend_sina
-  // 基金分红 接口: fund_fh_em
   // 基金分红排行 接口: fund_fh_rank_em
 
   // ==================== REITs ====================

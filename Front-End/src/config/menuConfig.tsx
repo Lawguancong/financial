@@ -195,6 +195,12 @@ export const menuConfigs: MenuItemConfig[] = [
             component: lazy(() => import('@/pages/fund/cn/company')),
           },
           {
+            key: 'fund/cn/dividend',
+            label: '基金分红',
+            path: 'fund/cn/dividend',
+            component: lazy(() => import('@/pages/fund/cn/dividend')),
+          },
+          {
             key: 'fund/cn/manager',
             label: '基金经理',
             path: 'fund/cn/manager',

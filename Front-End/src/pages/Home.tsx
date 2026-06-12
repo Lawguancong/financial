@@ -301,27 +301,13 @@ const Home = () => {
   // - 基金实时行情(同花顺): fund_etf_category_ths (symbol=类型，date=日期，返回净值、增长率等)
   // - ETF基金实时行情(同花顺): fund_etf_spot_ths (date=日期)
   // - LOF基金实时行情(东财): fund_lof_spot_em
-  // - 基金实时行情(新浪): fund_spot_sina
-  // - ETF基金分时行情(东财): fund_etf_minute_em
-  // - LOF基金分时行情(东财): fund_lof_minute_em
   // - ETF基金历史行情(东财): fund_etf_hist_em
   // - LOF基金历史行情(东财): fund_lof_hist_em
 
-  // 【基金净值】
-  // - 开放式基金实时净值: fund_open_fund_info_em (实时数据)
-  // - 开放式基金历史净值: fund_open_fund_hist_em (历史数据)
-  // - 货币型基金实时数据: fund_money_fund_spot_em
-  // - 货币型基金历史数据: fund_money_fund_hist_em
-  // - 理财型基金实时数据: fund_wealth_fund_spot_em
-  // - 理财型基金历史数据: fund_wealth_fund_hist_em
-  // - 分级基金实时数据: fund_fractional_fund_spot_em
-  // - 分级基金历史数据: fund_fractional_fund_hist_em
-  // - 场内交易基金实时数据: fund_etf_fund_spot_em
-  // - 场内交易基金历史数据: fund_etf_fund_hist_em
-  // - 香港基金历史数据: fund_hk_hist_em
-
-
-
+  // 【基金分红】
+  // 基金累计分红 接口: fund_etf_dividend_sina
+  // 基金分红 接口: fund_fh_em
+  // 基金分红排行 接口: fund_fh_rank_em
 
   // ==================== REITs ====================
   // - REITs实时行情: reits_realtime_em

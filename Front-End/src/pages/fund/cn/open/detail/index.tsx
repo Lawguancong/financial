@@ -307,27 +307,24 @@ const FundOpenDetail: React.FC = () => {
             <TabPane tab="📋 股票持仓" key="股票持仓">
               {useMemo(() => <FundHoldings symbol={symbol} />, [symbol])}
             </TabPane>
-            {/* <TabPane tab="💰 分红信息" key="分红信息">
+            <TabPane tab="💰 分红信息" key="分红信息">
               {useMemo(() => <FundDividend symbol={symbol} />, [symbol])}
-            </TabPane> */}
+            </TabPane>
             <TabPane tab="🏭 行业配置" key="行业配置">
               {useMemo(() => <FundIndustryAllocation symbol={symbol} />, [symbol])}
             </TabPane>
-            {/* <TabPane tab="💼 资产配置" key="资产配置">
+            <TabPane tab="💼 资产配置" key="资产配置">
               {useMemo(() => <FundAssetAllocation symbol={symbol} />, [symbol])}
-            </TabPane> */}
-            {/* <TabPane tab="👤 基金经理" key="基金经理">
+            </TabPane>
+            <TabPane tab="👤 基金经理" key="基金经理">
               {useMemo(() => <FundManager symbol={symbol} />, [symbol])}
-            </TabPane> */}
+            </TabPane>
             <TabPane tab="📊 基金分析" key="基金分析">
               {useMemo(() => <FundAnalysis symbol={symbol} />, [symbol])}
             </TabPane>
             <TabPane tab="🎯 盈利概率" key="盈利概率">
               {useMemo(() => <FundProfitProbability symbol={symbol} />, [symbol])}
             </TabPane>
-            {/* <TabPane tab="📋 基本概况" key="基本概况">
-              {useMemo(() => <FundOverview symbol={symbol} />, [symbol])}
-            </TabPane> */}
           </Tabs>
         </Card>
       </Spin>

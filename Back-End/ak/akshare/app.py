@@ -86,6 +86,25 @@ def get_stock_a_below_net_asset():
         })
 
 
+@app.route('/api/public/fund_scale_open_sina', methods=['GET'])
+def get_fund_scale_open_sina():
+    """获取新浪财经-基金数据中心-基金规模-开放式基金"""
+    try:
+        symbol = request.args.get('symbol', '股票型基金')
+        result = ak.fund_scale_open_sina(symbol=symbol).to_dict(orient='records')
+        return jsonify({
+            'success': True,
+            'data': result,
+            'message': '获取数据成功'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'data': None,
+            'message': '获取数据失败: {}'.format(str(e))
+        })
+
+
 # 更多akshare接口可以在这里添加
 
 if __name__ == '__main__':

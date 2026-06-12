@@ -1,56 +1,64 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Card, Spin, Empty, Row, Col, Statistic, DatePicker } from 'antd';
+import { Card, Spin, Empty, Row, Col, Statistic, DatePicker, Select } from 'antd';
 import { DualAxes } from '@ant-design/plots';
 import { FundOutlined, CalendarOutlined, PieChartOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import apiClient from '@/utils/axios';
 
 interface NewFundItem {
+  序号: number;
   基金代码: string;
   基金简称: string;
-  发行公司: string;
-  基金类型: string;
-  集中认购期: string;
-  募集份额: number;
+  单位净值: number;
+  总募集规模: number;
+  最近总份额: number;
   成立日期: string;
-  成立来涨幅: number;
   基金经理: string;
-  申购状态: string;
-  优惠费率: number;
+  更新日期: string;
 }
 
 interface MonthlyData {
   month: string;
   yearMonth: string;
   新发基金数量: number;
-  募集份额: number;
+  总募集金额: number;
+  单只最高金额: number;
 }
 
 const { RangePicker } = DatePicker;
+
+const fundTypes = [
+  { label: '股票型基金', value: '股票型基金' },
+  { label: '混合型基金', value: '混合型基金' },
+  { label: '债券型基金', value: '债券型基金' },
+  { label: '货币型基金', value: '货币型基金' },
+  { label: 'QDII基金', value: 'QDII基金' },
+];
 
 const FundNewIssue: React.FC = () => {
   const [data, setData] = useState<NewFundItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [dateRange, setDateRange] = useState<[string, string] | null>(null);
+  const [fundType, setFundType] = useState<string>('股票型基金');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get('/api/public/fund_new_found_em');
+      const response = await apiClient.get('/api/public/fund_scale_open_sina', {
+        params: { symbol: fundType },
+      });
       const rawData = response?.data;
       if (Array.isArray(rawData)) {
         const formattedData = rawData.map((item: Record<string, unknown>) => ({
+          序号: Number(item['序号']) || 0,
           基金代码: String(item['基金代码'] || ''),
           基金简称: String(item['基金简称'] || ''),
-          发行公司: String(item['发行公司'] || ''),
-          基金类型: String(item['基金类型'] || ''),
-          集中认购期: String(item['集中认购期'] || ''),
-          募集份额: Number(item['募集份额']) || 0,
+          单位净值: Number(item['单位净值']) || 0,
+          总募集规模: Number(item['总募集规模']) || 0,
+          最近总份额: Number(item['最近总份额']) || 0,
           成立日期: String(item['成立日期'] || ''),
-          成立来涨幅: Number(item['成立来涨幅']) || 0,
           基金经理: String(item['基金经理'] || ''),
-          申购状态: String(item['申购状态'] || ''),
-          优惠费率: Number(item['优惠费率']) || 0,
+          更新日期: String(item['更新日期'] || ''),
         }));
         setData(formattedData);
       }
@@ -59,29 +67,32 @@ const FundNewIssue: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fundType]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // 按年月分组统计
+  // 按年月分组统计：按成立日期分组，统计基金数量，累计总募集金额，计算单只最高金额
+  // 总募集金额 = 单位净值(元) * 总募集规模(万份) * 10000 = 单位净值 * 总募集规模 * 10000 元
   const monthlyData = useMemo(() => {
     const filtered = dateRange
       ? data.filter(item => {
         const date = dayjs(item.成立日期);
-        return date.isAfter(dayjs(dateRange[0])) && date.isBefore(dayjs(dateRange[1]).endOf('month'));
+        return date.isAfter(dayjs(dateRange[0]).subtract(1, 'day')) && date.isBefore(dayjs(dateRange[1]).add(1, 'day'));
       })
       : data;
 
     const grouped = filtered.reduce((acc, item) => {
       if (!item.成立日期) return acc;
       const month = dayjs(item.成立日期).format('YYYY-MM');
+      const fundAmount = 1 * item.总募集规模 * 10000; // 新基金发行期面值统一为 1.00 元 / 份
       if (!acc[month]) {
-        acc[month] = { month, yearMonth: month, 新发基金数量: 0, 募集份额: 0 };
+        acc[month] = { month, yearMonth: month, 新发基金数量: 0, 总募集金额: 0, 单只最高金额: 0 };
       }
       acc[month].新发基金数量 += 1;
-      acc[month].募集份额 += item.募集份额;
+      acc[month].总募集金额 += fundAmount;
+      acc[month].单只最高金额 = Math.max(acc[month].单只最高金额, fundAmount);
       return acc;
     }, {} as Record<string, MonthlyData>);
 
@@ -92,9 +103,9 @@ const FundNewIssue: React.FC = () => {
   const stats = useMemo(() => {
     return {
       totalFunds: monthlyData.reduce((sum, item) => sum + item.新发基金数量, 0),
-      totalShares: monthlyData.reduce((sum, item) => sum + item.募集份额, 0),
-      avgShares: monthlyData.length > 0
-        ? monthlyData.reduce((sum, item) => sum + item.募集份额, 0) / monthlyData.length
+      totalAmount: monthlyData.reduce((sum, item) => sum + item.总募集金额, 0),
+      avgAmount: monthlyData.length > 0
+        ? monthlyData.reduce((sum, item) => sum + item.总募集金额, 0) / monthlyData.length
         : 0,
       maxMonthlyFunds: monthlyData.length > 0
         ? Math.max(...monthlyData.map(item => item.新发基金数量))
@@ -102,12 +113,14 @@ const FundNewIssue: React.FC = () => {
     };
   }, [monthlyData]);
 
-  // 图表配置
+  // 图表数据
   const chartData = useMemo(() => {
     return monthlyData.map(item => ({
       date: item.yearMonth,
       count: item.新发基金数量,
-      share: item.募集份额,
+      amount: item.总募集金额 / 100000000, // 转换为亿元
+      avgPerFund: item.新发基金数量 > 0 ? (item.总募集金额 / 100000000) / item.新发基金数量 : 0,
+      maxPerFund: item.单只最高金额 / 100000000, // 转换为亿元
     }));
   }, [monthlyData]);
 
@@ -117,10 +130,22 @@ const FundNewIssue: React.FC = () => {
     type: '新发基金数量',
   })), [chartData]);
 
-  const shareData = useMemo(() => chartData.map(item => ({
+  const amountData = useMemo(() => chartData.map(item => ({
     date: item.date,
-    value: item.share,
-    type: '募集份额(亿)',
+    value: item.amount,
+    type: '募集总金额(亿元)',
+  })), [chartData]);
+
+  const avgData = useMemo(() => chartData.map(item => ({
+    date: item.date,
+    value: item.avgPerFund,
+    type: '平均募集金额(亿元)',
+  })), [chartData]);
+
+  const maxData = useMemo(() => chartData.map(item => ({
+    date: item.date,
+    value: item.maxPerFund,
+    type: '单只最高金额(亿元)',
   })), [chartData]);
 
   const config = {
@@ -144,7 +169,7 @@ const FundNewIssue: React.FC = () => {
     },
     rightAxis: {
       title: {
-        text: '募集份额',
+        text: '募集金额(亿元)',
         style: { fill: '#52c41a' },
       },
       label: {
@@ -169,7 +194,7 @@ const FundNewIssue: React.FC = () => {
         },
       },
       {
-        data: shareData,
+        data: amountData,
         type: 'line',
         yField: 'value',
         colorField: 'type',
@@ -180,15 +205,40 @@ const FundNewIssue: React.FC = () => {
         tooltip: {
           // formatter: (datum: { type: string; value: number }) => ({
           //   name: datum.type,
-          //   value: `${datum.value.toFixed(1)}亿`,
+          //   value: `${datum.value.toFixed(2)}亿`,
           // }),
-          items: [
-            {
-              field: 'value',
-              name: '募集份额（亿）',
-              valueFormatter: (value: number) => `${value?.toFixed(2)}`,
-            },
-          ],
+        },
+      },
+      {
+        data: avgData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'type',
+        color: '#722ed1',
+        smooth: true,
+        style: { lineWidth: 2 },
+        axis: { y: { position: 'right' } },
+        tooltip: {
+          // formatter: (datum: { type: string; value: number }) => ({
+          //   name: datum.type,
+          //   value: `${datum.value.toFixed(2)}亿`,
+          // }),
+        },
+      },
+      {
+        data: maxData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'type',
+        color: '#fa8c16',
+        smooth: true,
+        style: { lineWidth: 2 },
+        axis: { y: { position: 'right' } },
+        tooltip: {
+          // formatter: (datum: { type: string; value: number }) => ({
+          //   name: datum.type,
+          //   value: `${datum.value.toFixed(2)}亿`,
+          // }),
         },
       },
     ],
@@ -219,9 +269,22 @@ const FundNewIssue: React.FC = () => {
               新发基金
             </h2>
             <p style={{ margin: '4px 0 0 0', fontSize: '14px', opacity: 0.8 }}>
-              每月新发基金数量与募集份额统计
+              每月新发基金数量与募集规模统计
             </p>
           </div>
+        </div>
+      </Card>
+
+      {/* 基金类型选择 */}
+      <Card style={{ marginBottom: '16px', borderRadius: '12px' }} bodyStyle={{ padding: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ color: '#666', fontWeight: 500 }}>新发基金类型：</span>
+          <Select
+            value={fundType}
+            onChange={setFundType}
+            options={fundTypes}
+            style={{ width: 200 }}
+          />
         </div>
       </Card>
 
@@ -240,9 +303,9 @@ const FundNewIssue: React.FC = () => {
         <Col span={6}>
           <Card style={{ borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <Statistic
-              title={<span style={{ color: '#666' }}>募集份额总计</span>}
-              value={stats.totalShares.toFixed(2)}
-              suffix="亿"
+              title={<span style={{ color: '#666' }}>募集总金额</span>}
+              value={(stats.totalAmount / 100000000).toFixed(2)}
+              suffix="亿元"
               prefix={<PieChartOutlined style={{ color: '#52c41a' }} />}
             />
           </Card>
@@ -250,9 +313,9 @@ const FundNewIssue: React.FC = () => {
         <Col span={6}>
           <Card style={{ borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <Statistic
-              title={<span style={{ color: '#666' }}>月均募集份额</span>}
-              value={stats.avgShares.toFixed(2)}
-              suffix="亿"
+              title={<span style={{ color: '#666' }}>月均募集金额</span>}
+              value={(stats.avgAmount / 100000000).toFixed(2)}
+              suffix="亿元"
               prefix={<CalendarOutlined style={{ color: '#fa8c16' }} />}
             />
           </Card>
@@ -277,22 +340,6 @@ const FundNewIssue: React.FC = () => {
             <span style={{ fontWeight: 'bold', fontSize: '16px' }}>新发基金趋势图</span>
           </div>
         }
-        extra={
-          <RangePicker
-            picker="month"
-            onChange={(dates) => {
-              if (dates && dates[0] && dates[1]) {
-                setDateRange([
-                  dates[0].startOf('month').format('YYYY-MM-DD'),
-                  dates[1].endOf('month').format('YYYY-MM-DD'),
-                ]);
-              } else {
-                setDateRange(null);
-              }
-            }}
-            style={{ borderRadius: '8px' }}
-          />
-        }
         style={{ borderRadius: '12px', boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}
       >
         <Spin spinning={loading}>
@@ -314,10 +361,10 @@ const FundNewIssue: React.FC = () => {
         style={{ marginTop: '16px', borderRadius: '12px' }}
       >
         <ul style={{ color: '#999', fontSize: '13px', margin: 0, paddingLeft: '20px' }}>
-          <li>数据来源于东方财富网新发基金列表</li>
-          <li>募集份额单位为亿份</li>
-          <li>图表展示每月新发基金数量与募集份额变化趋势</li>
+          <li>数据来源于新浪财经基金规模数据</li>
+          <li>总募集金额 = 1.00 元 / 份 × 总募集规模</li>
           <li>可通过顶部时间范围选择器筛选不同时间段</li>
+          <li>可通过基金类型下拉框筛选不同类型的基金</li>
         </ul>
       </Card>
     </div>

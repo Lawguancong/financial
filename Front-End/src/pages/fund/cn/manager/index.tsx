@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Select, Button, Table, Card, Spin, Input, Typography, Tabs } from 'antd';
+import { useSearchParams } from 'react-router-dom';
 import apiClient from '@/utils/axios';
-import moment from 'moment';
 import { createRangeFilter, numberSorter } from '@/utils/tableUtils';
 
 
@@ -25,12 +25,31 @@ interface FundData {
 }
 
 const FundOpen: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [data, setData] = useState<FundData[]>([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({
     current: 1,
     pageSize: 20,
   });
+
+  // 获取URL参数中的name，用于预热搜索过滤
+  const urlName = searchParams.get('name');
+
+  // 姓名列的过滤状态
+  const [nameFilterValue, setNameFilterValue] = useState<string | undefined>(urlName || undefined);
+
+  // 当 URL 参数变化时，同步更新过滤状态
+  useEffect(() => {
+    setNameFilterValue(urlName || undefined);
+  }, [urlName]);
+
+  useEffect(() => {
+    if (nameFilterValue) {
+      fetchFundData();
+    }
+  }, [nameFilterValue]);
+
   const fetchFundData = async () => {
     // todo
     setLoading(true);
@@ -38,16 +57,16 @@ const FundOpen: React.FC = () => {
       const response = await apiClient.get('/api/public/fund_manager_em',);
       console.log('基金经理 -> response', response);
       const responseData = response?.data || [];
-      
+
       const fundCountByManager = responseData.reduce((acc: Record<string, number>, item) => {
         const name = item['姓名'];
         acc[name] = (acc[name] || 0) + 1;
         return acc;
       }, {});
-      
-      setData(responseData.map((item, idx) => {
-        const workYear = (item['累计从业时间'] / 365);
-        const bestReturn = workYear >= 1 ? Math.pow(1 + (item['现任基金最佳回报'] / 100), 1 / workYear) - 1 : 0;
+
+      setData(responseData.map((item: Record<string, unknown>, idx: number) => {
+        const workYear = (Number(item['累计从业时间']) / 365);
+        const bestReturn = workYear >= 1 ? Math.pow(1 + (Number(item['现任基金最佳回报']) / 100), 1 / workYear) - 1 : 0;
         return {
           ...item,
           id: idx,
@@ -86,19 +105,27 @@ const FundOpen: React.FC = () => {
       key: '姓名',
       width: 80,
       fixed: 'left' as const,
+      filteredValue: nameFilterValue ? [nameFilterValue] : null,
       filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }: { setSelectedKeys: (keys: React.Key[]) => void; selectedKeys: React.Key[]; confirm: () => void; clearFilters: () => void }) => (
         <div style={{ padding: 8 }}>
           <Input
             placeholder="输入姓名"
-            value={selectedKeys[0] as string}
-            onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+            value={selectedKeys[0] as string || nameFilterValue || ''}
+            onChange={(e) => {
+              const value = e.target.value;
+              setSelectedKeys(value ? [value] : []);
+              setNameFilterValue(value);
+            }}
             onPressEnter={confirm}
             style={{ width: 188, marginBottom: 8, display: 'block' }}
           />
           <div style={{ display: 'flex', gap: 8 }}>
             <Button
               type="primary"
-              onClick={confirm}
+              onClick={() => {
+                setNameFilterValue(selectedKeys[0] as string);
+                confirm();
+              }}
               size="small"
               style={{ width: 90 }}
             >
@@ -106,6 +133,7 @@ const FundOpen: React.FC = () => {
             </Button>
             <Button
               onClick={() => {
+                setNameFilterValue(undefined);
                 clearFilters();
                 confirm();
               }}
@@ -118,7 +146,7 @@ const FundOpen: React.FC = () => {
         </div>
       ),
       filterIcon: (filtered: boolean) => (
-        <span style={{ color: filtered ? '#1890ff' : undefined }}>🔍</span>
+        <span style={{ color: filtered || !!nameFilterValue ? '#1890ff' : undefined }}>🔍</span>
       ),
       onFilter: (value: string | number | boolean, record: FundData) => {
         const searchValue = String(value).toLowerCase();

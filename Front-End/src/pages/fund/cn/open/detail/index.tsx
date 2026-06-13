@@ -13,6 +13,7 @@ import FundManager from './FundManager';
 import FundAnalysis from './FundAnalysis';
 import FundProfitProbability from './FundProfitProbability';
 import FundOverview from './FundOverview';
+import FundAchievement from './FundAchievement';
 import apiClient from '@/utils/axios';
 
 const { TabPane } = Tabs;
@@ -324,6 +325,9 @@ const FundOpenDetail: React.FC = () => {
             </TabPane>
             <TabPane tab="🎯 盈利概率" key="盈利概率">
               {useMemo(() => <FundProfitProbability symbol={symbol} />, [symbol])}
+            </TabPane>
+            <TabPane tab="🏆 基金业绩" key="基金业绩">
+              {useMemo(() => <FundAchievement symbol={symbol} />, [symbol])}
             </TabPane>
           </Tabs>
         </Card>

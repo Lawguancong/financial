@@ -204,7 +204,32 @@ const FundOverview: React.FC<FundOverviewProps> = ({ symbol }) => {
                 {renderInfoItem(<BankOutlined />, '基金托管人', data.基金托管人, '#722ed1')}
               </Col>
               <Col xs={24} sm={12}>
-                {renderInfoItem(<UserOutlined />, '基金经理人', data.基金经理人, '#13c2c2')}
+                {data.基金经理人 && data.基金经理人 !== '---' ? (
+                  <a
+                    href={`/fund/cn/manager?name=${encodeURIComponent(data.基金经理人)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '12px',
+                      padding: '12px',
+                      background: '#fafafa',
+                      borderRadius: '8px',
+                      textDecoration: 'none',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', background: '#13c2c215', borderRadius: '8px', flexShrink: 0 }}>
+                      <UserOutlined style={{ fontSize: '18px', color: '#13c2c2' }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '12px', color: '#999', marginBottom: '2px' }}>基金经理人</div>
+                      <div style={{ fontSize: '14px', color: '#13c2c2', fontWeight: 500, wordBreak: 'break-all' }}>
+                        {data.基金经理人} →
+                      </div>
+                    </div>
+                  </a>
+                ) : null}
               </Col>
             </Row>
           </div>

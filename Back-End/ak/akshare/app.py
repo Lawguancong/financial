@@ -121,6 +121,32 @@ def get_fund_fh_rank_em():
             'message': '获取数据失败: {}'.format(str(e))
         })
 
+@app.route('/api/public/fund_individual_achievement_xq', methods=['GET'])
+def get_fund_individual_achievement_xq():
+    """获取雪球基金业绩"""
+    try:
+        symbol = request.args.get('symbol', '000001')
+        result = ak.fund_individual_achievement_xq(symbol=symbol)
+        print("基金业绩原始数据:", result)
+        print("列名:", result.columns.tolist() if hasattr(result, 'columns') else "无")
+        print("数据类型:", result.dtypes if hasattr(result, 'dtypes') else "无")
+        # 重置索引，确保数据格式正确
+        if hasattr(result, 'reset_index'):
+            result = result.reset_index()
+        return jsonify({
+            'success': True,
+            'data': result.to_dict(orient='records'),
+            'message': '获取数据成功'
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'data': None,
+            'message': '获取数据失败: {}'.format(str(e))
+        })
+
 
 # 更多akshare接口可以在这里添加
 

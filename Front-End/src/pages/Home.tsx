@@ -304,11 +304,6 @@ const Home = () => {
   // - ETF基金历史行情(东财): fund_etf_hist_em
   // - LOF基金历史行情(东财): fund_lof_hist_em
 
-  // 新发基金fund_new_found_em 22年的
-  // 封闭式基金// 接口: fund_scale_close_sina
-
-  // 基金资产配置 // 接口: fund_report_asset_allocation_cninfo
-  // 基金规模变动// 接口: fund_scale_change_em
 
   // ==================== REITs ====================
   // - REITs实时行情: reits_realtime_em

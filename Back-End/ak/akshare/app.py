@@ -148,6 +148,41 @@ def get_fund_individual_achievement_xq():
         })
 
 
+@app.route('/api/public/fund_report_asset_allocation_cninfo', methods=['GET'])
+def get_fund_report_asset_allocation_cninfo():
+    """获取基金资产配置数据"""
+    try:
+        result = ak.fund_report_asset_allocation_cninfo().to_dict(orient='records')
+        return jsonify({
+            'success': True,
+            'data': result,
+            'message': '获取数据成功'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'data': None,
+            'message': '获取数据失败: {}'.format(str(e))
+        })
+
+@app.route('/api/public/fund_scale_change_em', methods=['GET'])
+def get_fund_scale_change_em():
+    """获取基金规模变动数据"""
+    try:
+        result = ak.fund_scale_change_em().to_dict(orient='records')
+        return jsonify({
+            'success': True,
+            'data': result,
+            'message': '获取数据成功'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'data': None,
+            'message': '获取数据失败: {}'.format(str(e))
+        })
+
+
 # 更多akshare接口可以在这里添加
 
 if __name__ == '__main__':

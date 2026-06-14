@@ -220,6 +220,18 @@ export const menuConfigs: MenuItemConfig[] = [
               }
             ]
           },
+          {
+            key: 'fund/cn/fund-asset-allocation',
+            label: '基金资产配置',
+            path: 'fund/cn/fund-asset-allocation',
+            component: lazy(() => import('@/pages/fund/cn/fund-asset-allocation')),
+          },
+          {
+            key: 'fund/cn/fund-scale-change',
+            label: '基金规模变动',
+            path: 'fund/cn/fund-scale-change',
+            component: lazy(() => import('@/pages/fund/cn/fund-scale-change')),
+          },
         ],
       },
     ],

@@ -378,7 +378,7 @@ const FundOpen: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 200,
+      width: 100,
       fixed: 'right' as const,
       render: (_, record: FundData) => {
         const isSelected = isFundSelected(record['基金代码']);

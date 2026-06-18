@@ -193,7 +193,7 @@ const Index: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 200,
+      width: 60,
       fixed: 'right' as const,
       render: (_, record: IndexData) => {
         const isSelected = isIndexSelected(record['指数代码']);

@@ -4,24 +4,33 @@ import { useSetState } from 'ahooks';
 import apiClient from '@/utils/axios';
 
 // 通用图表配置生成器
-const createChartConfig = (title: string, subtitle: string, data: any[], color: string, unit: string = '') => ({
-  title: { title, subtitle },
-  data: data || [],
-  xField: 'date',
-  yField: 'value',
-  shapeField: 'smooth',
-  colorField: color,
-  smooth: true,
-  tooltip: {
-    items: [
-      { field: 'date', name: '日期' },
-      { field: 'value', name: title, valueFormatter: (v: any) => {
-        if (v === null || v === undefined || isNaN(Number(v))) return '-';
-        return unit ? `${Number(v).toFixed(2)}${unit}` : Number(v).toFixed(2);
-      }},
-    ],
-  },
-});
+const createChartConfig = (title: string, subtitle: string, data: any[], color: string, unit: string = '') => {
+  const sortedData = [...(data || [])].sort((a, b) => {
+    const da = String(a.date || '').replace(/[年月]/g, (m) => m === '年' ? '-' : '');
+    const db = String(b.date || '').replace(/[年月]/g, (m) => m === '年' ? '-' : '');
+    return da.localeCompare(db);
+  });
+  return {
+    title: { title, subtitle },
+    data: sortedData,
+    xField: 'date',
+    yField: 'value',
+    shapeField: 'smooth',
+    colorField: color,
+    smooth: true,
+    tooltip: {
+      items: [
+        { field: 'date', name: '日期' },
+        {
+          field: 'value', name: title, valueFormatter: (v: any) => {
+            if (v === null || v === undefined || isNaN(Number(v))) return '-';
+            return unit ? `${Number(v).toFixed(2)}${unit}` : Number(v).toFixed(2);
+          }
+        },
+      ],
+    },
+  };
+};
 
 // 通用数据获取Hook
 const useMacroData = (apiEndpoint: string, key: number, dataProcessor: (data: any[]) => any, defaultData: any = {}) => {
@@ -361,11 +370,11 @@ export const Macro_rmb_loan = ({ key }: { key: number }) => {
     const result = { ...defaultData };
     rawData.reverse().forEach((item: any) => {
       const date = item['月份'];
-      result.current.push({ date, value: item['新增人民币贷款-总额'] });
-      result.currentYoy.push({ date, value: item['新增人民币贷款-同比'] });
-      result.currentMom.push({ date, value: item['新增人民币贷款-环比'] });
-      result.cumulative.push({ date, value: item['累计人民币贷款-总额'] });
-      result.cumulativeYoy.push({ date, value: item['累计人民币贷款-同比'] });
+      result.current.push({ date, value: Number(item['新增人民币贷款-总额']) || 0 });
+      result.currentYoy.push({ date, value: parseFloat(String(item['新增人民币贷款-同比']).replace('%', '')) || 0 });
+      result.currentMom.push({ date, value: parseFloat(String(item['新增人民币贷款-环比']).replace('%', '')) || 0 });
+      result.cumulative.push({ date, value: Number(item['累计人民币贷款-总额']) || 0 });
+      result.cumulativeYoy.push({ date, value: parseFloat(String(item['累计人民币贷款-同比']).replace('%', '')) || 0 });
     });
     return result;
   }, defaultData);
@@ -392,15 +401,15 @@ export const Macro_rmb_deposit = ({ key }: { key: number }) => {
     const result = { ...defaultData };
     rawData.reverse().forEach((item: any) => {
       const date = item['月份'];
-      result.total.push({ date, value: item['新增存款-数量'] });
-      result.totalYoy.push({ date, value: item['新增存款-同比'] });
-      result.totalMom.push({ date, value: item['新增存款-环比'] });
-      result.enterprise.push({ date, value: item['新增企业存款-数量'] });
-      result.enterpriseYoy.push({ date, value: item['新增企业存款-同比'] });
-      result.enterpriseMom.push({ date, value: item['新增企业存款-环比'] });
-      result.savings.push({ date, value: item['新增储蓄存款-数量'] });
-      result.savingsYoy.push({ date, value: item['新增储蓄存款-同比'] });
-      result.savingsMom.push({ date, value: item['新增储蓄存款-环比'] });
+      result.total.push({ date, value: Number(item['新增存款-数量']) || 0 });
+      result.totalYoy.push({ date, value: parseFloat(String(item['新增存款-同比']).replace('%', '')) || 0 });
+      result.totalMom.push({ date, value: parseFloat(String(item['新增存款-环比']).replace('%', '')) || 0 });
+      result.enterprise.push({ date, value: Number(item['新增企业存款-数量']) || 0 });
+      result.enterpriseYoy.push({ date, value: parseFloat(String(item['新增企业存款-同比']).replace('%', '')) || 0 });
+      result.enterpriseMom.push({ date, value: parseFloat(String(item['新增企业存款-环比']).replace('%', '')) || 0 });
+      result.savings.push({ date, value: Number(item['新增储蓄存款-数量']) || 0 });
+      result.savingsYoy.push({ date, value: parseFloat(String(item['新增储蓄存款-同比']).replace('%', '')) || 0 });
+      result.savingsMom.push({ date, value: parseFloat(String(item['新增储蓄存款-环比']).replace('%', '')) || 0 });
     });
     return result;
   }, defaultData);

@@ -917,139 +917,63 @@ const Stock_index_pe_lg = () => {
 
 
 const Index = () => {
-  const [activeKey, setActiveKey] = useState('0');
+  const [activeCategory, setActiveCategory] = useState('pe');
+  const [activeItemKey, setActiveItemKey] = useState('0');
   const [refreshKeys, setRefreshKeys] = useState({
-    '0': 0,
-    '1': 0,
-    '2': 0,
-    '3': 0,
-    '4': 0,
-    '5': 0,
-    '6': 0,
-    '7': 0,
+    '0': 0, '1': 0, '2': 0, '3': 0, '4': 0, '5': 0, '6': 0, '7': 0,
   });
 
-  // console.log('refreshKeys, ', refreshKeys)
+  // 创建带刷新按钮的 Tab label（stopPropagation 防止触发 Tab 切换）
+  const createLabel = (text: string, key: string) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <span>{text}</span>
+      <Button
+        icon={<ReloadOutlined />}
+        size="small"
+        onClick={(e) => { e.stopPropagation(); setRefreshKeys(prev => ({ ...prev, [key]: prev[key] + 1 })); }}
+      />
+    </div>
+  );
 
-  const items = [
-    {
-      key: '0',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>中证全指-滚动市盈率</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '0': prev['0'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Stock_zh_index_hist_csindex key={refreshKeys['0']} />, [refreshKeys['0']]),
-    },
-    {
-      key: '1',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>A 股等权重与中位数市盈率</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '1': prev['1'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Stock_a_ttm_lyr key={refreshKeys['1']} />, [refreshKeys['1']]),
-    },
-    {
-      key: '2',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>A 股等权重与中位数市净率</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '2': prev['2'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Stock_a_all_pb key={refreshKeys['2']} />, [refreshKeys['2']]),
-    },
-    {
-      key: '3',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>主板市盈率</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '3': prev['3'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Stock_market_pe_lg key={refreshKeys['3']} />, [refreshKeys['3']]),
-    },
-    {
-      key: '4',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>主板市净率</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '4': prev['4'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Stock_market_pb_lg key={refreshKeys['4']} />, [refreshKeys['4']]),
-    },
-    {
-      key: '5',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>指数市盈率</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '5': prev['5'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Stock_index_pe_lg key={refreshKeys['5']} />, [refreshKeys['5']]),
-    },
-    {
-      key: '6',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>指数市净率</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '6': prev['6'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Stock_index_pb_lg key={refreshKeys['6']} />, [refreshKeys['6']]),
-    },
-    {
-      key: '7',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>A 股股息率</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '7': prev['7'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Stock_a_gxl_lg key={refreshKeys['7']} />, [refreshKeys['7']]),
-    }
+  // 各分类下的子 Tab 项
+  const tabItemsMap: Record<string, { key: string; label: React.ReactNode; children: React.ReactNode }[]> = {
+    pe: [
+      { key: '0', label: createLabel('中证全指-滚动市盈率', '0'), children: useMemo(() => <Stock_zh_index_hist_csindex key={refreshKeys['0']} />, [refreshKeys['0']]) },
+      { key: '1', label: createLabel('A 股等权重与中位数市盈率', '1'), children: useMemo(() => <Stock_a_ttm_lyr key={refreshKeys['1']} />, [refreshKeys['1']]) },
+      { key: '3', label: createLabel('主板市盈率', '3'), children: useMemo(() => <Stock_market_pe_lg key={refreshKeys['3']} />, [refreshKeys['3']]) },
+      { key: '5', label: createLabel('指数市盈率', '5'), children: useMemo(() => <Stock_index_pe_lg key={refreshKeys['5']} />, [refreshKeys['5']]) },
+    ],
+    pb: [
+      { key: '2', label: createLabel('A 股等权重与中位数市净率', '2'), children: useMemo(() => <Stock_a_all_pb key={refreshKeys['2']} />, [refreshKeys['2']]) },
+      { key: '4', label: createLabel('主板市净率', '4'), children: useMemo(() => <Stock_market_pb_lg key={refreshKeys['4']} />, [refreshKeys['4']]) },
+      { key: '6', label: createLabel('指数市净率', '6'), children: useMemo(() => <Stock_index_pb_lg key={refreshKeys['6']} />, [refreshKeys['6']]) },
+    ],
+    dividend: [
+      { key: '7', label: createLabel('A 股股息率', '7'), children: useMemo(() => <Stock_a_gxl_lg key={refreshKeys['7']} />, [refreshKeys['7']]) },
+    ],
+  };
 
+  const categoryItems = [
+    { key: 'pe', label: '市盈率' },
+    { key: 'pb', label: '市净率' },
+    { key: 'dividend', label: '股息率' },
   ];
 
   return (
     <div style={{ padding: '24px' }}>
-      <Tabs activeKey={activeKey} items={items} onChange={setActiveKey} />
+      <Tabs
+        activeKey={activeCategory}
+        onChange={(key) => { setActiveCategory(key); setActiveItemKey(tabItemsMap[key]?.[0]?.key || ''); }}
+        items={categoryItems}
+        type="card"
+        size="small"
+        style={{ marginBottom: 16 }}
+      />
+      <Tabs
+        activeKey={activeItemKey}
+        onChange={setActiveItemKey}
+        items={tabItemsMap[activeCategory] || []}
+      />
     </div>
   );
 };

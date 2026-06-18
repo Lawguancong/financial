@@ -520,7 +520,7 @@ const Stock: React.FC = () => {
   {
     title: '操作',
     key: 'action',
-    width: 200,
+    width: 100,
     fixed: 'right' as const,
     render: (_, record: StockData) => {
       const isSelected = isStockSelected(record['代码']);

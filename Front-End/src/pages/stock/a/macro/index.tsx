@@ -1845,28 +1845,55 @@ const Macro_china_ppi = ({ key }: { key: number }) => {
     currentData: [] as any[],
     yoyData: [] as any[],
     cumulativeData: [] as any[],
+    csiLeftData: [] as any[], // 中证全指 左轴数据
   });
+
+  // 将中文月份格式 "2026年05月月份" 统一为 "YYYY-MM"
+  const normalizePpiDate = (rawDate: string): string => {
+    const m = rawDate.match(/(\d{4})年(\d{1,2})月/);
+    return m ? `${m[1]}-${m[2].padStart(2, '0')}` : rawDate;
+  };
+
+  // 将 ISO 日期截取到月份 "YYYY-MM"
+  const normalizeCsiDate = (isoDate: string): string => isoDate.substring(0, 7);
 
   const fetchData = async () => {
     try {
-      const response = await apiClient.get('/api/public/macro_china_ppi');
-      console.log(`${chartName} -> response`, response);
+      // 并行请求 PPI 数据和中证全指数据
+      const [ppiRes, csiRes] = await Promise.all([
+        apiClient.get('/api/public/macro_china_ppi'),
+        apiClient.get(`/api/public/stock_zh_index_hist_csindex?symbol=000985&start_date=20050101&end_date=${moment().format('YYYYMMDD')}`),
+      ]);
+      console.log(`${chartName} -> ppi response`, ppiRes);
+      console.log(`${chartName} -> csi response`, csiRes);
 
       const currentFormattedData: any[] = [];
       const yoyFormattedData: any[] = [];
       const cumulativeFormattedData: any[] = [];
 
-      (response?.data || [])?.reverse()?.forEach((item: any) => {
-        const date = item['月份'];
+      (ppiRes?.data || [])?.reverse()?.forEach((item: any) => {
+        const date = normalizePpiDate(item['月份']);
         currentFormattedData.push({ date, value: item['当月'] });
         yoyFormattedData.push({ date, value: item['当月同比增长'] });
         cumulativeFormattedData.push({ date, value: item['累计'] });
       });
 
+      // 格式化中证全指数据为 leftData 格式（参考 valuation 的 Stock_zh_index_hist_csindex）
+      const csiSampleRate = 10;
+      const csiFormattedData = (csiRes?.data || [])
+        .filter((_: any, index: number) => index % csiSampleRate === 0)
+        .map((item: any) => ({
+          date: normalizeCsiDate(item['日期']),
+          key: '收盘',
+          label: '中证全指',
+          value: item['收盘'],
+        }));
+
       setData({
         currentData: currentFormattedData,
         yoyData: yoyFormattedData,
         cumulativeData: cumulativeFormattedData,
+        csiLeftData: csiFormattedData,
       });
     } catch (error) {
       console.log('error', error);
@@ -1879,80 +1906,95 @@ const Macro_china_ppi = ({ key }: { key: number }) => {
 
   console.log(`${chartName} -> data`, data);
 
+  // 将单轴 PPI 数据转为 rightData 格式，用于 DualAxes 右轴
+  const toRightData = (rawData: any[], rightLabel: string) =>
+    rawData.map((item) => ({
+      date: item.date,
+      key: 'ppi',
+      label: rightLabel,
+      value: item.value ?? 0,
+    }));
+
   const currentConfig = {
     title: { title: '当月', subtitle: '工业品出厂价格指数当月' },
-    data: data.currentData,
-    xField: 'date',
-    yField: 'value',
-    shapeField: 'smooth',
-    colorField: '#5B8FF9',
-    smooth: true,
-    tooltip: {
-      items: [
-        {
-          field: 'date',
-          name: '日期',
-        },
-        {
-          field: 'value',
-          name: '当月',
-          valueFormatter: (v: any) => v?.toFixed(2),
-        },
-      ],
-    },
+    xField: (d: { date: string }) => new Date(d.date),
+    children: [
+      {
+        data: data.csiLeftData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        style: { stroke: '#5B8FF9', lineWidth: 2 },
+        axis: { y: { title: '中证全指', style: { titleFill: '#5B8FF9' } } },
+      },
+      {
+        data: toRightData(data.currentData, 'PPI 当月'),
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        style: { stroke: '#E8684A', lineWidth: 2 },
+        axis: { y: { position: 'right', title: 'PPI 当月', style: { titleFill: '#E8684A' } } },
+      },
+    ],
   };
 
   const yoyConfig = {
     title: { title: '当月同比增长', subtitle: '工业品出厂价格指数当月同比增长' },
-    data: data.yoyData,
-    xField: 'date',
-    yField: 'value',
-    shapeField: 'smooth',
-    colorField: '#5AD8A6',
-    smooth: true,
-    tooltip: {
-      items: [
-        {
-          field: 'date',
-          name: '日期',
-        },
-        {
-          field: 'value',
-          name: '当月同比增长',
-          valueFormatter: (v: any) => `${v?.toFixed(2)}%`,
-        },
-      ],
-    },
+    xField: (d: { date: string }) => new Date(d.date),
+    children: [
+      {
+        data: data.csiLeftData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        style: { stroke: '#5B8FF9', lineWidth: 2 },
+        axis: { y: { title: '中证全指', style: { titleFill: '#5B8FF9' } } },
+      },
+      {
+        data: toRightData(data.yoyData, 'PPI 同比增长'),
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        style: { stroke: '#5AD8A6', lineWidth: 2 },
+        axis: { y: { position: 'right', title: 'PPI 同比增长(%)', style: { titleFill: '#5AD8A6' } } },
+      },
+    ],
   };
 
   const cumulativeConfig = {
     title: { title: '累计', subtitle: '工业品出厂价格指数累计' },
-    data: data.cumulativeData,
-    xField: 'date',
-    yField: 'value',
-    shapeField: 'smooth',
-    colorField: '#F6BD16',
-    smooth: true,
-    tooltip: {
-      items: [
-        {
-          field: 'date',
-          name: '日期',
-        },
-        {
-          field: 'value',
-          name: '累计',
-          valueFormatter: (v: any) => v?.toFixed(2),
-        },
-      ],
-    },
+    xField: (d: { date: string }) => new Date(d.date),
+    children: [
+      {
+        data: data.csiLeftData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        style: { stroke: '#5B8FF9', lineWidth: 2 },
+        axis: { y: { title: '中证全指', style: { titleFill: '#5B8FF9' } } },
+      },
+      {
+        data: toRightData(data.cumulativeData, 'PPI 累计'),
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        style: { stroke: '#F6BD16', lineWidth: 2 },
+        axis: { y: { position: 'right', title: 'PPI 累计', style: { titleFill: '#F6BD16' } } },
+      },
+    ],
   };
 
   return (
     <div>
-      <Line {...currentConfig} />
-      <Line {...yoyConfig} />
-      <Line {...cumulativeConfig} />
+      <DualAxes {...currentConfig} />
+      <DualAxes {...yoyConfig} />
+      <DualAxes {...cumulativeConfig} />
     </div>
   );
 };
@@ -2222,7 +2264,8 @@ const Macro_china_national_tax_receipts = ({ key }: { key: number }) => {
 };
 
 const Index = () => {
-  const [activeKey, setActiveKey] = useState('33');
+  const [activeCategory, setActiveCategory] = useState('price');
+  const [activeItemKey, setActiveItemKey] = useState('19');
   const [refreshKeys, setRefreshKeys] = useState({
     '1': 0, '2': 0, '3': 0, '4': 0, '5': 0, '6': 0, '7': 0, '8': 0, '9': 0, '10': 0,
     '11': 0, '12': 0, '13': 0, '14': 0, '15': 0, '16': 0, '17': 0, '18': 0, '19': 0, '20': 0,
@@ -2230,463 +2273,96 @@ const Index = () => {
     '31': 0, '32': 0, '33': 0,
   });
 
-  // console.log('refreshKeys, ', refreshKeys)
+  // 创建带刷新按钮的 Tab label（stopPropagation 防止触发 Tab 切换）
+  const createLabel = (text: string, key: string) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <span>{text}</span>
+      <Button
+        icon={<ReloadOutlined />}
+        size="small"
+        onClick={(e) => { e.stopPropagation(); setRefreshKeys(prev => ({ ...prev, [key]: prev[key] + 1 })); }}
+      />
+    </div>
+  );
 
-  const items = [
-    {
-      key: '1',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>国内生产总值GDP</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '1': prev['1'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_gdp key={refreshKeys['1']} />, [refreshKeys['1']]),
-    },
-    {
-      key: '12',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>官方制造业PMI</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '12': prev['12'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_pmi_yearly key={refreshKeys['12']} />, [refreshKeys['12']]),
-    },
-    {
-      key: '13',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>官方非制造业PMI</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '13': prev['13'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_non_man_pmi key={refreshKeys['13']} />, [refreshKeys['13']]),
-    },
-    {
-      key: '14',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>中国M2货币供应年率</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '14': prev['14'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_m2_yearly key={refreshKeys['14']} />, [refreshKeys['14']]),
-    },
-    {
-      key: '15',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>外汇储备</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '15': prev['15'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_fx_reserves_yearly key={refreshKeys['15']} />, [refreshKeys['15']]),
-    },
-    {
-      key: '16',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>企业景气及企业家信心指数</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '16': prev['16'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_enterprise_boom_index key={refreshKeys['16']} />, [refreshKeys['16']]),
-    },
-    {
-      key: '17',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>新增信贷数据</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '17': prev['17'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_new_financial_credit key={refreshKeys['17']} />, [refreshKeys['17']]),
-    },
-    {
-      key: '18',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>居民消费价格指数</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '18': prev['18'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_cpi key={refreshKeys['18']} />, [refreshKeys['18']]),
-    },
-    {
-      key: '19',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>工业品出厂价格指数</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '19': prev['19'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_ppi key={refreshKeys['19']} />, [refreshKeys['19']]),
-    },
-    {
-      key: '20',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>中国城镇固定资产投资</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '20': prev['20'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_gdzctz key={refreshKeys['20']} />, [refreshKeys['20']]),
-    },
-    {
-      key: '21',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>全国税收收入</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '21': prev['21'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_national_tax_receipts key={refreshKeys['21']} />, [refreshKeys['21']]),
-    },
-    {
-      key: '2',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>PMI</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '2': prev['2'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Index_pmi_render key={refreshKeys['2']} />, [refreshKeys['2']]),
-    },
-    {
-      key: '3',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>中国 PPI 年率报告</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '3': prev['3'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_ppi_yearly key={refreshKeys['3']} />, [refreshKeys['3']]),
-    },
-    {
-      key: '4',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>中国 CPI 年率报告</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '4': prev['4'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_cpi_yearly key={refreshKeys['4']} />, [refreshKeys['4']]),
-    },
-    {
-      key: '5',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>LPR品种数据</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '5': prev['5'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_lpr key={refreshKeys['5']} />, [refreshKeys['5']]),
-    },
-    {
-      key: '6',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>城镇调查失业率</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '6': prev['6'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_urban_unemployment key={refreshKeys['6']} />, [refreshKeys['6']]),
-    },
-    {
-      key: '7',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>宏观杠杆率</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '7': prev['7'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_cnbs key={refreshKeys['7']} />, [refreshKeys['7']]),
-    },
-    {
-      key: '8',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>企业商品价格</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '8': prev['8'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_qyspjg key={refreshKeys['8']} />, [refreshKeys['8']]),
-    },
-    {
-      key: '9',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>外商直接投资</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '9': prev['9'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_fdi key={refreshKeys['9']} />, [refreshKeys['9']]),
-    },
-    {
-      key: '10',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>工业增加值</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '10': prev['10'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_gyzjz key={refreshKeys['10']} />, [refreshKeys['10']]),
-    },
-    {
-      key: '11',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>规模以上工业增加值年率</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '11': prev['11'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_industrial_production_yoy key={refreshKeys['11']} />, [refreshKeys['11']]),
-    },
-    {
-      key: '22',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>财政收入</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '22': prev['22'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_czsr key={refreshKeys['22']} />, [refreshKeys['22']]),
-    },
-    {
-      key: '23',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>消费者信心指数</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '23': prev['23'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_xfzxx key={refreshKeys['23']} />, [refreshKeys['23']]),
-    },
-    {
-      key: '24',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>存款准备金率</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '24': prev['24'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_reserve_requirement_ratio key={refreshKeys['24']} />, [refreshKeys['24']]),
-    },
-    {
-      key: '25',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>社会消费品零售总额</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '25': prev['25'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_consumer_goods_retail key={refreshKeys['25']} />, [refreshKeys['25']]),
-    },
-    {
-      key: '26',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>货币供应量</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '26': prev['26'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_supply_of_money key={refreshKeys['26']} />, [refreshKeys['26']]),
-    },
-    {
-      key: '27',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>央行黄金和外汇储备</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '27': prev['27'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_foreign_exchange_gold key={refreshKeys['27']} />, [refreshKeys['27']]),
-    },
-    {
-      key: '28',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>外汇和黄金储备</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '28': prev['28'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_fx_gold key={refreshKeys['28']} />, [refreshKeys['28']]),
-    },
-    {
-      key: '29',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>中国货币供应量</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '29': prev['29'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_money_supply key={refreshKeys['29']} />, [refreshKeys['29']]),
-    },
+  // 各分类下的子 Tab 项定义
+  const tabItemsMap: Record<string, { key: string; label: React.ReactNode; children: React.ReactNode }[]> = {
+    growth: [
+      { key: '1', label: createLabel('国内生产总值GDP', '1'), children: useMemo(() => <Macro_china_gdp key={refreshKeys['1']} />, [refreshKeys['1']]) },
+      { key: '33', label: createLabel('业绩报表', '33'), children: useMemo(() => <Macro_yjbb key={refreshKeys['33']} />, [refreshKeys['33']]) },
+      { key: '10', label: createLabel('工业增加值', '10'), children: useMemo(() => <Macro_china_gyzjz key={refreshKeys['10']} />, [refreshKeys['10']]) },
+      { key: '20', label: createLabel('中国城镇固定资产投资', '20'), children: useMemo(() => <Macro_china_gdzctz key={refreshKeys['20']} />, [refreshKeys['20']]) },
+      { key: '11', label: createLabel('规模以上工业增加值年率', '11'), children: useMemo(() => <Macro_china_industrial_production_yoy key={refreshKeys['11']} />, [refreshKeys['11']]) },
+    ],
+    price: [
+      { key: '18', label: createLabel('居民消费价格指数CPI', '18'), children: useMemo(() => <Macro_china_cpi key={refreshKeys['18']} />, [refreshKeys['18']]) },
+      { key: '19', label: createLabel('工业品出厂价格指数PPI', '19'), children: useMemo(() => <Macro_china_ppi key={refreshKeys['19']} />, [refreshKeys['19']]) },
+      { key: '3', label: createLabel('中国 PPI 年率报告', '3'), children: useMemo(() => <Macro_china_ppi_yearly key={refreshKeys['3']} />, [refreshKeys['3']]) },
+      { key: '4', label: createLabel('中国 CPI 年率报告', '4'), children: useMemo(() => <Macro_china_cpi_yearly key={refreshKeys['4']} />, [refreshKeys['4']]) },
+      { key: '8', label: createLabel('企业商品价格', '8'), children: useMemo(() => <Macro_china_qyspjg key={refreshKeys['8']} />, [refreshKeys['8']]) },
+    ],
+    money: [
+      { key: '14', label: createLabel('中国M2货币供应年率', '14'), children: useMemo(() => <Macro_china_m2_yearly key={refreshKeys['14']} />, [refreshKeys['14']]) },
+      { key: '26', label: createLabel('货币供应量', '26'), children: useMemo(() => <Macro_china_supply_of_money key={refreshKeys['26']} />, [refreshKeys['26']]) },
+      { key: '29', label: createLabel('中国货币供应量', '29'), children: useMemo(() => <Macro_china_money_supply key={refreshKeys['29']} />, [refreshKeys['29']]) },
+      { key: '5', label: createLabel('LPR品种数据', '5'), children: useMemo(() => <Macro_china_lpr key={refreshKeys['5']} />, [refreshKeys['5']]) },
+      { key: '24', label: createLabel('存款准备金率', '24'), children: useMemo(() => <Macro_china_reserve_requirement_ratio key={refreshKeys['24']} />, [refreshKeys['24']]) },
+      { key: '7', label: createLabel('宏观杠杆率', '7'), children: useMemo(() => <Macro_cnbs key={refreshKeys['7']} />, [refreshKeys['7']]) },
+      { key: '17', label: createLabel('新增信贷数据', '17'), children: useMemo(() => <Macro_china_new_financial_credit key={refreshKeys['17']} />, [refreshKeys['17']]) },
+      { key: '31', label: createLabel('新增人民币贷款', '31'), children: useMemo(() => <Macro_rmb_loan key={refreshKeys['31']} />, [refreshKeys['31']]) },
+      { key: '32', label: createLabel('人民币存款余额', '32'), children: useMemo(() => <Macro_rmb_deposit key={refreshKeys['32']} />, [refreshKeys['32']]) },
+    ],
+    fiscal: [
+      { key: '22', label: createLabel('财政收入', '22'), children: useMemo(() => <Macro_china_czsr key={refreshKeys['22']} />, [refreshKeys['22']]) },
+      { key: '21', label: createLabel('全国税收收入', '21'), children: useMemo(() => <Macro_china_national_tax_receipts key={refreshKeys['21']} />, [refreshKeys['21']]) },
+    ],
+    external: [
+      { key: '15', label: createLabel('外汇储备', '15'), children: useMemo(() => <Macro_china_fx_reserves_yearly key={refreshKeys['15']} />, [refreshKeys['15']]) },
+      { key: '27', label: createLabel('央行黄金和外汇储备', '27'), children: useMemo(() => <Macro_china_foreign_exchange_gold key={refreshKeys['27']} />, [refreshKeys['27']]) },
+      { key: '28', label: createLabel('外汇和黄金储备', '28'), children: useMemo(() => <Macro_china_fx_gold key={refreshKeys['28']} />, [refreshKeys['28']]) },
+      { key: '9', label: createLabel('外商直接投资', '9'), children: useMemo(() => <Macro_china_fdi key={refreshKeys['9']} />, [refreshKeys['9']]) },
+    ],
+    employment: [
+      { key: '6', label: createLabel('城镇调查失业率', '6'), children: useMemo(() => <Macro_china_urban_unemployment key={refreshKeys['6']} />, [refreshKeys['6']]) },
+      { key: '23', label: createLabel('消费者信心指数', '23'), children: useMemo(() => <Macro_china_xfzxx key={refreshKeys['23']} />, [refreshKeys['23']]) },
+      { key: '25', label: createLabel('社会消费品零售总额', '25'), children: useMemo(() => <Macro_china_consumer_goods_retail key={refreshKeys['25']} />, [refreshKeys['25']]) },
+      { key: '16', label: createLabel('企业景气及企业家信心指数', '16'), children: useMemo(() => <Macro_china_enterprise_boom_index key={refreshKeys['16']} />, [refreshKeys['16']]) },
+    ],
+    pmi: [
+      { key: '2', label: createLabel('PMI', '2'), children: useMemo(() => <Index_pmi_render key={refreshKeys['2']} />, [refreshKeys['2']]) },
+      { key: '12', label: createLabel('官方制造业PMI', '12'), children: useMemo(() => <Macro_china_pmi_yearly key={refreshKeys['12']} />, [refreshKeys['12']]) },
+      { key: '13', label: createLabel('官方非制造业PMI', '13'), children: useMemo(() => <Macro_china_non_man_pmi key={refreshKeys['13']} />, [refreshKeys['13']]) },
+    ],
+    // consume: [
+    // ],
+  };
 
-    {
-      key: '31',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>新增人民币贷款</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '31': prev['31'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_rmb_loan key={refreshKeys['31']} />, [refreshKeys['31']]),
-    },
-    {
-      key: '32',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>人民币存款余额</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '32': prev['32'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_rmb_deposit key={refreshKeys['32']} />, [refreshKeys['32']]),
-    },
-    {
-      key: '33',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>业绩报表</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '33': prev['33'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_yjbb key={refreshKeys['33']} />, [refreshKeys['33']]),
-    },
+  const categoryItems = [
+    { key: 'growth', label: '经济增长' },
+    { key: 'pmi', label: '采购经理指数' },
+    { key: 'price', label: '价格指数' },
+    { key: 'employment', label: '就业与消费' },
+    { key: 'money', label: '货币金融' },
+    { key: 'fiscal', label: '财政税收' },
+    { key: 'external', label: '对外经济' },
+    // { key: 'consume', label: '消费与业绩' },
   ];
 
   return (
     <div style={{ padding: '24px' }}>
-      <Tabs activeKey={activeKey} items={items} onChange={setActiveKey} />
+      <Tabs
+        activeKey={activeCategory}
+        onChange={(key) => { setActiveCategory(key); setActiveItemKey(tabItemsMap[key]?.[0]?.key || ''); }}
+        items={categoryItems}
+        type="card"
+        size="small"
+        style={{ marginBottom: 16 }}
+      />
+      <Tabs
+        activeKey={activeItemKey}
+        onChange={setActiveItemKey}
+        items={tabItemsMap[activeCategory] || []}
+      />
     </div>
   );
 };

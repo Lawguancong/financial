@@ -9,11 +9,11 @@ import FundHoldings from './FundHoldings';
 import FundDividend from './FundDividend';
 import FundIndustryAllocation from './FundIndustryAllocation';
 import FundAssetAllocation from './FundAssetAllocation';
-import FundManager from './FundManager';
 import FundAnalysis from './FundAnalysis';
 import FundProfitProbability from './FundProfitProbability';
 import FundOverview from './FundOverview';
 import FundAchievement from './FundAchievement';
+import FundPortfolioChange from './FundPortfolioChange';
 import apiClient from '@/utils/axios';
 
 const { TabPane } = Tabs;
@@ -305,7 +305,7 @@ const FundOpenDetail: React.FC = () => {
             <TabPane tab="📊 累计净值走势" key="累计净值走势">
               {useMemo(() => <CumulativeNav symbol={symbol} />, [symbol])}
             </TabPane>
-            <TabPane tab="📋 股票持仓" key="股票持仓">
+            <TabPane tab="📋 基金持仓" key="基金持仓">
               {useMemo(() => <FundHoldings symbol={symbol} />, [symbol])}
             </TabPane>
             <TabPane tab="💰 分红信息" key="分红信息">
@@ -317,9 +317,6 @@ const FundOpenDetail: React.FC = () => {
             <TabPane tab="💼 资产配置" key="资产配置">
               {useMemo(() => <FundAssetAllocation symbol={symbol} />, [symbol])}
             </TabPane>
-            <TabPane tab="👤 基金经理" key="基金经理">
-              {useMemo(() => <FundManager symbol={symbol} />, [symbol])}
-            </TabPane>
             <TabPane tab="📊 基金分析" key="基金分析">
               {useMemo(() => <FundAnalysis symbol={symbol} />, [symbol])}
             </TabPane>
@@ -328,6 +325,9 @@ const FundOpenDetail: React.FC = () => {
             </TabPane>
             <TabPane tab="🏆 基金业绩" key="基金业绩">
               {useMemo(() => <FundAchievement symbol={symbol} />, [symbol])}
+            </TabPane>
+            <TabPane tab="🔄 重大变动" key="重大变动">
+              {useMemo(() => <FundPortfolioChange symbol={symbol} />, [symbol])}
             </TabPane>
           </Tabs>
         </Card>

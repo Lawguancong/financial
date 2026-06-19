@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, Spin, Empty, Row, Col, Tag, Divider } from 'antd';
+import { Card, Spin, Empty, Row, Col, Tag, Divider, Table } from 'antd';
 import {
   BankOutlined,
   FundOutlined,
@@ -9,6 +9,7 @@ import {
   SafetyOutlined,
   RiseOutlined,
   InfoCircleOutlined,
+  TransactionOutlined,
 } from '@ant-design/icons';
 import apiClient from '@/utils/axios';
 
@@ -37,9 +38,18 @@ interface OverviewData {
   跟踪标的: string;
 }
 
+// 交易规则数据接口
+interface TradingRuleItem {
+  费用类型: string;
+  条件或名称: string;
+  费用: number | string;
+}
+
 const FundOverview: React.FC<FundOverviewProps> = ({ symbol }) => {
   const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [tradingRuleData, setTradingRuleData] = useState<TradingRuleItem[]>([]);
+  const [tradingLoading, setTradingLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!symbol) return;
@@ -62,9 +72,33 @@ const FundOverview: React.FC<FundOverviewProps> = ({ symbol }) => {
     }
   }, [symbol]);
 
+  // 获取交易规则数据
+  const fetchTradingRuleData = useCallback(async () => {
+    if (!symbol) return;
+    setTradingLoading(true);
+    try {
+      const response = await apiClient.get('/api/public/fund_individual_detail_info_xq', {
+        params: { symbol },
+      });
+      console.log('交易规则 -> response', response);
+      const rawData = response?.data;
+      if (Array.isArray(rawData)) {
+        setTradingRuleData(rawData as TradingRuleItem[]);
+      } else {
+        setTradingRuleData([]);
+      }
+    } catch (error) {
+      console.error('获取交易规则失败:', error);
+      setTradingRuleData([]);
+    } finally {
+      setTradingLoading(false);
+    }
+  }, [symbol]);
+
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+    fetchTradingRuleData();
+  }, [fetchData, fetchTradingRuleData]);
 
   const getFundTypeColor = (type: string) => {
     if (type?.includes('股票')) return 'red';
@@ -164,9 +198,7 @@ const FundOverview: React.FC<FundOverviewProps> = ({ symbol }) => {
               <Col xs={24} sm={12}>
                 {renderInfoItem(<CalendarOutlined />, '发行日期', data.发行日期, '#52c41a')}
               </Col>
-              <Col xs={24} sm={12}>
-                {renderInfoItem(<CalendarOutlined />, '成立日期/规模', data['成立日期/规模'], '#fa8c16')}
-              </Col>
+
             </Row>
           </div>
 
@@ -179,6 +211,9 @@ const FundOverview: React.FC<FundOverviewProps> = ({ symbol }) => {
               <span>规模信息</span>
             </div>
             <Row gutter={[12, 12]}>
+              <Col xs={24} sm={12}>
+                {renderInfoItem(<CalendarOutlined />, '成立日期/规模', data['成立日期/规模'], '#fa8c16')}
+              </Col>
               <Col xs={24} sm={12}>
                 {renderInfoItem(<DollarOutlined />, '净资产规模', data.净资产规模, '#f5222d')}
               </Col>
@@ -236,6 +271,60 @@ const FundOverview: React.FC<FundOverviewProps> = ({ symbol }) => {
 
           <Divider style={{ margin: '8px 0' }} />
 
+          {/* 交易规则区 */}
+          <Spin spinning={tradingLoading}>
+            {tradingRuleData.length > 0 && (
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 500, color: '#333', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <TransactionOutlined />
+                  <span>交易规则</span>
+                </div>
+                <Table
+                  dataSource={tradingRuleData}
+                  rowKey={(_, index) => String(index)}
+                  size="small"
+                  pagination={false}
+                  columns={[
+                    {
+                      title: '费用类型',
+                      dataIndex: '费用类型',
+                      width: 100,
+                      render: (text: string) => {
+                        const colorMap: Record<string, string> = {
+                          '买入规则': '#1890ff',
+                          '卖出规则': '#f5222d',
+                          '其他费用': '#52c41a',
+                        };
+                        return (
+                          <Tag color={colorMap[text] || 'default'}>{text}</Tag>
+                        );
+                      },
+                    },
+                    {
+                      title: '条件或名称',
+                      dataIndex: '条件或名称',
+                      width: 200,
+                    },
+                    {
+                      title: '费用',
+                      dataIndex: '费用',
+                      width: 120,
+                      render: (value: number | string) => {
+                        const num = Number(value);
+                        if (num < 100) {
+                          return `${num.toFixed(2)}%`;
+                        }
+                        return typeof value === 'number' ? `${num.toFixed(2)}元` : value;
+                      },
+                    },
+                  ]}
+                />
+              </div>
+            )}
+          </Spin>
+
+          <Divider style={{ margin: '8px 0' }} />
+
           {/* 费率信息区 */}
           <div>
             <div style={{ fontSize: '14px', fontWeight: 500, color: '#333', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -243,18 +332,30 @@ const FundOverview: React.FC<FundOverviewProps> = ({ symbol }) => {
               <span>费率信息</span>
             </div>
             <Row gutter={[12, 12]}>
-              <Col xs={24} sm={8}>
+              <Col xs={24} sm={12}>
                 {renderInfoItem(<SafetyOutlined />, '管理费率', data.管理费率, '#f5222d')}
               </Col>
-              <Col xs={24} sm={8}>
+              <Col xs={24} sm={12}>
                 {renderInfoItem(<SafetyOutlined />, '托管费率', data.托管费率, '#fa8c16')}
               </Col>
-              <Col xs={24} sm={8}>
+              <Col xs={24} sm={12}>
                 {renderInfoItem(<SafetyOutlined />, '销售服务费率', data.销售服务费率, '#52c41a')}
               </Col>
               <Col xs={24} sm={12}>
                 {renderInfoItem(<RiseOutlined />, '最高认购费率', data.最高认购费率, '#722ed1')}
               </Col>
+            </Row>
+          </div>
+
+
+
+
+          <div>
+            <div style={{ fontSize: '14px', fontWeight: 500, color: '#333', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <SafetyOutlined />
+              <span>分红信息</span>
+            </div>
+            <Row gutter={[12, 12]}>
               <Col xs={24} sm={12}>
                 {renderInfoItem(<RiseOutlined />, '成立来分红', data.成立来分红, '#eb2f96')}
               </Col>

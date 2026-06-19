@@ -208,7 +208,7 @@ export const menuConfigs: MenuItemConfig[] = [
           },
           {
             key: 'fund/cn/open',
-            label: '开放式基金',
+            label: '基金列表',
             path: 'fund/cn/open',
             component: lazy(() => import('@/pages/fund/cn/open')),
             children: [
@@ -232,6 +232,7 @@ export const menuConfigs: MenuItemConfig[] = [
             path: 'fund/cn/fund-scale-change',
             component: lazy(() => import('@/pages/fund/cn/fund-scale-change')),
           },
+          
         ],
       },
     ],

@@ -65,13 +65,13 @@ const FundFilterPanel: React.FC = () => {
   const [sinceInceptionRange, setSinceInceptionRange] = useState<[number, number]>([-100, 3000]);
 
   const columns = [
-    {
-      title: '序号',
-      dataIndex: '序号',
-      key: '序号',
-      width: 80,
-      fixed: 'left' as const,
-    },
+    // {
+    //   title: '序号',
+    //   dataIndex: '序号',
+    //   key: '序号',
+    //   width: 80,
+    //   fixed: 'left' as const,
+    // },
     {
       title: '基金代码',
       dataIndex: '基金代码',

@@ -2264,8 +2264,8 @@ const Macro_china_national_tax_receipts = ({ key }: { key: number }) => {
 };
 
 const Index = () => {
-  const [activeCategory, setActiveCategory] = useState('price');
-  const [activeItemKey, setActiveItemKey] = useState('19');
+  const [activeCategory, setActiveCategory] = useState('growth');
+  const [activeItemKey, setActiveItemKey] = useState('33');
   const [refreshKeys, setRefreshKeys] = useState({
     '1': 0, '2': 0, '3': 0, '4': 0, '5': 0, '6': 0, '7': 0, '8': 0, '9': 0, '10': 0,
     '11': 0, '12': 0, '13': 0, '14': 0, '15': 0, '16': 0, '17': 0, '18': 0, '19': 0, '20': 0,
@@ -2288,8 +2288,8 @@ const Index = () => {
   // 各分类下的子 Tab 项定义
   const tabItemsMap: Record<string, { key: string; label: React.ReactNode; children: React.ReactNode }[]> = {
     growth: [
-      { key: '1', label: createLabel('国内生产总值GDP', '1'), children: useMemo(() => <Macro_china_gdp key={refreshKeys['1']} />, [refreshKeys['1']]) },
       { key: '33', label: createLabel('业绩报表', '33'), children: useMemo(() => <Macro_yjbb key={refreshKeys['33']} />, [refreshKeys['33']]) },
+      { key: '1', label: createLabel('国内生产总值GDP', '1'), children: useMemo(() => <Macro_china_gdp key={refreshKeys['1']} />, [refreshKeys['1']]) },
       { key: '10', label: createLabel('工业增加值', '10'), children: useMemo(() => <Macro_china_gyzjz key={refreshKeys['10']} />, [refreshKeys['10']]) },
       { key: '20', label: createLabel('中国城镇固定资产投资', '20'), children: useMemo(() => <Macro_china_gdzctz key={refreshKeys['20']} />, [refreshKeys['20']]) },
       { key: '11', label: createLabel('规模以上工业增加值年率', '11'), children: useMemo(() => <Macro_china_industrial_production_yoy key={refreshKeys['11']} />, [refreshKeys['11']]) },

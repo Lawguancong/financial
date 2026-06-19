@@ -107,7 +107,7 @@ const FundHoldings: React.FC<FundHoldingsProps> = ({ symbol }) => {
       width: 120,
       render: (name: string, record: StockHolding) => (
         <Link
-          to={`/stock/a/stock/detail?symbol=${record.股票代码}`}
+          to={`/stock/a/stock/detail?symbol=${record.股票代码}&name=${encodeURIComponent(record.股票名称 || '')}`}
           style={{ color: '#333', fontWeight: 600 }}
         >
           {name}

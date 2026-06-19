@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Table, Button } from 'antd';
+import React, { useState, useMemo } from 'react';
+import { Table, Button, Input } from 'antd';
 import apiClient from '@/utils/axios';
 import { createRangeFilter, numberSorter } from '@/utils/tableUtils';
 
@@ -68,14 +68,49 @@ const StockHistoryDividend: React.FC = () => {
       key: '代码',
       width: 100,
       align: 'center',
+      filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }) => (
+        <div style={{ padding: 8 }}>
+          <Input
+            placeholder="搜索代码"
+            value={selectedKeys[0] as string}
+            onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+            onPressEnter={confirm}
+            style={{ width: 120, marginBottom: 8 }}
+          />
+          <Button type="primary" onClick={confirm} size="small" style={{ marginRight: 8 }}>确定</Button>
+          <Button onClick={() => { clearFilters(); confirm(); }} size="small">重置</Button>
+        </div>
+      ),
+      onFilter: (value: React.Key | boolean, record: DividendData) =>
+        record['代码']?.toLowerCase().includes(String(value).toLowerCase()),
+      render: (text: string, record: DividendData) => (
+        <a onClick={() => window.open(`/stock/a/stock/detail?symbol=${record.代码}&name=${encodeURIComponent(record.名称 || '')}`, '_blank')}>{text}</a>
+      ),
     },
-    // todo 点击名称跳转详情页 stock_dividend_cninfo 单次获取指定股票的历史分红数据
     {
       title: '名称',
       dataIndex: '名称',
       key: '名称',
       width: 120,
       align: 'center',
+      filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }) => (
+        <div style={{ padding: 8 }}>
+          <Input
+            placeholder="搜索名称"
+            value={selectedKeys[0] as string}
+            onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+            onPressEnter={confirm}
+            style={{ width: 120, marginBottom: 8 }}
+          />
+          <Button type="primary" onClick={confirm} size="small" style={{ marginRight: 8 }}>确定</Button>
+          <Button onClick={() => { clearFilters(); confirm(); }} size="small">重置</Button>
+        </div>
+      ),
+      onFilter: (value: React.Key | boolean, record: DividendData) =>
+        record['名称']?.toLowerCase().includes(String(value).toLowerCase()),
+      render: (text: string, record: DividendData) => (
+        <a onClick={() => window.open(`/stock/a/stock/detail?symbol=${record.代码}&name=${encodeURIComponent(record.名称 || '')}`, '_blank')}>{text}</a>
+      ),
     },
     {
       title: '上市日期',

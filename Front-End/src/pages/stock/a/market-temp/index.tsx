@@ -626,7 +626,7 @@ const Stock_a_congestion_lg = ({ key }: { key: number }) => {
 
 
 const Index: React.FC = () => {
-  const [activeKey, setActiveKey] = useState('4');
+  const [activeKey, setActiveKey] = useState('1');
   const [refreshKeys, setRefreshKeys] = useState({
     '1': 0,
     '2': 0,
@@ -669,6 +669,34 @@ const Index: React.FC = () => {
       children: useMemo(() => <Stock_ebs_lg key={refreshKeys['2']} />, [refreshKeys['2']]),
     },
     {
+      key: '4',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>两融账户信息</span>
+          <Button
+            icon={<ReloadOutlined />}
+            size="small"
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '4': prev['4'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <Stock_margin_account_info key={refreshKeys['4']} />, [refreshKeys['4']]),
+    },
+    {
+      key: '6',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>全国股票交易统计表</span>
+          <Button
+            icon={<ReloadOutlined />}
+            size="small"
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '6': prev['6'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <Macro_china_stock_market_cap key={refreshKeys['6']} />, [refreshKeys['6']]),
+    },
+    {
       key: '3',
       label: (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -696,20 +724,7 @@ const Index: React.FC = () => {
         ));
       }, [refreshKeys['3']]),
     },
-    {
-      key: '4',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>两融账户信息</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '4': prev['4'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Stock_margin_account_info key={refreshKeys['4']} />, [refreshKeys['4']]),
-    },
+
     {
       key: '5',
       label: (
@@ -724,20 +739,7 @@ const Index: React.FC = () => {
       ),
       children: useMemo(() => <Stock_a_congestion_lg key={refreshKeys['5']} />, [refreshKeys['5']]),
     },
-    {
-      key: '6',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>全国股票交易统计表</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '6': prev['6'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_stock_market_cap key={refreshKeys['6']} />, [refreshKeys['6']]),
-    },
+
   ];
 
   return (

@@ -58,18 +58,21 @@ const StockDetail: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [adjust, setAdjust] = useState<string>('hfq');
   const [period, setPeriod] = useState<string>('daily');
-  const [symbolInfo, setSymbolInfo] = useState<Record<string, string>>({});
+  // const [symbolInfo, setSymbolInfo] = useState<Record<string, string>>({});
   const [rawData, setRawData] = useState<StockDetailData[]>([]);
   const [activeTab, setActiveTab] = useState<string>('valuation');
 
   const [searchParams] = useSearchParams();
   const symbol = searchParams.get('symbol') || '';
+  const name = decodeURIComponent(searchParams.get('name') || '') || '';
+
+
 
   // 缓存股票基本信息
-  const stockTitle = useMemo(() => ({
-    name: symbolInfo?.['股票简称'] || '',
-    code: symbolInfo?.['股票代码'] || symbol,
-  }), [symbolInfo, symbol]);
+  // const stockTitle = useMemo(() => ({
+  //   name: symbolInfo?.['股票简称'] || '',
+  //   code: symbolInfo?.['股票代码'] || symbol,
+  // }), [symbolInfo, symbol]);
 
   // 数据获取函数 - 使用 useCallback 缓存
   const fetchStockDetail = useCallback(async () => {
@@ -80,30 +83,30 @@ const StockDetail: React.FC = () => {
       const params: Record<string, string> = { symbol, period };
       if (adjust) params.adjust = adjust;
 
-      const [response1, response2] = await Promise.all([
+      const [response1] = await Promise.all([
         apiClient.get('/api/public/stock_zh_a_hist', { params }),
-        apiClient.get('/api/public/stock_individual_info_em', { params: { symbol } }),
+        // apiClient.get('/api/public/stock_individual_info_em', { params: { symbol } }),
       ]);
 
       const newData = response1?.data || [];
       // 当 adjust 变化时，即使日期范围相同，也需要更新数据
       setRawData(newData);
 
-      const newSymbolInfo = response2?.data?.reduce(
-        (acc: Record<string, string>, curr: { item: string; value: string }) => {
-          acc[curr.item] = curr.value;
-          return acc;
-        },
-        {}
-      ) || {};
+      // const newSymbolInfo = response2?.data?.reduce(
+      //   (acc: Record<string, string>, curr: { item: string; value: string }) => {
+      //     acc[curr.item] = curr.value;
+      //     return acc;
+      //   },
+      //   {}
+      // ) || {};
       
-      setSymbolInfo(prev => {
-        if (prev['股票简称'] === newSymbolInfo['股票简称'] && 
-            prev['股票代码'] === newSymbolInfo['股票代码']) {
-          return prev;
-        }
-        return newSymbolInfo;
-      });
+      // setSymbolInfo(prev => {
+      //   if (prev['股票简称'] === newSymbolInfo['股票简称'] && 
+      //       prev['股票代码'] === newSymbolInfo['股票代码']) {
+      //     return prev;
+      //   }
+      //   return newSymbolInfo;
+      // });
     } catch (error) {
       console.error('fetchStockDetail error:', error);
     } finally {
@@ -206,7 +209,7 @@ const StockDetail: React.FC = () => {
       <Card style={headerCardStyle}>
         <div style={headerFlexStyle}>
           <Title level={4} style={titleStyle}>
-            {stockTitle.name}({stockTitle.code})
+            {name}({symbol})
           </Title>
           <div style={radioGroupStyle}>
             <Radio.Group value={period} onChange={handlePeriodChange}>

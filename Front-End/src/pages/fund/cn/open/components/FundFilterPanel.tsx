@@ -29,7 +29,7 @@ interface FundData {
   手续费: string;
   RSI6月: number;
   RSI6季: number;
-  __推荐买点__: number;
+  __推荐买点__: string;
 }
 
 const fundTypeOptions = [
@@ -42,7 +42,20 @@ const fundTypeOptions = [
   { label: 'FOF', value: 'FOF' },
 ];
 
-const FundFilterPanel: React.FC = () => {
+interface FundFilterPanelProps {
+  /** 添加自选回调 */
+  onAddToSelected?: (fund: FundData) => void;
+  /** 取消自选回调 */
+  onRemoveFromSelected?: (fund: FundData) => void;
+  /** 判断基金是否已选中 */
+  isFundSelected?: (fundCode: string) => boolean;
+}
+
+const FundFilterPanel: React.FC<FundFilterPanelProps> = ({
+  onAddToSelected,
+  onRemoveFromSelected,
+  isFundSelected,
+}) => {
   const [fundType, setFundType] = useState<string>('全部');
   const [data, setData] = useState<FundData[]>([]);
   const [loading, setLoading] = useState(false);
@@ -352,6 +365,25 @@ const FundFilterPanel: React.FC = () => {
         );
       },
     },
+    // 操作列：添加/取消自选（仅在有回调函数时显示）
+    ...(onAddToSelected && onRemoveFromSelected && isFundSelected ? [{
+      title: '操作',
+      key: 'action',
+      width: 120,
+      fixed: 'right' as const,
+      render: (_: unknown, record: FundData) => {
+        const isSelected = isFundSelected(record['基金代码']);
+        return (
+          <Button
+            type={isSelected ? 'default' : 'primary'}
+            size="small"
+            onClick={() => isSelected ? onRemoveFromSelected(record) : onAddToSelected(record)}
+          >
+            {isSelected ? '取消自选' : '添加到自选'}
+          </Button>
+        );
+      },
+    }] : []),
   ];
 
   const fetchFundDetailAndCalculate = async (fundCode: string): Promise<{ RSI6月: number; RSI6季: number; __推荐买点__: number } | null> => {

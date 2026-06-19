@@ -262,7 +262,11 @@ const OpenFundPanel: React.FC<OpenFundPanelProps> = ({
         </Spin>
       </TabPane>
       <TabPane tab="筛选" key="filtered">
-        <FundFilterPanel />
+        <FundFilterPanel
+          onAddToSelected={onAddToSelected}
+          onRemoveFromSelected={onRemoveFromSelected}
+          isFundSelected={isFundSelected}
+        />
       </TabPane>
     </Tabs>
   );

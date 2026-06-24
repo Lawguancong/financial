@@ -68,9 +68,32 @@ const FundOpen: React.FC = () => {
   // 自选基金表格列（复用开放式基金的列结构，简化版）
   const selectedColumns = [
     // { title: '序号', dataIndex: '序号', key: '序号', width: 80 },
-    { title: '基金代码', dataIndex: '基金代码', key: '基金代码', width: 120 },
-    { title: '基金简称', dataIndex: '基金名称', key: '基金名称', width: 200,
-      render: (_: unknown, record: FundData) => record['基金名称'] || record['基金简称'] || '-' },
+    {
+      title: '基金代码',
+      dataIndex: '基金代码',
+      key: '基金代码',
+      width: 120,
+      render: (code: string, record: FundData) => (
+        <a onClick={() => window.open(`/fund/cn/open/detail?symbol=${code}`, '_blank')}>
+          {code}
+        </a>
+      ),
+    },
+    {
+      title: '基金名称',
+      dataIndex: '基金名称',
+      key: '基金名称',
+      width: 200,
+      render: (_: unknown, record: FundData) => {
+        const name = record['基金名称'] || record['基金简称'] || '-';
+        const code = record['基金代码'];
+        return (
+          <a onClick={() => window.open(`/fund/cn/open/detail?symbol=${code}`, '_blank')}>
+            {name}
+          </a>
+        );
+      },
+    },
     { title: '日期', dataIndex: '日期', key: '日期', width: 120,
       render: (v: string) => v ? moment(v).format('YYYY-MM-DD') : '-' },
     { title: '单位净值', dataIndex: '单位净值', key: '单位净值', width: 100,

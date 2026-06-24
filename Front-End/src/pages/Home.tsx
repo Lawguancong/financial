@@ -288,16 +288,6 @@ const Home = () => {
   // 原油RSI6
   // 大宗商品RSI6
 
-
-  // 【基金行情】
-  // - ETF基金实时行情(东财): fund_etf_spot_em (代码、名称、最新价、IOPV估值、折价率、成交量等)
-  // - 基金实时行情(同花顺): fund_etf_category_ths (symbol=类型，date=日期，返回净值、增长率等)
-  // - ETF基金实时行情(同花顺): fund_etf_spot_ths (date=日期)
-  // - LOF基金实时行情(东财): fund_lof_spot_em
-  // - ETF基金历史行情(东财): fund_etf_hist_em
-  // - LOF基金历史行情(东财): fund_lof_hist_em
-
-
   // ==================== REITs ====================
   // - REITs实时行情: reits_realtime_em
   // - REITs历史行情: reits_hist_em
@@ -308,6 +298,11 @@ const Home = () => {
 
   // ==================== 港股 ====================
   // A+H  实时行情数据-腾讯 接口: stock_zh_ah_spot
+
+  // ==================== A股 技术指标 ====================
+
+  // 回撤率创新高/回撤率百分位（指数、基金、个股、红利、低波）
+
   return (
     <>
       {/* 演示图表 */}

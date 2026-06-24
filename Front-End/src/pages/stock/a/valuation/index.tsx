@@ -1,5 +1,5 @@
 import { DualAxes } from '@ant-design/plots';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import axios from 'axios';
 import { pick } from 'lodash-es';
 import { Tabs, Button, } from 'antd';
@@ -115,7 +115,14 @@ const Stock_zh_index_hist_csindex = () => {
 
 const Stock_a_gxl_lg = () => {
   const symbols = ["上证A股", "深证A股", "创业板", "科创板"]
-  const Stock_a_gxl_lg_Mapping = ({ symbol }: { symbol: string }) => {
+  const refs = useRef<({ fetchData: () => void })[]>([]);
+
+  const handleRefresh = useCallback((symbol: string) => {
+    const index = symbols.indexOf(symbol);
+    refs.current[index]?.fetchData();
+  }, [symbols]);
+
+  const Stock_a_gxl_lg_Mapping = forwardRef<{ fetchData: () => void }, { symbol: string }>(({ symbol }, ref) => {
     const chartName = `${symbol} 股息率`; // 图表名称
     const dateKey = '日期' // 日期键名
     const dateName = '日期' // 日期键名
@@ -168,6 +175,10 @@ const Stock_a_gxl_lg = () => {
       fetchData();
     }, []);
 
+    useImperativeHandle(ref, () => ({
+      fetchData,
+    }));
+
     console.log(`${chartName} -> data`, data)
     const config = {
       title: {
@@ -212,16 +223,31 @@ const Stock_a_gxl_lg = () => {
       ],
     };
 
-    return <>
-      <DualAxes {...config} />
-    </>
-  };
+    return (
+      <>
+        <DualAxes {...config} />
+      </>
+    );
+  });
 
 
   return <>
-    {useMemo(() => symbols.map((symbol) => (
-      <Stock_a_gxl_lg_Mapping key={symbol} symbol={symbol} />
-    )), [symbols])}
+    {useMemo(() => <Tabs defaultActiveKey={symbols[0]} type="card" size="small" items={symbols.map((symbol, index) => ({
+      key: symbol,
+      label: (
+        <span>
+          {symbol}
+          <Button
+            type="text"
+            size="small"
+            icon={<ReloadOutlined />}
+            onClick={() => handleRefresh(symbol)}
+            style={{ marginLeft: 4 }}
+          />
+        </span>
+      ),
+      children: <Stock_a_gxl_lg_Mapping symbol={symbol} ref={(el) => { refs.current[index] = el as { fetchData: () => void } }} />,
+    }))} />, [symbols])}
   </>
 }
 
@@ -450,9 +476,14 @@ const Stock_a_all_pb = () => {
 
 const Stock_market_pe_lg = () => {
   const symbols = ["上证", "深证", "创业板", "科创版"]
-  // 科创版 返回的数据结构不统一
+  const refs = useRef<({ fetchData: () => void })[]>([]);
 
-  const RenderDualAxes = ({ symbol }: { symbol: string }) => {
+  const handleRefresh = useCallback((symbol: string) => {
+    const index = symbols.indexOf(symbol);
+    refs.current[index]?.fetchData();
+  }, [symbols]);
+
+  const RenderDualAxes = forwardRef<{ fetchData: () => void }, { symbol: string }>(({ symbol }, ref) => {
     const chartName = `${symbol} 市盈率`; // 图表名称
     const dateKey = '日期' // 日期键名
     const dateName = '日期' // 日期键名
@@ -460,6 +491,8 @@ const Stock_market_pe_lg = () => {
     const leftName = symbol // 左y轴名称
     const rightKeys = { // 右y轴键名: 右y轴名称
       平均市盈率: '平均市盈率',
+      // 市盈率: '市盈率',
+      // 总市值: '总市值',
     }
     const sampleRate = 1; // 抽样率
     type DataRes = {
@@ -486,7 +519,11 @@ const Stock_market_pe_lg = () => {
       try {
         const response = await apiClient.get(`/api/public/stock_market_pe_lg?symbol=${symbol}`)
         console.log(`${chartName} -> response`, response)
-        const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
+        const dataFormat = response?.data?.map((item: DataRes) => ({
+          ...item,
+          平均市盈率: item.平均市盈率 || item.市盈率,
+          指数: item.指数 || item.总市值, // 科创板：只有总市值、没有指数
+        }))?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
           date: item[dateKey],
           key,
           label: labelMap[key as keyof typeof labelMap],
@@ -504,6 +541,10 @@ const Stock_market_pe_lg = () => {
     useEffect(() => {
       fetchData();
     }, []);
+
+    useImperativeHandle(ref, () => ({
+      fetchData,
+    }));
 
     console.log(`${chartName} -> data`, data)
     const config = {
@@ -552,22 +593,40 @@ const Stock_market_pe_lg = () => {
     return <>
       <DualAxes {...config} />
     </>
-  };
+  });
 
 
   return <>
-    {useMemo(() => symbols.map((symbol) => (
-      <RenderDualAxes key={symbol} symbol={symbol} />
-    )), [symbols])}
+    {useMemo(() => <Tabs defaultActiveKey={symbols[0]} type="card" size="small" items={symbols.map((symbol, index) => ({
+      key: symbol,
+      label: (
+        <span>
+          {symbol}
+          <Button
+            type="text"
+            size="small"
+            icon={<ReloadOutlined />}
+            onClick={() => handleRefresh(symbol)}
+            style={{ marginLeft: 4 }}
+          />
+        </span>
+      ),
+      children: <RenderDualAxes symbol={symbol} ref={(el) => { refs.current[index] = el as { fetchData: () => void } }} />,
+    }))} />, [symbols])}
   </>
 };
 
 
 const Stock_market_pb_lg = () => {
   const symbols = ["上证", "深证", "创业板", "科创版"]
-  // 科创版 返回的数据结构不统一
+  const refs = useRef<({ fetchData: () => void })[]>([]);
 
-  const RenderDualAxes = ({ symbol }: { symbol: string }) => {
+  const handleRefresh = useCallback((symbol: string) => {
+    const index = symbols.indexOf(symbol);
+    refs.current[index]?.fetchData();
+  }, [symbols]);
+
+  const RenderDualAxes = forwardRef<{ fetchData: () => void }, { symbol: string }>(({ symbol }, ref) => {
     const chartName = `${symbol} 市净率`; // 图表名称
     const dateKey = '日期' // 日期键名
     const dateName = '日期' // 日期键名
@@ -622,6 +681,10 @@ const Stock_market_pb_lg = () => {
       fetchData();
     }, []);
 
+    useImperativeHandle(ref, () => ({
+      fetchData,
+    }));
+
     console.log(`${chartName} -> data`, data)
     const config = {
       title: {
@@ -666,24 +729,44 @@ const Stock_market_pb_lg = () => {
       ],
     };
 
-    return <>
-      <DualAxes {...config} />
-    </>
-  };
+    return (
+      <>
+        <DualAxes {...config} />
+      </>
+    );
+  });
 
 
   return <>
-    {useMemo(() => symbols.map((symbol) => (
-      <RenderDualAxes key={symbol} symbol={symbol} />
-    )), [symbols])}
+    {useMemo(() => <Tabs defaultActiveKey={symbols[0]} type="card" size="small" items={symbols.map((symbol, index) => ({
+      key: symbol,
+      label: (
+        <span>
+          {symbol}
+          <Button
+            type="text"
+            size="small"
+            icon={<ReloadOutlined />}
+            onClick={() => handleRefresh(symbol)}
+            style={{ marginLeft: 4 }}
+          />
+        </span>
+      ),
+      children: <RenderDualAxes symbol={symbol} ref={(el) => { refs.current[index] = el as { fetchData: () => void } }} />,
+    }))} />, [symbols])}
   </>
 };
 
 const Stock_index_pb_lg = () => {
-  const symbols = ["上证50", "沪深300", "上证380", "创业板50", "中证500", "上证180", "深证红利", "深证100", "中证1000", "上证红利", "中证100", "中证800"]
-  // 科创版 返回的数据结构不统一
+  const symbols = ["上证50", "创业板50", "中证100",  "深证100", "上证180", "沪深300", "上证380", "中证500", "中证800", "中证1000","深证红利","上证红利" ]
+  const refs = useRef<({ fetchData: () => void })[]>([]);
 
-  const RenderDualAxes = ({ symbol }: { symbol: string }) => {
+  const handleRefresh = useCallback((symbol: string) => {
+    const index = symbols.indexOf(symbol);
+    refs.current[index]?.fetchData();
+  }, [symbols]);
+
+  const RenderDualAxes = forwardRef<{ fetchData: () => void }, { symbol: string }>(({ symbol }, ref) => {
     const chartName = `${symbol} 市净率`; // 图表名称
     const dateKey = '日期' // 日期键名
     const dateName = '日期' // 日期键名
@@ -738,6 +821,10 @@ const Stock_index_pb_lg = () => {
       fetchData();
     }, []);
 
+    useImperativeHandle(ref, () => ({
+      fetchData,
+    }));
+
     console.log(`${chartName} -> data`, data)
     const config = {
       title: {
@@ -782,25 +869,45 @@ const Stock_index_pb_lg = () => {
       ],
     };
 
-    return <>
-      <DualAxes {...config} />
-    </>
-  };
+    return (
+      <>
+        <DualAxes {...config} />
+      </>
+    );
+  });
 
 
   return <>
-    {useMemo(() => symbols.map((symbol) => (
-      <RenderDualAxes key={symbol} symbol={symbol} />
-    )), [symbols])}
+    {useMemo(() => <Tabs defaultActiveKey={symbols[0]} type="card" size="small" items={symbols.map((symbol, index) => ({
+      key: symbol,
+      label: (
+        <span>
+          {symbol}
+          <Button
+            type="text"
+            size="small"
+            icon={<ReloadOutlined />}
+            onClick={() => handleRefresh(symbol)}
+            style={{ marginLeft: 4 }}
+          />
+        </span>
+      ),
+      children: <RenderDualAxes symbol={symbol} ref={(el) => { refs.current[index] = el as { fetchData: () => void } }} />,
+    }))} />, [symbols])}
   </>
 };
 
 
 const Stock_index_pe_lg = () => {
-  const symbols = ["上证50", "沪深300", "上证380", "创业板50", "中证500", "上证180", "深证红利", "深证100", "中证1000", "上证红利", "中证100", "中证800"]
-  // 科创版 返回的数据结构不统一
+  const symbols = ["上证50", "创业板50", "中证100",  "深证100", "上证180", "沪深300", "上证380", "中证500", "中证800", "中证1000","深证红利","上证红利" ]
+  const refs = useRef<({ fetchData: () => void })[]>([]);
 
-  const RenderDualAxes = ({ symbol }: { symbol: string }) => {
+  const handleRefresh = useCallback((symbol: string) => {
+    const index = symbols.indexOf(symbol);
+    refs.current[index]?.fetchData();
+  }, [symbols]);
+
+  const RenderDualAxes = forwardRef<{ fetchData: () => void }, { symbol: string }>(({ symbol }, ref) => {
     const chartName = `${symbol} 市盈率`; // 图表名称
     const dateKey = '日期' // 日期键名
     const dateName = '日期' // 日期键名
@@ -858,6 +965,10 @@ const Stock_index_pe_lg = () => {
       fetchData();
     }, []);
 
+    useImperativeHandle(ref, () => ({
+      fetchData,
+    }));
+
     console.log(`${chartName} -> data`, data)
     const config = {
       title: {
@@ -905,13 +1016,26 @@ const Stock_index_pe_lg = () => {
     return <>
       <DualAxes {...config} />
     </>
-  };
+  });
 
 
   return <>
-    {useMemo(() => symbols.map((symbol) => (
-      <RenderDualAxes key={symbol} symbol={symbol} />
-    )), [symbols])}
+    {useMemo(() => <Tabs defaultActiveKey={symbols[0]} type="card" size="small" items={symbols.map((symbol, index) => ({
+      key: symbol,
+      label: (
+        <span>
+          {symbol}
+          <Button
+            type="text"
+            size="small"
+            icon={<ReloadOutlined />}
+            onClick={() => handleRefresh(symbol)}
+            style={{ marginLeft: 4 }}
+          />
+        </span>
+      ),
+      children: <RenderDualAxes symbol={symbol} ref={(el) => { refs.current[index] = el as { fetchData: () => void } }} />,
+    }))} />, [symbols])}
   </>
 };
 

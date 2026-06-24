@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Table, Typography, Input, Button, Tabs } from 'antd';
 import apiClient from '@/utils/axios';
 import moment from 'moment';
+import { numberSorter, createRangeFilter, createDateRangeFilter } from '@/utils/tableUtils';
 
 const { Link } = Typography;
 const { TabPane } = Tabs;
@@ -24,6 +25,7 @@ interface IndexData {
   跟踪产品: string;
   指数合规: string;
   指数热点: string | null;
+  指数年化率?: number;
 }
 
 const stringSorter = (key: keyof IndexData) => (a: IndexData, b: IndexData) => {
@@ -144,22 +146,22 @@ const Index: React.FC = () => {
       },
       render: (name: string, record: IndexData) => (
         <Link
-          onClick={() => window.open(`/stock/a/index/detail?code=${record['指数代码']}&publishDate=${record['发布时间'] ? moment(record['发布时间']).format('YYYYMMDD') : ''}`)}
+          onClick={() => window.open(`/stock/a/index/detail?code=${record['指数代码']}`)}
           style={{ cursor: 'pointer', color: '#1890ff' }}
         >
           {name}
         </Link>
       ),
     },
-    {
-      title: '发布时间',
-      dataIndex: '发布时间',
-      key: '发布时间',
-      width: 60,
-      // fixed: 'left' as const,
-      sorter: stringSorter('发布时间'),
-      render: (text: string) => text ? moment(text).format('YYYY-MM-DD') : '',
-    },
+    // {
+    //   title: '发布时间',
+    //   dataIndex: '发布时间',
+    //   key: '发布时间',
+    //   width: 60,
+    //   ...createDateRangeFilter('发布时间'),
+    //   sorter: stringSorter('发布时间'),
+    //   render: (text: string) => text ? moment(text).format('YYYY-MM-DD') : '',
+    // },
     {
       title: '指数类别',
       dataIndex: '指数类别',
@@ -190,6 +192,14 @@ const Index: React.FC = () => {
       width: 60,
       sorter: stringSorter('最新收盘'),
     },
+    // {
+    //   title: '指数年化率',
+    //   key: '指数年化率',
+    //   width: 80,
+    //   sorter: stringSorter('指数年化率'),
+    //   ...createRangeFilter('指数年化率'),
+    //   render: (_, record: IndexData) => `${(record['指数年化率'])?.toFixed(2)}%`,
+    // },
     {
       title: '操作',
       key: 'action',
@@ -236,7 +246,17 @@ const Index: React.FC = () => {
     try {
       const response = await apiClient.get('/api/public/index_csindex_all');
       console.log('指数列表 -> response', response);
-      const newData = response?.data || [];
+      const newData = (response?.data || []).map((item: IndexData) => {
+        if (!item['发布时间'] || !item['最新收盘'] || !item['基点'] || item['基点'] === 0) {
+          return { ...item, '指数年化率': undefined };
+        }
+        const years = moment().diff(moment(item['发布时间']), 'years', true);
+        if (years < 1) {
+          return { ...item, '指数年化率': undefined };
+        }
+        const annualReturn = Math.pow(item['最新收盘'] / item['基点'], 1 / years) - 1;
+        return { ...item, '指数年化率': annualReturn * 100 };
+      });
       setData(newData);
 
       // 更新自选指数数据（除指数代码外）

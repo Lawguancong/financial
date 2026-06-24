@@ -7,7 +7,7 @@ import moment from 'moment';
 import { isNumber } from 'lodash-es'
 import { calculateMaxDrawdown, calculateStartDate, calculatePercentiles, convertToKLine, calculateRSI, calculatePercentile } from '@/utils';
 import { calculateRecommendationLevel, getLevelStyle } from '@/pages/fund/cn/open/detail/constants';
-
+import dayjs from 'dayjs';
 interface IndexDetailData {
   日期: string;
   指数代码: string;
@@ -70,13 +70,126 @@ const tableColumns = [
 const IndexDetail: React.FC = () => {
   const [searchParams] = useSearchParams();
   const code = searchParams.get('code');
-  const publishDate = searchParams.get('publishDate');
-  const [data, setData] = useState<IndexDetailData[]>([]);
-  const [loading, setLoading] = useState(false);
   const [timeRange, setTimeRange] = useState<string>('上市以来');
-  const { percentile15, percentile85 } = calculatePercentiles(data as unknown as { [key: string]: number }[], '滚动市盈率');
-  const [RSI6Data, setRSI6Data] = useState<any[]>([]);
-  const RSI6LevelData = useMemo(() => RSI6Data?.filter((item: any) => isNumber(item.__recommendationLevel__)), [RSI6Data]);
+  const [rawData, setRawData] = useState<any[]>([]);
+  const [dailyData, setDailyData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+
+  // 计算不同周期的K线数据
+  // const weeklyData = convertToKLine({ dailyData, period: 'weekly' });
+  const monthlyData = useMemo(() => convertToKLine({ dailyData, period: 'monthly' }), [dailyData]);
+  const quarterlyData = useMemo(() => convertToKLine({ dailyData, period: 'quarterly' }), [dailyData]);
+  // 计算不同周期的RSI
+  // const dailyRSIData = calculateRSI({ data, closeKey: '收盘', period: 6 });
+  // const weeklyRSIData = calculateRSI({ data: weeklyData, closeKey: '收盘', period: 6 });
+  const monthlyRSIData = useMemo(() => calculateRSI({ data: monthlyData, closeKey: '收盘', period: 6 })?.map(item => {
+    const date = moment(item.日期);
+    const itemMonth = date.format('YYYY-MM');
+    return {
+      日期: item.日期,
+      __RSI6__: item.__RSI6__,
+      itemMonth,
+    }
+  }), [monthlyData]);
+  const quarterlyRSIData = useMemo(() => calculateRSI({ data: quarterlyData, closeKey: '收盘', period: 6 })?.map(item => {
+    const date = moment(item.日期);
+    const year = date.year();
+    const quarter = date.quarter();
+    const itemQuarter = `${year}Q${quarter}`;
+    return {
+      日期: item.日期,
+      __RSI6__: item.__RSI6__,
+      itemQuarter
+    }
+  }), [quarterlyData]);
+  // todo  日: dailyData 月: monthlyData 季: quarterlyData
+  const dailyDataWithRSI = useMemo(() => dailyData?.map((item: IndexDetailData) => {
+    const date = moment(item.日期);
+    const itemMonth = date.format('YYYY-MM');
+    const year = date.year();
+    const quarter = date.quarter();
+    const itemQuarter = `${year}Q${quarter}`;
+    const __monthlyRSI6__ = monthlyRSIData?.find(i => i?.itemMonth === itemMonth)?.__RSI6__;
+    const __quarterlyRSI6__ = quarterlyRSIData?.find(i => i?.itemQuarter === itemQuarter)?.__RSI6__;
+    return {
+      ...item,
+      // __monthlyRSI6__: __monthlyRSI6__,
+      // __quarterlyRSI6__: __quarterlyRSI6__,
+      // __recommendationLevel__: calculateRecommendationLevel({
+      //   __monthlyRSI6__, __quarterlyRSI6__,
+      // }),
+    }
+  }), [dailyData, monthlyRSIData, quarterlyRSIData]);
+
+  // 提取RSI6数值
+  const monthlyRSIValues = useMemo(() => monthlyRSIData.map(item => item['__RSI6__']).filter(value => typeof value === 'number' && !isNaN(value)), [monthlyRSIData]);
+  const quarterlyRSIValues = useMemo(() => quarterlyRSIData.map(item => item['__RSI6__']).filter(value => typeof value === 'number' && !isNaN(value)), [quarterlyRSIData]);
+
+
+  // 计算10%和90%分位数
+  const __monthly10th__ = useMemo(() => calculatePercentile(monthlyRSIValues, 10), [monthlyRSIValues]);
+  const __monthly90th__ = useMemo(() => calculatePercentile(monthlyRSIValues, 90), [monthlyRSIValues]);
+  const __quarterly10th__ = useMemo(() => calculatePercentile(quarterlyRSIValues, 10), [quarterlyRSIValues]);
+  const __quarterly90th__ = useMemo(() => calculatePercentile(quarterlyRSIValues, 90), [quarterlyRSIValues]);
+  const monthlyDataWithRSI = useMemo(() => monthlyData?.map((item: IndexDetailData) => {
+    const date = moment(item.日期);
+    const itemMonth = date.format('YYYY-MM');
+    const year = date.year();
+    const quarter = date.quarter();
+    const itemQuarter = `${year}Q${quarter}`;
+    const __monthlyRSI6__ = monthlyRSIData?.find(i => i?.itemMonth === itemMonth)?.__RSI6__;
+    const __quarterlyRSI6__ = quarterlyRSIData?.find(i => i?.itemQuarter === itemQuarter)?.__RSI6__;
+    return {
+      ...item,
+      __monthlyRSI6__: __monthlyRSI6__,
+      __quarterlyRSI6__: __quarterlyRSI6__,
+      __recommendationLevel__: calculateRecommendationLevel({
+        __monthlyRSI6__, __quarterlyRSI6__,
+        __monthly10th__,
+        __monthly90th__,
+        __quarterly10th__,
+        __quarterly90th__,
+      }),
+      __monthly10th__,
+      __monthly90th__,
+      __quarterly10th__,
+      __quarterly90th__,
+    }
+  }), [monthlyData, monthlyRSIData, quarterlyRSIData, __monthly10th__, __monthly90th__, __quarterly10th__, __quarterly90th__]);
+
+  const dataWithDrawdown = useMemo(() => calculateMaxDrawdown({
+    data: dailyDataWithRSI,
+    leftKey: '收盘',
+    dateKey: '日期',
+    percentKey: '滚动市盈率'
+  }), [dailyDataWithRSI]);
+
+  console.log('指数详情 -> dataWithDrawdown', dataWithDrawdown);
+  // setData(dataWithDrawdown as unknown as IndexDetailData[]);
+
+
+
+  // const [data, setData] = useState<IndexDetailData[]>([]);
+  const { percentile15, percentile85 } = useMemo(() => calculatePercentiles(dataWithDrawdown as unknown as { [key: string]: number }[], '滚动市盈率'), [dataWithDrawdown]);
+  const RSI6LevelData = useMemo(() => monthlyDataWithRSI?.filter((item: any) => isNumber(item.__recommendationLevel__)), [monthlyDataWithRSI]);
+
+
+
+
+
+
+  useEffect(() => {
+    if (!rawData || rawData.length === 0) {
+      return;
+    }
+    console.log('111111 timeRange', timeRange)
+    console.log('111111 timeRange rawData', rawData)
+    const startDate = calculateStartDate(dayjs(rawData?.[0]?.日期).format('YYYYMMDD'), timeRange);
+    console.log('111111 timeRange startDate', startDate)
+
+    setDailyData(rawData?.filter(item => dayjs(item.日期).isAfter(dayjs(startDate))))
+  }, [timeRange, rawData]);
 
   const fetchData = useCallback(async () => {
     if (!code) {
@@ -84,131 +197,49 @@ const IndexDetail: React.FC = () => {
     }
     setLoading(true);
     try {
-      const startDate = calculateStartDate(publishDate || '', timeRange);
+      
+      const startDate = '19800101'; // 默认从1990年1月1日开始查询，并去除第一个日期的空值
       console.log('指数详情 -> startDate', startDate);
       const response = await apiClient.get(`/api/public/stock_zh_index_hist_csindex?symbol=${code}&start_date=${startDate}&end_date=${moment().format('YYYYMMDD')}`);
-      const dailyData = response?.data || [];
-      console.log('指数详情 -> dailyData', dailyData);
+      const data = response?.data || [];
+      const firstNonMultipleIndex = data.findIndex((item: IndexDetailData) => Number(item.收盘) % 100 !== 0);
+      console.log('111 firstNonMultipleIndex', firstNonMultipleIndex)
+      setRawData((0 < firstNonMultipleIndex && firstNonMultipleIndex < 10) ? data.slice(firstNonMultipleIndex - 1) : data)
+      
 
 
 
-      // 计算不同周期的K线数据
-      // const weeklyData = convertToKLine({ dailyData, period: 'weekly' });
-      const monthlyData = convertToKLine({ dailyData, period: 'monthly' });
-      const quarterlyData = convertToKLine({ dailyData, period: 'quarterly' });
-
-      // 计算不同周期的RSI
-      // const dailyRSIData = calculateRSI({ data, closeKey: '收盘', period: 6 });
-      // const weeklyRSIData = calculateRSI({ data: weeklyData, closeKey: '收盘', period: 6 });
-      const monthlyRSIData = calculateRSI({ data: monthlyData, closeKey: '收盘', period: 6 })?.map(item => {
-        const date = moment(item.日期);
-        const itemMonth = date.format('YYYY-MM');
-        return {
-          日期: item.日期,
-          __RSI6__: item.__RSI6__,
-          itemMonth,
-        }
-      });
-      const quarterlyRSIData = calculateRSI({ data: quarterlyData, closeKey: '收盘', period: 6 })?.map(item => {
-        const date = moment(item.日期);
-        const year = date.year();
-        const quarter = date.quarter();
-        const itemQuarter = `${year}Q${quarter}`;
-        return {
-          日期: item.日期,
-          __RSI6__: item.__RSI6__,
-          itemQuarter
-        }
-      });
-      console.log('月RSI6 -> monthlyRSIData', monthlyRSIData);
-      console.log('季RSI6 -> quarterlyRSIData', quarterlyRSIData);
 
 
-      // todo  日: dailyData 月: monthlyData 季: quarterlyData
-      const dailyDataWithRSI = dailyData?.map((item: IndexDetailData) => {
-        const date = moment(item.日期);
-        const itemMonth = date.format('YYYY-MM');
-        const year = date.year();
-        const quarter = date.quarter();
-        const itemQuarter = `${year}Q${quarter}`;
-        const __monthlyRSI6__ = monthlyRSIData?.find(i => i?.itemMonth === itemMonth)?.__RSI6__;
-        const __quarterlyRSI6__ = quarterlyRSIData?.find(i => i?.itemQuarter === itemQuarter)?.__RSI6__;
-        return {
-          ...item,
-          // __monthlyRSI6__: __monthlyRSI6__,
-          // __quarterlyRSI6__: __quarterlyRSI6__,
-          // __recommendationLevel__: calculateRecommendationLevel({
-          //   __monthlyRSI6__, __quarterlyRSI6__,
-          // }),
-        }
-      });
 
 
-       // 提取RSI6数值
-        const monthlyRSIValues = monthlyRSIData.map(item => item['__RSI6__']).filter(value => typeof value === 'number' && !isNaN(value));
-        const quarterlyRSIValues = quarterlyRSIData.map(item => item['__RSI6__']).filter(value => typeof value === 'number' && !isNaN(value));
-        
-      // 计算10%和90%分位数
-      const __monthly10th__ = calculatePercentile(monthlyRSIValues, 10);
-      const __monthly90th__ = calculatePercentile(monthlyRSIValues, 90);
-      const __quarterly10th__ = calculatePercentile(quarterlyRSIValues, 10);
-      const __quarterly90th__ = calculatePercentile(quarterlyRSIValues, 90);
-      const monthlyDataWithRSI = monthlyData?.map((item: IndexDetailData) => {
-        const date = moment(item.日期);
-        const itemMonth = date.format('YYYY-MM');
-        const year = date.year();
-        const quarter = date.quarter();
-        const itemQuarter = `${year}Q${quarter}`;
-        const __monthlyRSI6__ = monthlyRSIData?.find(i => i?.itemMonth === itemMonth)?.__RSI6__;
-        const __quarterlyRSI6__ = quarterlyRSIData?.find(i => i?.itemQuarter === itemQuarter)?.__RSI6__;
-        return {
-          ...item,
-          __monthlyRSI6__: __monthlyRSI6__,
-          __quarterlyRSI6__: __quarterlyRSI6__,
-          __recommendationLevel__: calculateRecommendationLevel({
-            __monthlyRSI6__, __quarterlyRSI6__,
-            __monthly10th__,
-            __monthly90th__,
-            __quarterly10th__,
-            __quarterly90th__,
-          }),
-          __monthly10th__,
-          __monthly90th__,
-          __quarterly10th__,
-          __quarterly90th__,
-        }
-      });
+
+
+
+
 
       console.log('有RSI的数据 -> dailyDataWithRSI', dailyDataWithRSI);
       console.log('有RSI的数据 -> monthlyDataWithRSI', monthlyDataWithRSI);
-      setRSI6Data(monthlyDataWithRSI);
 
 
-      const dataWithDrawdown = calculateMaxDrawdown({
-        data: dailyDataWithRSI,
-        leftKey: '收盘',
-        dateKey: '日期',
-        percentKey: '滚动市盈率'
-      });
-      console.log('指数详情 -> dataWithDrawdown', dataWithDrawdown);
-      setData(dataWithDrawdown as unknown as IndexDetailData[]);
+
+
     } catch (error) {
       console.log('error', error);
     } finally {
       setLoading(false);
     }
-  }, [code, publishDate, timeRange]);
+  }, []);
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+  }, []);
 
   const chartConfig = useMemo(() => {
-    if (!data || data.length === 0) {
+    if (!dataWithDrawdown || dataWithDrawdown.length === 0) {
       return null;
     }
-
-    const latestData = data[data.length - 1];
+    const latestData = dataWithDrawdown[dataWithDrawdown.length - 1];
     const chartName = `${latestData.指数中文简称}-滚动市盈率`;
     const dateKey = '日期';
     const dateName = '日期';
@@ -231,7 +262,7 @@ const IndexDetail: React.FC = () => {
       ...rightKeys
     };
 
-    const dataFormat = data.map((item) => {
+    const dataFormat = dataWithDrawdown.map((item) => {
       const keys = Object.keys({ [leftKey]: leftName, ...rightKeys });
       return keys.map((key) => ({
         date: item[dateKey],
@@ -282,7 +313,7 @@ const IndexDetail: React.FC = () => {
         },
       ],
     };
-  }, [data]);
+  }, [dataWithDrawdown]);
 
   // if (loading) {
   //   return (
@@ -295,7 +326,7 @@ const IndexDetail: React.FC = () => {
   return (
     <div style={{ padding: '24px' }}>
       <h1 style={{ marginBottom: '24px' }}>
-        {data?.[0]?.指数中文简称} - 指数详情
+        {dataWithDrawdown?.[0]?.指数中文简称} - 指数详情
       </h1>
 
       <div style={{ marginBottom: '16px', padding: '16px', background: '#f5f5f5', borderRadius: '8px' }}>
@@ -313,7 +344,7 @@ const IndexDetail: React.FC = () => {
       <Collapse defaultActiveKey={["1"]} style={{ marginTop: 16 }}>
         <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>基础信息</span>} key="1">
           <Card style={{ marginTop: '16px' }}>
-            {data.length > 0 ? (
+            {dataWithDrawdown.length > 0 ? (
               <div>
                 <div style={{
                   marginBottom: '16px',
@@ -325,7 +356,7 @@ const IndexDetail: React.FC = () => {
                   border: '1px solid rgba(255, 255, 255, 0.1)'
                 }}>
                   {(() => {
-                    const latestData = data[data.length - 1];
+                    const latestData = dataWithDrawdown[dataWithDrawdown.length - 1];
                     return (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', fontSize: '13px', lineHeight: '1.6' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -415,17 +446,17 @@ const IndexDetail: React.FC = () => {
               </div>
             </div>
             {useMemo(() => {
-              const leftData = RSI6Data.map(item => ({
+              const leftData = monthlyDataWithRSI.map(item => ({
                 date: item[dateKey],
                 value: item[leftKey],
                 label: leftName
               }));
-              const rightDataMonthly = RSI6Data.map(item => ({
+              const rightDataMonthly = monthlyDataWithRSI.map(item => ({
                 date: item[dateKey],
                 value: item['__monthlyRSI6__'],
                 label: 'RSI6（月）'
               }));
-              const rightDataQuarterly = RSI6Data.map(item => ({
+              const rightDataQuarterly = monthlyDataWithRSI.map(item => ({
                 date: item[dateKey],
                 value: item['__quarterlyRSI6__'],
                 label: 'RSI6（季）'
@@ -448,13 +479,13 @@ const IndexDetail: React.FC = () => {
               // todo
               // 添加分位数数据
               const percentileData = [];
-              if (RSI6Data.length > 0) {
-                const firstDate = RSI6Data[0][dateKey];
-                const lastDate = RSI6Data[RSI6Data.length - 1][dateKey];
-                const __monthly10th__ = RSI6Data[0]['__monthly10th__'];
-                const __monthly90th__ = RSI6Data[0]['__monthly90th__'];
-                const __quarterly10th__ = RSI6Data[0]['__quarterly10th__'];
-                const __quarterly90th__ = RSI6Data[0]['__quarterly90th__'];
+              if (monthlyDataWithRSI.length > 0) {
+                const firstDate = monthlyDataWithRSI[0][dateKey];
+                const lastDate = monthlyDataWithRSI[monthlyDataWithRSI.length - 1][dateKey];
+                const __monthly10th__ = monthlyDataWithRSI[0]['__monthly10th__'];
+                const __monthly90th__ = monthlyDataWithRSI[0]['__monthly90th__'];
+                const __quarterly10th__ = monthlyDataWithRSI[0]['__quarterly10th__'];
+                const __quarterly90th__ = monthlyDataWithRSI[0]['__quarterly90th__'];
 
                 // 月度分位数
                 percentileData.push(
@@ -469,7 +500,7 @@ const IndexDetail: React.FC = () => {
                   { date: lastDate, value: __quarterly90th__, label: '季度90%分位' }
                 );
               }
-              console.log('1111 RSI6Data', RSI6Data)
+              console.log('1111 monthlyDataWithRSI', monthlyDataWithRSI)
               console.log('1111 分位数数据', percentileData)
 
               return (
@@ -516,7 +547,7 @@ const IndexDetail: React.FC = () => {
                   annotations={annotationsData}
                 />
               );
-            }, [RSI6Data, RSI6LevelData])}
+            }, [monthlyDataWithRSI, RSI6LevelData])}
 
           </Card>
         </Collapse.Panel>

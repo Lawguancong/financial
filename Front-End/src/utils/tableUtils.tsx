@@ -1,5 +1,6 @@
 import React from 'react';
-import { InputNumber, Button, Space } from 'antd';
+import { InputNumber, Button, Space, DatePicker } from 'antd';
+import dayjs, { Dayjs } from 'dayjs';
 
 export interface RangeFilterValue {
   min?: number;
@@ -150,3 +151,128 @@ export const stringSorter = <T extends Record<string, unknown>>(
   }
   return 0;
 };
+
+export interface DateRangeFilterValue {
+  start?: string;
+  end?: string;
+}
+
+export interface DateRangeFilter<T extends Record<string, unknown>> {
+  filterDropdown: ({
+    setSelectedKeys,
+    selectedKeys,
+    confirm,
+    clearFilters
+  }: {
+    setSelectedKeys: (keys: React.Key[]) => void;
+    selectedKeys: React.Key[];
+    confirm: () => void;
+    clearFilters: () => void;
+  }) => React.ReactNode;
+  filterIcon: (filtered: boolean) => React.ReactNode;
+  onFilter: (value: string | number | boolean, record: T) => boolean;
+}
+
+export const createDateRangeFilter = <T extends Record<string, unknown>>(
+  dataKey: keyof T
+): DateRangeFilter<T> => ({
+  filterDropdown: ({
+    setSelectedKeys,
+    selectedKeys,
+    confirm,
+    clearFilters
+  }: {
+    setSelectedKeys: (keys: React.Key[]) => void;
+    selectedKeys: React.Key[];
+    confirm: () => void;
+    clearFilters: () => void;
+  }) => {
+    let startDate: Dayjs | null = null;
+    let endDate: Dayjs | null = null;
+
+    try {
+      const filterValue = selectedKeys[0] as string;
+      if (filterValue) {
+        const parsed = JSON.parse(filterValue) as DateRangeFilterValue;
+        startDate = parsed.start ? dayjs(parsed.start) : null;
+        endDate = parsed.end ? dayjs(parsed.end) : null;
+      }
+    } catch (e) {
+      console.error('解析筛选值失败', e);
+    }
+
+    return (
+      <div style={{ padding: 8 }}>
+        <Space orientation="vertical" size={8}>
+          <DatePicker.RangePicker
+            value={[startDate, endDate]}
+            onChange={(dates) => {
+              const filterValue = JSON.stringify({
+                start: dates && dates[0] ? dates[0].format('YYYY-MM-DD') : undefined,
+                end: dates && dates[1] ? dates[1].format('YYYY-MM-DD') : undefined,
+              });
+              setSelectedKeys([filterValue]);
+            }}
+            style={{ width: 240 }}
+          />
+          <Space>
+            <Button type="primary" onClick={confirm} size="small">
+              确定
+            </Button>
+            <Button
+              onClick={() => {
+                clearFilters();
+                confirm();
+              }}
+              size="small"
+            >
+              重置
+            </Button>
+          </Space>
+        </Space>
+      </div>
+    );
+  },
+  filterIcon: (filtered: boolean) => (
+    <span style={{ color: filtered ? '#1890ff' : undefined }}>🔍</span>
+  ),
+  onFilter: (value: string | number | boolean, record: T) => {
+    let startDate: string | undefined;
+    let endDate: string | undefined;
+
+    try {
+      const parsed = JSON.parse(String(value)) as DateRangeFilterValue;
+      startDate = parsed.start;
+      endDate = parsed.end;
+    } catch (e) {
+      console.error('解析筛选值失败', e);
+    }
+
+    const recordValue = record[dataKey];
+
+    if (
+      recordValue === null ||
+      recordValue === undefined ||
+      recordValue === '' ||
+      recordValue === 'null' ||
+      recordValue === 'undefined'
+    ) {
+      return false;
+    }
+
+    const recordDate = dayjs(String(recordValue));
+
+    if (!recordDate.isValid()) {
+      return false;
+    }
+
+    if (startDate && endDate) {
+      return recordDate.isAfter(dayjs(startDate).subtract(1, 'day')) && recordDate.isBefore(dayjs(endDate).add(1, 'day'));
+    } else if (startDate) {
+      return recordDate.isAfter(dayjs(startDate).subtract(1, 'day'));
+    } else if (endDate) {
+      return recordDate.isBefore(dayjs(endDate).add(1, 'day'));
+    }
+    return true;
+  },
+});

@@ -91,6 +91,12 @@ export const menuConfigs: MenuItemConfig[] = [
             path: 'stock/a/option-volatility',
             component: lazy(() => import('@/pages/stock/a/option-volatility')),
           },
+          {
+            key: 'stock/a/repurchase',
+            label: '股票回购',
+            path: 'stock/a/repurchase',
+            component: lazy(() => import('@/pages/stock/a/repurchase')),
+          },
         ],
       },
       // {
@@ -155,6 +161,12 @@ export const menuConfigs: MenuItemConfig[] = [
             label: '宏观',
             path: 'realestate/cn/macro',
             component: lazy(() => import('@/pages/realestate/cn/macro')),
+          },
+          {
+            key: 'realestate/cn/reits',
+            label: 'REITs实时',
+            path: 'realestate/cn/reits',
+            component: lazy(() => import('@/pages/realestate/cn/reits')),
           },
         ],
       },

@@ -309,7 +309,8 @@ const FundOpenDetail: React.FC = () => {
               {useMemo(() => <FundHoldings symbol={symbol} />, [symbol])}
             </TabPane>
             <TabPane tab="💰 分红信息" key="分红信息">
-              {useMemo(() => <FundDividend symbol={symbol} />, [symbol])}
+              暂无合适的接口-todo
+              {/* {useMemo(() => <FundDividend symbol={symbol} />, [symbol])} */}
             </TabPane>
             <TabPane tab="🏭 行业配置" key="行业配置">
               {useMemo(() => <FundIndustryAllocation symbol={symbol} />, [symbol])}

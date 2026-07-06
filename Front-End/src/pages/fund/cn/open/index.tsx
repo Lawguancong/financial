@@ -4,6 +4,7 @@ import moment from 'moment';
 import { numberSorter } from '@/utils/tableUtils';
 import OpenFundPanel from './components/OpenFundPanel';
 import IndexFundPanel from './components/IndexFundPanel';
+import ExchangeFundPanel from './components/ExchangeFundPanel';
 
 const { TabPane } = Tabs;
 
@@ -141,6 +142,14 @@ const FundOpen: React.FC = () => {
             selectedFunds={selectedFunds}
             onAddToSelected={addToSelected}
             onRemoveFromSelected={removeFromSelected}
+            isFundSelected={isFundSelected}
+          />
+        </TabPane>
+         <TabPane tab="场内交易基金" key="exchange">
+          <ExchangeFundPanel
+            selectedFunds={selectedFunds as any}
+            onAddToSelected={addToSelected as any}
+            onRemoveFromSelected={removeFromSelected as any}
             isFundSelected={isFundSelected}
           />
         </TabPane>

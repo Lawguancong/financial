@@ -226,7 +226,6 @@ const Home = () => {
   // todo: 融资余额/全A总市值 占比
   // todo: 融券余额/全A总市值 占比
   // todo: 恒生指数股息率
-  // todo: 基金相关功能完善
 
   // ==================== 筹码分布 ====================
   // 接口: stock_cyq_em
@@ -242,24 +241,13 @@ const Home = () => {
   // 中国股票指数成份: index_stock_cons
 
   // ==================== 估值指标 ====================
-  // A股个股估值: stock_value_em (仅最近10年数据)
   // 港股估值指标: stock_hk_valuation_baidu
   // 美股估值指标: stock_us_valuation_baidu
-  // 中证指数估值: stock_zh_index_value_csindex (市盈率、股息率)
-  // 行业市盈率: stock_industry_pe_ratio_cninfo
   // 港股个股指标: stock_hk_indicator_eniu (市盈率、市净率、股息率)
 
-  // ==================== 财务指标 ====================
-  // A股财务指标: stock_financial_analysis_indicator
-  // 港股财务指标: stock_financial_hk_analysis_indicator_em
-  // 美股财务指标: stock_financial_us_analysis_indicator_em
-  // 主要指标(东方财富): stock_financial_analysis_indicator_em
-  // 利润表: stock_financial_benefit_new_ths
-  // 现金流量表: stock_financial_cash_new_ths
-  // 资产负债表: stock_financial_debt_new_ths
+
 
   // ==================== 分红数据 ====================
-  // 历史分红: stock_history_dividend
   // 历史分红(巨潮): stock_dividend_cninfo
 
   // ==================== 行情数据 ====================
@@ -272,7 +260,6 @@ const Home = () => {
   // 两融余额
   // 两融交易额
   // 成交额
-  // 基金发行热度/发行规模
   // 波动率VIX指标
   // 居民存款之比
   // M0/M1/M2与各指标的关系
@@ -288,26 +275,64 @@ const Home = () => {
   // 原油RSI6
   // 大宗商品RSI6
 
+
+
   // ==================== REITs ====================
   // - REITs实时行情: reits_realtime_em
   // - REITs历史行情: reits_hist_em
 
-  // ==================== 其他 ====================
-  // 股票回购数据: stock_repurchase_em
-  // 机构持股一览表: stock_institute_hold
-
-  // ==================== 港股 ====================
-  // A+H  实时行情数据-腾讯 接口: stock_zh_ah_spot
 
   // ==================== A股 技术指标 ====================
-
   // 回撤率创新高/回撤率百分位（指数、基金、个股、红利、低波）
+  // todo 行业估值  行业样本数量
+
+
+  // 同行比较 成长性比较接口: stock_zh_growth_comparison_em
+  // 估值比较 接口: stock_zh_valuation_comparison_em
+
+  // ==================== 财务指标 ====================
+  // A股财务指标: stock_financial_analysis_indicator
+  // 港股财务指标: stock_financial_hk_analysis_indicator_em
+  // 美股财务指标: stock_financial_us_analysis_indicator_em
+  // 主要指标(东方财富): stock_financial_analysis_indicator_em
+  // 利润表: stock_financial_benefit_new_ths
+  // 现金流量表: stock_financial_cash_new_ths
+  // 资产负债表: stock_financial_debt_new_ths
+  // A股个股估值: stock_value_em (仅最近10年数据)
+  // 分红配送-东财 接口: stock_fhps_em
+  // 分红配送详情-东财 接口: stock_fhps_detail_em
+  // 恒生指数股息率 接口: stock_hk_gxl_lg
+  // 公司概况-巨潮资讯 接口: stock_profile_cninfo
+
+
+
+
+  // ==================== 行业指数 ====================
+
+  // 行业市盈率: stock_industry_pe_ratio_cninfo
+  // 申万一级行业信息
+  // 接口: sw_index_first_info
+
+  // 申万二级行业信息
+  // 接口: sw_index_second_info
+
+  // 申万三级行业信息
+  // 接口: sw_index_third_info
+
+  // 申万三级行业成份
+  // 接口: sw_index_third_cons
+
+
+  // 中证指数估值: stock_zh_index_value_csindex (市盈率、股息率)
+
+
+
 
   return (
     <>
       {/* 演示图表 */}
-      {useMemo(() => <DemoDualAxes />, [])}
-      {useMemo(() => <DemoDualAxes1 />, [])}
+      {/* {useMemo(() => <DemoDualAxes />, [])} */}
+      {/* {useMemo(() => <DemoDualAxes1 />, [])} */}
     </>
   );
 };

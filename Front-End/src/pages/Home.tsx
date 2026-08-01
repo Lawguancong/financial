@@ -216,19 +216,8 @@ const DemoDualAxes2 = (props) => {
  * 包含股票、基金、指数等金融数据的展示
  */
 const Home = () => {
-  // ==================== 待开发功能 ====================
-  // todo: 涨/跌/平 比例图
-  // todo: 风险溢价
-  // todo: 十年期国债利率倒数与A股PE中位数走势
-  // todo: 破净统计 stock_a_below_net_asset_statistics
-  // todo: 融资余额/全A流通市值 占比
-  // todo: 融券余额/全A流通市值 占比
-  // todo: 融资余额/全A总市值 占比
-  // todo: 融券余额/全A总市值 占比
-  // todo: 恒生指数股息率
-
-  // ==================== 筹码分布 ====================
-  // 接口: stock_cyq_em
+  // ==================== 个股 ====================
+  // 筹码分布: stock_cyq_em
 
   // ==================== 国证指数 ====================
   // 全部指数: index_all_cni
@@ -237,54 +226,31 @@ const Home = () => {
   // 历史样本: index_detail_hist_cni
 
   // ==================== 股票列表 ====================
-  // A股列表: stock_info_a_code_name
   // 中国股票指数成份: index_stock_cons
-
-  // ==================== 估值指标 ====================
-  // 港股估值指标: stock_hk_valuation_baidu
-  // 美股估值指标: stock_us_valuation_baidu
-  // 港股个股指标: stock_hk_indicator_eniu (市盈率、市净率、股息率)
-
 
 
   // ==================== 分红数据 ====================
   // 历史分红(巨潮): stock_dividend_cninfo
 
-  // ==================== 行情数据 ====================
-  // 实时行情(雪球): stock_individual_spot_xq
-  // 股票行业成交: stock_szse_sector_summary
-  // 上交所每日概况: stock_sse_deal_daily
-  // 创新高/新低统计: stock_a_high_low_statistics
 
   // ==================== 资金数据 ====================
-  // 两融余额
-  // 两融交易额
-  // 成交额
   // 波动率VIX指标
   // 居民存款之比
   // M0/M1/M2与各指标的关系
 
-  // ==================== 排行榜 ====================
-  // 讨论排行榜: stock_hot_tweet_xq
-  // 交易排行榜: stock_hot_deal_xq
-  // 人气榜(A股): stock_hot_rank_em
-  // 飙升榜(A股): stock_hot_up_em
 
   // ==================== 黄金/大宗商品 ====================
-  // 黄金RSI6: spot_hist_sge (品种: Au99.99)
   // 原油RSI6
   // 大宗商品RSI6
 
 
 
   // ==================== REITs ====================
-  // - REITs实时行情: reits_realtime_em
   // - REITs历史行情: reits_hist_em
 
 
   // ==================== A股 技术指标 ====================
-  // 回撤率创新高/回撤率百分位（指数、基金、个股、红利、低波）
-  // todo 行业估值  行业样本数量
+
 
 
   // 同行比较 成长性比较接口: stock_zh_growth_comparison_em
@@ -301,14 +267,13 @@ const Home = () => {
   // A股个股估值: stock_value_em (仅最近10年数据)
   // 分红配送-东财 接口: stock_fhps_em
   // 分红配送详情-东财 接口: stock_fhps_detail_em
-  // 恒生指数股息率 接口: stock_hk_gxl_lg
   // 公司概况-巨潮资讯 接口: stock_profile_cninfo
 
 
 
 
   // ==================== 行业指数 ====================
-
+  // todo 行业估值  行业样本数量
   // 行业市盈率: stock_industry_pe_ratio_cninfo
   // 申万一级行业信息
   // 接口: sw_index_first_info
@@ -323,8 +288,15 @@ const Home = () => {
   // 接口: sw_index_third_cons
 
 
-  // 中证指数估值: stock_zh_index_value_csindex (市盈率、股息率)
+  // ==================== 债券 ====================
+  // todo: 十年期国债利率倒数与A股PE中位数走势
 
+  // todo: 风险溢价
+  // todo: 市盈率、 盈利收益率、市净率、股息率、市现率
+
+  // todo: 破净统计 stock_a_below_net_asset_statisticsI（接口不同 暂无替代方案）
+
+  // todo 把 RSI6 买入买点分析推荐 抽离 独立组件
 
 
 

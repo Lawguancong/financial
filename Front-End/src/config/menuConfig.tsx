@@ -28,6 +28,26 @@ export const menuConfigs: MenuItemConfig[] = [
   //   component: lazy(() => import('@/pages/Bond')),
   // },
   {
+    key: 'bond',
+    label: '债券',
+    icon: <BankOutlined />,
+    children: [
+      {
+        key: 'bond/cn',
+        label: '国内',
+        path: 'bond/cn',
+        children: [
+          {
+            key: 'bond/cn/zh-us-rate',
+            label: '中美国债收益率',
+            path: 'bond/cn/zh-us-rate',
+            component: lazy(() => import('@/pages/bond/cn/zh-us-rate')),
+          },
+        ],
+      },
+    ],
+  },
+  {
     key: 'stock',
     label: '股票',
     icon: <StockOutlined />,
@@ -99,12 +119,18 @@ export const menuConfigs: MenuItemConfig[] = [
           },
         ],
       },
-      // {
-      //   key: 'stock/hk',
-      //   label: '港股',
-      //   path: 'stock/hk',
-      //   component: lazy(() => import('@/pages/StockHK')),
-      // },
+      {
+        key: 'stock/hk',
+        label: '港股',
+        children: [
+          {
+            key: 'stock/hk/hsi-dividend-yield',
+            label: '恒生指数股息率',
+            path: 'stock/hk/hsi-dividend-yield',
+            component: lazy(() => import('@/pages/stock/hk/hsi-dividend-yield')),
+          },
+        ],
+      },
       // {
       //   key: 'stock/us',
       //   label: '美股',
@@ -130,7 +156,7 @@ export const menuConfigs: MenuItemConfig[] = [
         children: [
           {
             key: 'commodity/cn/index',
-            label: '指数',
+            label: '金属指数',
             path: 'commodity/cn/index',
             component: lazy(() => import('@/pages/commodity/cn/index')),
             children: [
@@ -141,6 +167,12 @@ export const menuConfigs: MenuItemConfig[] = [
                 component: lazy(() => import('@/pages/commodity/cn/index/detail')),
               },
             ],
+          },
+          {
+            key: 'commodity/cn/oil',
+            label: '中国油价',
+            path: 'commodity/cn/oil',
+            component: lazy(() => import('@/pages/commodity/cn/oil')),
           },
         ],
       },

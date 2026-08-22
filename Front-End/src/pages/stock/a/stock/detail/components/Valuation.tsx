@@ -4,14 +4,11 @@ import { Radio, Spin } from 'antd';
 import type { RadioChangeEvent } from 'antd/es/radio';
 import apiClient from '@/utils/axios';
 import moment from 'moment';
+import { useSearchParams } from 'react-router-dom';
 
 interface ValuationData {
   date: string;
   value: number;
-}
-
-interface ValuationProps {
-  symbol: string;
 }
 
 const INDICATOR_OPTIONS = [
@@ -40,7 +37,9 @@ const labelStyle: React.CSSProperties = { fontWeight: 500 };
 const chartStyle: React.CSSProperties = { height: 400 };
 const loadingStyle: React.CSSProperties = { height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' };
 
-const Valuation: React.FC<ValuationProps> = ({ symbol }) => {
+const Valuation: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const symbol = searchParams.get('symbol') || '';
   const [indicator, setIndicator] = useState<string>('总市值');
   const [period, setPeriod] = useState<string>('全部');
   const [data, setData] = useState<ValuationData[]>([]);
@@ -52,7 +51,7 @@ const Valuation: React.FC<ValuationProps> = ({ symbol }) => {
     setLoading(true);
     try {
       const params = {
-        symbol,
+        symbol: symbol?.replace(/^[a-zA-Z]+/, ''),
         indicator,
         period,
       };

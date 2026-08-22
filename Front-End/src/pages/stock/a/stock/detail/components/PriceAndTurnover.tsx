@@ -1,148 +1,141 @@
-import React, { useMemo, memo } from 'react';
-import { Line, Column, DualAxes } from '@ant-design/plots';
-import moment from 'moment';
+import React, { useEffect, useState, useMemo, useCallback, memo } from 'react';
+import { DualAxes } from '@ant-design/plots';
+import { Radio, Spin } from 'antd';
+import type { RadioChangeEvent } from 'antd/es/radio';
 import { calculateMaxDrawdown } from '@/utils/stockUtils';
+import apiClient from '@/utils/axios';
+import { useSearchParams } from 'react-router-dom';
 
-interface StockDetailData {
-  日期: string;
-  收盘: number;
-  换手率: number;
-}
+// 复权选项配置
+const ADJUST_OPTIONS = [
+  { value: 'qfq', label: '前复权' },
+  { value: '', label: '不复权' },
+  { value: 'hfq', label: '后复权' },
+] as const;
 
-interface PriceAndTurnoverProps {
-  data: StockDetailData[];
-}
+// 图表配置常量
+const CHART_Y_LEFT = { title: '收盘价', style: { titleFill: '#1890ff' } };
+const CHART_Y_RIGHT = { title: '回撤率(%) & 年化收益率(%)', style: { titleFill: '#ff4d4f' } };
 
-// 静态样式配置
 const containerStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '20px' };
-const chartStyle: React.CSSProperties = { height: 400 };
+const toolbarStyle: React.CSSProperties = {
+  display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12,
+};
 
-const PriceAndTurnover: React.FC<PriceAndTurnoverProps> = ({ data }) => {
-  // 使用 useMemo 计算包含最大回撤率和年化收益率的数据
-  const enrichedData = useMemo(() => {
-    if (data.length === 0) return [];
-    return calculateMaxDrawdown({
-      data,
-      leftKey: '收盘',
-      dateKey: '日期',
-      percentKey: '换手率',
-    });
-  }, [data]);
+// ====== 自定义 Hooks ======
 
-  // 格式化数据为 DualAxes 需要的格式
-  const chartData = useMemo(() => {
-    if (enrichedData.length === 0) return { leftData: [], rightData: [] };
-    
-    const leftData = enrichedData.map(item => ({
-      date: item.日期,
-      key: '收盘',
-      label: '收盘价',
-      value: item.收盘,
-    }));
-    
-    const rightData = enrichedData.flatMap(item => [
-      {
-        date: item.日期,
-        key: '__最大回撤率__',
-        label: '最大回撤率(%)',
-        value: item.__最大回撤率__,
-      },
-      {
-        date: item.日期,
-        key: '__年化收益率__',
-        label: '年化收益率(%)',
-        value: item.__年化收益率__,
-      },
-    ]);
-    
-    return { leftData, rightData };
-  }, [enrichedData]);
+/** 获取股票历史行情数据 */
+const useStockData = (symbol: string, adjust: string) => {
+  const [data, setData] = useState<Record<string, unknown>[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // 缓存收盘价趋势图配置 - 使用 DualAxes 显示多个指标
-  const priceChartConfig = useMemo(() => ({
-    data: [chartData.leftData, chartData.rightData],
+  useEffect(() => {
+    if (!symbol) return;
+    setLoading(true);
+    const fetchData = async () => {
+      try {
+        const params: Record<string, string> = { symbol, adjust, 
+          // start_date: '20250101' 
+        };
+        const response = await apiClient.get('/api/public/stock_zh_a_hist_tx', { params });
+        setData(response?.data?.map((item: Record<string, unknown>) => ({
+          日期: item.date,
+          收盘: Number(item.close),
+        })) || []);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [symbol, adjust]);
+
+  return { data, loading };
+};
+
+/** 计算图表配置 */
+const useChartConfig = (data: Record<string, unknown>[]) => useMemo(() => {
+  if (data.length === 0) return null;
+
+  const enrichedData = calculateMaxDrawdown({ data, leftKey: '收盘', dateKey: '日期' });
+  console.log('111 data', data)
+  console.log('111 enrichedData', enrichedData)
+  const leftData = enrichedData.map(item => ({
+    date: item.日期,
+    key: '收盘',
+    label: '收盘价',
+    value: item.收盘,
+  }));
+
+  const rightData = enrichedData.flatMap(item => [
+    { date: item.日期, key: '__最大回撤率__', label: '最大回撤率(%)', value: item.__最大回撤率__ },
+    ...(item.__年化收益率__ != null
+      ? [{ date: item.日期, key: '__年化收益率__', label: '年化收益率(%)', value: item.__年化收益率__ }]
+      : []),
+  ]);
+
+  return {
+    data: [leftData, rightData],
     xField: (d: { date: string }) => new Date(d.date),
     children: [
       {
-        data: chartData.leftData,
+        data: leftData,
         type: 'line',
         yField: 'value',
         colorField: 'label',
         shapeField: 'smooth',
-        style: {
-          stroke: '#1890ff',
-          lineWidth: 2,
-        },
-        axis: {
-          y: {
-            title: '收盘价',
-            style: { titleFill: '#1890ff' },
-          },
-        },
+        style: { stroke: '#1890ff', lineWidth: 2 },
+        axis: { y: CHART_Y_LEFT },
       },
       {
-        data: chartData.rightData,
+        data: rightData,
         type: 'line',
         yField: 'value',
         colorField: 'label',
         shapeField: 'smooth',
-        axis: {
-          y: {
-            position: 'right',
-            title: '回撤率/收益率(%)',
-            style: { titleFill: '#ff4d4f' },
-          },
-        },
+        axis: { y: { position: 'right', ...CHART_Y_RIGHT } },
       },
     ],
-    // tooltip: {
-    //   title: (d: any) => moment(d.date).format('YYYYMMDD'),
-    //   items: [
-    //     { field: 'value', name: '收盘价' },
-    //     { field: 'value', name: '最大回撤率(%)' },
-    //     { field: 'value', name: '年化收益率(%)' },
-    //   ],
-    // },
-    legend: {
-      position: 'top',
-    },
-  }), [chartData]);
+  };
+}, [data]);
 
-  // 缓存换手率趋势图配置
-  const columnConfig = useMemo(() => ({
-    data: enrichedData,
-    xField: '日期',
-    yField: '换手率',
-    height: 300,
-    axis: { x: false },
-    yAxis: {
-      title: { text: '换手率 (%)' },
-    },
-    // tooltip: {
-    //   title: (d: any) => moment(d.日期).format('YYYYMMDD'),
-    //   items: [
-    //     { field: '换手率', name: '换手率(%)' },
-    //     { field: '__最大回撤率__', name: '最大回撤率(%)' },
-    //     { field: '__年化收益率__', name: '年化收益率(%)' },
-    //   ],
-    // },
-    columnStyle: { fill: '#1890ff' },
-  }), [enrichedData]);
+// ====== 子组件 ======
 
-  if (data.length === 0) {
-    return <div>暂无数据</div>;
-  }
+/** 复权方式切换按钮 */
+const AdjustRadio: React.FC<{ value: string; onChange: (e: RadioChangeEvent) => void }> =
+  React.memo(({ value, onChange }) => (
+    <div style={toolbarStyle}>
+      <Radio.Group value={value} onChange={onChange}>
+        {ADJUST_OPTIONS.map(opt => (
+          <Radio.Button key={opt.value} value={opt.value}>{opt.label}</Radio.Button>
+        ))}
+      </Radio.Group>
+    </div>
+  ));
+
+/** 价格与回撤率双轴图表 */
+const PriceDualAxes: React.FC<{ config: Record<string, unknown> | null }> =
+  React.memo(({ config }) => {
+    if (!config) return <div>暂无数据</div>;
+    return <DualAxes {...config} />;
+  });
+
+// ====== 主组件 ======
+
+const PriceAndTurnover: React.FC = () => {
+  const [adjust, setAdjust] = useState<string>('hfq');
+  const [searchParams] = useSearchParams();
+  const symbol = searchParams.get('symbol') || '';
+  const handleAdjustChange = useCallback((e: RadioChangeEvent) => setAdjust(e.target.value), []);
+
+  const { data, loading } = useStockData(symbol, adjust);
+  const chartConfig = useChartConfig(data);
 
   return (
     <div style={containerStyle}>
-      {/* <div style={chartStyle}> */}
-        <h4>收盘价趋势</h4>
-        <DualAxes {...priceChartConfig} />
-      {/* </div> */}
-      {/* <div style={chartStyle}>
-        <h4>换手率趋势</h4>
-        <Column {...columnConfig} />
-      </div> */}
+      <Spin spinning={loading}>
+        <AdjustRadio value={adjust} onChange={handleAdjustChange} />
+        <PriceDualAxes config={chartConfig} />
+      </Spin>
     </div>
   );
 };

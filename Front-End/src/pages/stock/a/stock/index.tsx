@@ -201,15 +201,16 @@ const Stock: React.FC = () => {
     try {
       let response;
       try {
-        response = await apiClient.get('/api/public/stock_zh_a_spot_em');
-      } catch {
+        // response = await apiClient.get('/api/public/stock_zh_a_spot_em'); // 实时接口，非交易时间，无数据返回
         response = await apiClient.get('/api/public/stock_zh_a_spot');
+      } catch {
+        // response = await apiClient.get('/api/public/stock_zh_a_spot');
       }
       console.log('个股列表 -> response', response);
       const newData = response?.data?.map((item: any, index: number) => ({
         ...item,
         序号: item.序号 || index + 1,
-        代码: (item.代码 || '')?.replace(/^[a-zA-Z]+/, ''),
+        // 代码: (item.代码 || '')?.replace(/^[a-zA-Z]+/, ''),
       })) || [];
       setData(newData);
 

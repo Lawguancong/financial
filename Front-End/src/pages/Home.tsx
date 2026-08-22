@@ -219,42 +219,22 @@ const Home = () => {
   // ==================== 个股 ====================
   // 筹码分布: stock_cyq_em
 
-  // ==================== 国证指数 ====================
-  // 全部指数: index_all_cni
-  // 指数行情: index_hist_cni
-  // 指数样本详情: index_detail_cni
-  // 历史样本: index_detail_hist_cni
-
   // ==================== 股票列表 ====================
   // 中国股票指数成份: index_stock_cons
-
 
   // ==================== 分红数据 ====================
   // 历史分红(巨潮): stock_dividend_cninfo
 
 
   // ==================== 资金数据 ====================
-  // 波动率VIX指标
-  // 居民存款之比
-  // M0/M1/M2与各指标的关系
-
-
-  // ==================== 黄金/大宗商品 ====================
-  // 原油RSI6
-  // 大宗商品RSI6
-
+  // 居民存款之比 暂无接口数据支持
+  // M0/M1/M2与各指标的关系  暂无接口数据支持
 
 
   // ==================== REITs ====================
   // - REITs历史行情: reits_hist_em
 
 
-  // ==================== A股 技术指标 ====================
-
-
-
-  // 同行比较 成长性比较接口: stock_zh_growth_comparison_em
-  // 估值比较 接口: stock_zh_valuation_comparison_em
 
   // ==================== 财务指标 ====================
   // A股财务指标: stock_financial_analysis_indicator
@@ -294,10 +274,24 @@ const Home = () => {
   // todo: 风险溢价
   // todo: 市盈率、 盈利收益率、市净率、股息率、市现率
 
-  // todo: 破净统计 stock_a_below_net_asset_statisticsI（接口不同 暂无替代方案）
+  // todo: 破净统计 stock_a_below_net_asset_statisticsI  （接口不同 暂无替代方案）
 
   // todo 把 RSI6 买入买点分析推荐 抽离 独立组件
 
+
+
+
+  // 简单好用高效 不用太复杂 
+  // apiClient.get('/api/public/stock_zh_a_hist', { params }),
+
+  // 历史行情数据-新浪 接口：stock_zh_a_daily
+  // http://127.0.0.1:6670/api/public/stock_zh_a_daily?symbol=sz000001&adjust=hfq
+
+  // 历史行情数据-腾讯 接口：stock_zh_a_hist_tx
+  // http://127.0.0.1:6670/api/public/stock_zh_a_hist_tx?symbol=sz000001&adjust=hfq
+
+  // 同行比较 成长性比较接口: stock_zh_growth_comparison_em
+  // 估值比较 接口: stock_zh_valuation_comparison_em
 
 
   return (

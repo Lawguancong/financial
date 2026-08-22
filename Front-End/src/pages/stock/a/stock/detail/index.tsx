@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useMemo, useCallback, Suspense, memo } from 'react';
-import { Spin, Typography, Card, Radio, Tabs } from 'antd';
+import { Spin, Typography, Card, Tabs } from 'antd';
 import type { RadioChangeEvent } from 'antd/es/radio';
 import apiClient from '@/utils/axios';
 import { useSearchParams } from 'react-router-dom';
+import moment from 'moment';
 
 // 懒加载组件，按需加载
 const PriceAndTurnover = React.lazy(() => import('./components/PriceAndTurnover'));
@@ -35,29 +36,21 @@ const ComponentFallback = memo(() => (
   </div>
 ));
 
-const fallbackStyle: React.CSSProperties = { 
-  height: 400, 
-  display: 'flex', 
-  alignItems: 'center', 
-  justifyContent: 'center' 
+const fallbackStyle: React.CSSProperties = {
+  height: 400,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center'
 };
 
 // 静态样式配置，避免每次渲染创建新对象
 const headerCardStyle: React.CSSProperties = { marginBottom: '16px' };
-const headerFlexStyle: React.CSSProperties = { 
-  display: 'flex', 
-  justifyContent: 'space-between', 
-  alignItems: 'center' 
-};
-const radioGroupStyle: React.CSSProperties = { display: 'flex', gap: '16px' };
 const cardStyle: React.CSSProperties = { marginTop: '16px' };
 const pageStyle: React.CSSProperties = { padding: '24px' };
 const titleStyle: React.CSSProperties = { margin: 0 };
 
 const StockDetail: React.FC = () => {
   const [loading, setLoading] = useState(false);
-  const [adjust, setAdjust] = useState<string>('hfq');
-  const [period, setPeriod] = useState<string>('daily');
   // const [symbolInfo, setSymbolInfo] = useState<Record<string, string>>({});
   const [rawData, setRawData] = useState<StockDetailData[]>([]);
   const [activeTab, setActiveTab] = useState<string>('valuation');
@@ -67,68 +60,22 @@ const StockDetail: React.FC = () => {
   const name = decodeURIComponent(searchParams.get('name') || '') || '';
 
 
-
-  // 缓存股票基本信息
-  // const stockTitle = useMemo(() => ({
-  //   name: symbolInfo?.['股票简称'] || '',
-  //   code: symbolInfo?.['股票代码'] || symbol,
-  // }), [symbolInfo, symbol]);
-
-  // 数据获取函数 - 使用 useCallback 缓存
-  const fetchStockDetail = useCallback(async () => {
-    if (!symbol) return;
-    
-    setLoading(true);
-    try {
-      const params: Record<string, string> = { symbol, period };
-      if (adjust) params.adjust = adjust;
-
-      const [response1] = await Promise.all([
-        apiClient.get('/api/public/stock_zh_a_hist', { params }),
-        // apiClient.get('/api/public/stock_individual_info_em', { params: { symbol } }),
-      ]);
-
-      const newData = response1?.data || [];
-      // 当 adjust 变化时，即使日期范围相同，也需要更新数据
-      setRawData(newData);
-
-      // const newSymbolInfo = response2?.data?.reduce(
-      //   (acc: Record<string, string>, curr: { item: string; value: string }) => {
-      //     acc[curr.item] = curr.value;
-      //     return acc;
-      //   },
-      //   {}
-      // ) || {};
-      
-      // setSymbolInfo(prev => {
-      //   if (prev['股票简称'] === newSymbolInfo['股票简称'] && 
-      //       prev['股票代码'] === newSymbolInfo['股票代码']) {
-      //     return prev;
-      //   }
-      //   return newSymbolInfo;
-      // });
-    } catch (error) {
-      console.error('fetchStockDetail error:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [symbol, period, adjust]);
-
-  useEffect(() => {
-    fetchStockDetail();
-  }, [fetchStockDetail]);
-
   // 事件处理函数 - 使用 useCallback 缓存
-  const handlePeriodChange = useCallback((e: RadioChangeEvent) => setPeriod(e.target.value), []);
-  const handleAdjustChange = useCallback((e: RadioChangeEvent) => setAdjust(e.target.value), []);
   const handleTabChange = useCallback((key: string) => setActiveTab(key), []);
 
   // 缓存子组件渲染 - 避免每次渲染重新创建
   const priceAndTurnoverComponent = useMemo(() => (
     <Suspense fallback={<ComponentFallback />}>
-      <PriceAndTurnover data={rawData} />
+      <PriceAndTurnover />
     </Suspense>
-  ), [rawData]);
+  ), []);
+
+  const valuationComponent = useMemo(() => (
+    <Suspense fallback={<ComponentFallback />}>
+      <Valuation />
+    </Suspense>
+  ), []);
+
 
   const rsiFilterMarkComponent = useMemo(() => (
     <Suspense fallback={<ComponentFallback />}>
@@ -148,24 +95,8 @@ const StockDetail: React.FC = () => {
     </Suspense>
   ), [rawData]);
 
-  const valuationComponent = useMemo(() => (
-    <Suspense fallback={<ComponentFallback />}>
-      <Valuation symbol={symbol} />
-    </Suspense>
-  ), [symbol]);
-
   // 缓存 Tabs 配置
   const tabItems = useMemo(() => [
-    {
-      key: 'price-turnover',
-      label: '价格&回撤率&年化收益率',
-      children: (
-        <Card style={cardStyle}>
-          <Title level={5}>价格&回撤率&年化收益率</Title>
-          {priceAndTurnoverComponent}
-        </Card>
-      ),
-    },
     {
       key: 'valuation',
       label: '估值',
@@ -173,6 +104,15 @@ const StockDetail: React.FC = () => {
         <Card style={cardStyle}>
           <Title level={5}>估值指标</Title>
           {valuationComponent}
+        </Card>
+      ),
+    },
+    {
+      key: 'price-turnover',
+      label: '价格&回撤率&年化收益率',
+      children: (
+        <Card style={cardStyle}>
+          {priceAndTurnoverComponent}
         </Card>
       ),
     },
@@ -202,32 +142,17 @@ const StockDetail: React.FC = () => {
         </Card>
       ),
     },
-  ], [priceAndTurnoverComponent, rsiFilterMarkComponent, rsiPeriodsComponent, threeConsecutiveRisesComponent]);
+  ], [priceAndTurnoverComponent, rsiFilterMarkComponent, rsiPeriodsComponent, threeConsecutiveRisesComponent, valuationComponent]);
 
   return (
     <div style={pageStyle}>
       <Card style={headerCardStyle}>
-        <div style={headerFlexStyle}>
-          <Title level={4} style={titleStyle}>
-            {name}({symbol})
-          </Title>
-          <div style={radioGroupStyle}>
-            <Radio.Group value={period} onChange={handlePeriodChange}>
-              <Radio.Button value="daily">日K</Radio.Button>
-              <Radio.Button value="weekly">周K</Radio.Button>
-              <Radio.Button value="monthly">月K</Radio.Button>
-            </Radio.Group>
-            <Radio.Group value={adjust} onChange={handleAdjustChange}>
-              <Radio.Button value="">不复权</Radio.Button>
-              <Radio.Button value="qfq">前复权</Radio.Button>
-              <Radio.Button value="hfq">后复权</Radio.Button>
-            </Radio.Group>
-          </div>
-        </div>
+        <Title level={4} style={titleStyle}>
+          {name}({symbol})
+        </Title>
       </Card>
       <Spin spinning={loading}>
-        <Tabs 
-          // defaultActiveKey="rsi-filter" 
+        <Tabs
           activeKey={activeTab}
           onChange={handleTabChange}
           items={tabItems}

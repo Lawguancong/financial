@@ -1,7 +1,7 @@
 import React, { useMemo, memo } from 'react';
 import { Line } from '@ant-design/plots';
 import moment from 'moment';
-import { calculateRSI, convertToKLine } from '@/utils';
+import { calculateRSI, aggregateKLineByPeriod } from '@/utils';
 
 interface RsiPeriodsProps {
   data: any[];
@@ -45,9 +45,9 @@ const RsiPeriods: React.FC<RsiPeriodsProps> = ({ data }) => {
     }
 
     // 计算不同周期的K线数据
-    const weeklyData = convertToKLine({ dailyData: data, period: 'weekly' });
-    const monthlyData = convertToKLine({ dailyData: data, period: 'monthly' });
-    const quarterlyData = convertToKLine({ dailyData: data, period: 'quarterly' });
+    const weeklyData = aggregateKLineByPeriod({ dailyData: data, period: 'weekly' });
+    const monthlyData = aggregateKLineByPeriod({ dailyData: data, period: 'monthly' });
+    const quarterlyData = aggregateKLineByPeriod({ dailyData: data, period: 'quarterly' });
 
     // 计算不同周期的RSI
     return {

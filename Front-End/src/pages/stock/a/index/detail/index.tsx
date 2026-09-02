@@ -5,7 +5,7 @@ import { DualAxes } from '@ant-design/plots';
 import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { isNumber } from 'lodash-es'
-import { calculateMaxDrawdown, calculateStartDate, calculatePercentiles, convertToKLine, calculateRSI, calculatePercentile } from '@/utils';
+import { calculateMaxDrawdown, calculateStartDate, calculatePercentiles, aggregateKLineByPeriod, calculateRSI, calculatePercentile } from '@/utils';
 import { calculateRecommendationLevel, getLevelStyle } from '@/pages/fund/cn/open/detail/constants';
 import dayjs from 'dayjs';
 interface IndexDetailData {
@@ -77,9 +77,9 @@ const IndexDetail: React.FC = () => {
 
 
   // 计算不同周期的K线数据
-  // const weeklyData = convertToKLine({ dailyData, period: 'weekly' });
-  const monthlyData = useMemo(() => convertToKLine({ dailyData, period: 'monthly' }), [dailyData]);
-  const quarterlyData = useMemo(() => convertToKLine({ dailyData, period: 'quarterly' }), [dailyData]);
+  // const weeklyData = aggregateKLineByPeriod({ dailyData, period: 'weekly' });
+  const monthlyData = useMemo(() => aggregateKLineByPeriod({ dailyData, period: 'monthly' }), [dailyData]);
+  const quarterlyData = useMemo(() => aggregateKLineByPeriod({ dailyData, period: 'quarterly' }), [dailyData]);
   // 计算不同周期的RSI
   // const dailyRSIData = calculateRSI({ data, closeKey: '收盘', period: 6 });
   // const weeklyRSIData = calculateRSI({ data: weeklyData, closeKey: '收盘', period: 6 });

@@ -1,4 +1,5 @@
 import moment from 'moment';
+import { isNumber } from 'lodash-es'
 
 export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
   params: {
@@ -129,6 +130,7 @@ export const calculatePercentiles = (
   };
 };
 
+// 计算当前Period 的 RSI指标
 export const calculateRSI = (
   params: {
     data: KLineData[];
@@ -230,7 +232,7 @@ export const calculateMACD = (
   }
 ): (KLineData & { __MACD_DIF__: number; __MACD_DEA__: number; __MACD_BAR__: number })[] => {
   const { data, closeKey = '收盘', fastPeriod = 12, slowPeriod = 26, signalPeriod = 9 } = params;
-  
+
   // 确保返回与输入等长的数组
   if (!data || data.length === 0) {
     return [];
@@ -240,7 +242,7 @@ export const calculateMACD = (
   const calculateEMA = (values: number[], period: number): number[] => {
     const ema: number[] = [];
     const multiplier = 2 / (period + 1);
-    
+
     // 第一个EMA值使用简单平均
     let sum = 0;
     let validCount = 0;
@@ -253,15 +255,15 @@ export const calculateMACD = (
         }
       }
     }
-    
+
     if (validCount === 0) {
       // 没有有效数据，返回与输入等长的0数组
       return values.map(() => 0);
     }
-    
+
     let currentEMA = sum / validCount;
     ema.push(currentEMA);
-    
+
     // 后续EMA值使用递推公式
     for (let i = period; i < values.length; i++) {
       const value = values[i];
@@ -270,7 +272,7 @@ export const calculateMACD = (
       }
       ema.push(currentEMA);
     }
-    
+
     return ema;
   };
 
@@ -279,11 +281,11 @@ export const calculateMACD = (
     const value = item[closeKey] as number;
     return isNaN(value) ? 0 : value;
   });
-  
+
   // 计算快速EMA（12日）和慢速EMA（26日）
   const fastEMA = calculateEMA(closePrices, fastPeriod);
   const slowEMA = calculateEMA(closePrices, slowPeriod);
-  
+
   // 计算DIF（快线）：快速EMA - 慢速EMA
   const dif: number[] = [];
   const maxLength = Math.min(fastEMA.length, slowEMA.length);
@@ -291,27 +293,27 @@ export const calculateMACD = (
     const difValue = fastEMA[i] - slowEMA[i];
     dif.push(isNaN(difValue) ? 0 : difValue);
   }
-  
+
   // 计算DEA（慢线）：DIF的9日EMA
   const dea = calculateEMA(dif, signalPeriod);
-  
+
   // 计算MACD柱：(DIF - DEA) * 2
   const result = data.map((item, index) => {
     let difValue = 0;
     let deaValue = 0;
     let barValue = 0;
-    
+
     // 计算DIF值
     if (index >= slowPeriod - 1 && index - (slowPeriod - 1) < dif.length) {
       difValue = dif[index - (slowPeriod - 1)];
     }
-    
+
     // 计算DEA和MACD柱值
     if (index >= slowPeriod + signalPeriod - 2 && index - (slowPeriod + signalPeriod - 2) < dea.length) {
       deaValue = dea[index - (slowPeriod + signalPeriod - 2)];
       barValue = (difValue - deaValue) * 2;
     }
-    
+
     return {
       ...item,
       __MACD_DIF__: parseFloat(difValue.toFixed(4)),
@@ -319,7 +321,7 @@ export const calculateMACD = (
       __MACD_BAR__: parseFloat(barValue.toFixed(4))
     };
   });
-  
+
   return result;
 };
 
@@ -342,8 +344,8 @@ export interface KLineData {
 // 周期类型
 export type KLinePeriod = 'weekly' | 'monthly' | 'quarterly';
 
-// 转换日K数据为指定周期的K线数据
-export const convertToKLine = (params: {
+// 聚合日K数据为指定周期的K线数据；日K -> 周K/月K/季K
+export const aggregateKLineByPeriod = (params: {
   dailyData: KLineData[];
   period: KLinePeriod;
 }): KLineData[] => {
@@ -425,20 +427,120 @@ export const convertToKLine = (params: {
   return kLineData;
 };
 
-// // 转换日K数据为周K数据
-// export const convertToWeeklyK = (dailyData: KLineData[]): KLineData[] => {
-//   return convertToKLine(dailyData, 'weekly');
+// 计算日K数据的RSI6值
+export const calculateDailyRSI6 = (dailyData: KLineData[]) => {
+  return calculateRSI({ data: dailyData, closeKey: '收盘', period: 6 });
+}
+
+// 计算周K数据的RSI6值
+export const calculateWeeklyRSI6 = (dailyData: KLineData[]) => {
+  // 聚合日K数据为周K数据
+  const weeklyData = aggregateKLineByPeriod({ dailyData, period: 'weekly' });
+  return calculateRSI({ data: weeklyData, closeKey: '收盘', period: 6 });
+}
+
+// 计算月K数据的RSI6值
+export const calculateMonthlyRSI6 = (dailyData: KLineData[]) => {
+  // 聚合日K数据为月K数据
+  const monthlyData = aggregateKLineByPeriod({ dailyData, period: 'monthly' });
+  return calculateRSI({ data: monthlyData, closeKey: '收盘', period: 6 });
+}
+
+// 计算季K数据的RSI6值
+export const calculateQuarterlyRSI6 = (dailyData: KLineData[]) => {
+  // 聚合日K数据为季K数据
+  const quarterlyData = aggregateKLineByPeriod({ dailyData, period: 'quarterly' });
+  return calculateRSI({ data: quarterlyData, closeKey: '收盘', period: 6 });
+}
+
+// 计算周期（日、周、月、季）K线的RSI6值
+export const calculatePeriodRSI = (dailyData: KLineData[]) => ({
+  dailyRSI: calculateDailyRSI6(dailyData),
+  weeklyRSI: calculateWeeklyRSI6(dailyData),
+  monthlyRSI: calculateMonthlyRSI6(dailyData),
+  quarterlyRSI: calculateQuarterlyRSI6(dailyData),
+})
+
+// 辅助函数：构建周期RSI映射
+// export const buildRSIMap = (rsiData: any[], period: 'daily' | 'weekly' | 'monthly' | 'quarterly') => {
+//   const map: Record<string, number> = {};
+
+//   if (rsiData.length === 0) {
+//     return map;
+//   }
+
+//   // 按日期排序
+//   const sortedData = [...rsiData].sort((a, b) => a.日期.localeCompare(b.日期));
+
+//   sortedData.forEach(item => {
+//     const date = moment(item.日期, 'YYYYMMDD');
+//     const rsi = item.__RSI6__;
+
+//     let start: moment.Moment;
+//     let end: moment.Moment;
+
+//     switch (period) {
+//       case 'daily':
+//         map[item.日期] = rsi;
+//         return;
+//       case 'weekly':
+//         start = date.clone().startOf('isoWeek');
+//         end = date.clone().endOf('isoWeek');
+//         break;
+//       case 'monthly':
+//         start = date.clone().startOf('month');
+//         end = date.clone().endOf('month');
+//         break;
+//       case 'quarterly':
+//         start = date.clone().startOf('quarter');
+//         end = date.clone().endOf('quarter');
+//         break;
+//     }
+
+//     // 填充周期内的每一天
+//     const current = start!.clone();
+//     while (current.isSameOrBefore(end!)) {
+//       map[current.format('YYYYMMDD')] = rsi;
+//       current.add(1, 'day');
+//     }
+//   });
+
+//   return map;
 // };
 
-// // 转换日K数据为月K数据
-// export const convertToMonthlyK = (dailyData: KLineData[]): KLineData[] => {
-//   return convertToKLine(dailyData, 'monthly');
+// RSI 值映射类型
+// interface RSIValueMaps {
+//   daily: Record<string, number>;
+//   weekly: Record<string, number>;
+//   monthly: Record<string, number>;
+//   quarterly: Record<string, number>;
+// }
+
+// 在 RSI 映射中查找最近 N 天的值
+// const findRSIValue = (date: string, rsiMap: Record<string, number>, maxDays: number): number | undefined => {
+//   if (rsiMap[date] !== undefined) return rsiMap[date];
+
+//   const dateMoment = moment(date, 'YYYYMMDD');
+//   for (let i = 1; i <= maxDays; i++) {
+//     const prev = dateMoment.clone().subtract(i, 'day').format('YYYYMMDD');
+//     const next = dateMoment.clone().add(i, 'day').format('YYYYMMDD');
+//     if (rsiMap[prev] !== undefined) return rsiMap[prev];
+//     if (rsiMap[next] !== undefined) return rsiMap[next];
+//   }
+//   return undefined;
 // };
 
-// // 转换日K数据为季K数据
-// export const convertToQuarterlyK = (dailyData: KLineData[]): KLineData[] => {
-//   return convertToKLine(dailyData, 'quarterly');
-// };
+// 获取指定日期各周期的 RSI 值（带回退查找）
+// export const getRSIValues11 = (date: string, maps: RSIValueMaps) => ({
+//   daily: findRSIValue(date, maps.daily, 1),
+//   weekly: findRSIValue(date, maps.weekly, 7),
+//   monthly: findRSIValue(date, maps.monthly, 31),
+//   quarterly: findRSIValue(date, maps.quarterly, 92),
+// });
+
+
+
+
 
 // 添加推荐级别计算逻辑
 const getRecommendationLevel = (dailyRSIValue: number, weeklyRSIValue: number, monthlyRSIValue: number, quarterlyRSIValue: number) => {
@@ -453,7 +555,7 @@ const getRecommendationLevel = (dailyRSIValue: number, weeklyRSIValue: number, m
     case dailyRSIValue <= 9 && weeklyRSIValue <= 13:
       return 1;
     default:
-      return 0;
+      return null;
   }
 };
 
@@ -465,91 +567,82 @@ export const calculatePercentile = (data: number[], percentile: number): number 
   return sortedData[Math.max(0, index)];
 };
 
-// 获取指定日期的各周期RSI值
-const getRSIValues = (dailyItem: KLineData, weeklyRSIMap: Map<string, number>, monthlyRSIMap: Map<string, number>, quarterlyRSIMap: Map<string, number>) => {
-  const dayDate = moment(dailyItem.日期);
-  const dailyRSIValue = dailyItem['__RSI6__'];
-
-  // 找到包含该日的周K日期（周K的日期是该周的最后一个交易日）
-  let weeklyRSIValue = 100; // 默认为100，不满足条件
-  for (const [date, rsi] of weeklyRSIMap.entries()) {
-    const weekDate = moment(date);
-    if (weekDate.year() === dayDate.year() && weekDate.week() === dayDate.week()) {
-      weeklyRSIValue = rsi;
-      break;
+// 在周期 RSI 映射中查找匹配给定日期的值
+const findMatchingPeriodRSI = (
+  rsiMap: Map<string, number>,
+  matchFn: (date: moment.Moment) => boolean,
+): number => {
+  for (const [date, rsi] of rsiMap.entries()) {
+    if (matchFn(moment(date))) {
+      return rsi;
     }
   }
-
-  // 找到包含该日的月K日期（月K的日期是该月的最后一个交易日）
-  let monthlyRSIValue = 100; // 默认为100，不满足条件
-  for (const [date, rsi] of monthlyRSIMap.entries()) {
-    const monthDate = moment(date);
-    if (monthDate.year() === dayDate.year() && monthDate.month() === dayDate.month()) {
-      monthlyRSIValue = rsi;
-      break;
-    }
-  }
-
-  // 找到包含该日的季K日期（季K的日期是该季的最后一个交易日）
-  const quarter = Math.floor((dayDate.month() + 1 - 1) / 3) + 1;
-  let quarterlyRSIValue = 100; // 默认为100，不满足条件
-  for (const [date, rsi] of quarterlyRSIMap.entries()) {
-    const quarterDate = moment(date);
-    const dateQuarter = Math.floor((quarterDate.month() + 1 - 1) / 3) + 1;
-    if (quarterDate.year() === dayDate.year() && dateQuarter === quarter) {
-      quarterlyRSIValue = rsi;
-      break;
-    }
-  }
-
-  return {
-    dailyRSIValue,
-    weeklyRSIValue,
-    monthlyRSIValue,
-    quarterlyRSIValue
-  };
+  return 100; // 默认为 100，不满足条件
 };
 
-// 过滤日K数据，基于周K、月K、季K的RSI6阈值
-// 条件：季K的RSI6 < threshold 且对应月K的RSI6 < threshold 且对应周K的RSI6 < threshold
-export const filterKLineByRSI = (params: {
-  dailyData: KLineData[];
-  weeklyData: KLineData[];
-  monthlyData: KLineData[];
-  quarterlyData: KLineData[];
-  // rsiThreshold?: number;
-}): (KLineData & { __recommendationLevel__: number })[] => {
-  const { dailyData, weeklyData, monthlyData, quarterlyData } = params;
+// 获取指定日期的各周期RSI值
+export const getRSIValues = (
+  dailyRSIMap: KLineData,
+  weeklyRSIMap: Map<string, number>,
+  monthlyRSIMap: Map<string, number>,
+  quarterlyRSIMap: Map<string, number>,
+) => {
+  const dayDate = moment(dailyRSIMap.日期);
+  const dailyRSIValue = dailyRSIMap['__RSI6__'];
 
-  if (!dailyData || dailyData.length === 0) {
+  const weeklyRSIValue = findMatchingPeriodRSI(weeklyRSIMap, weekDate =>
+    weekDate.year() === dayDate.year() && weekDate.week() === dayDate.week(),
+  );
+
+  const monthlyRSIValue = findMatchingPeriodRSI(monthlyRSIMap, monthDate =>
+    monthDate.year() === dayDate.year() && monthDate.month() === dayDate.month(),
+  );
+
+  const quarter = Math.floor((dayDate.month()) / 3) + 1;
+  const quarterlyRSIValue = findMatchingPeriodRSI(quarterlyRSIMap, quarterDate =>
+    quarterDate.year() === dayDate.year() && Math.floor((quarterDate.month()) / 3) + 1 === quarter,
+  );
+
+  return { dailyRSIValue, weeklyRSIValue, monthlyRSIValue, quarterlyRSIValue };
+};
+
+// 映射日K数据：日期、收盘、日/周/月/季RSI6值、推荐级别
+export const computeRSIRecommendations = (params: {
+  dailyRSI: KLineData[];
+  weeklyRSI: KLineData[];
+  monthlyRSI: KLineData[];
+  quarterlyRSI: KLineData[];
+}): (KLineData & { __recommendationLevel__: number })[] => {
+  const { dailyRSI, weeklyRSI, monthlyRSI, quarterlyRSI } = params;
+
+  if (!dailyRSI || dailyRSI.length === 0) {
     return [];
   }
-
-  // 计算各周期的RSI6
-  const weeklyRSI = calculateRSI({ data: weeklyData, period: 6 });
-  const monthlyRSI = calculateRSI({ data: monthlyData, period: 6 });
-  const quarterlyRSI = calculateRSI({ data: quarterlyData, period: 6 });
-
   // 构建周期数据的映射，键为日期，值为对应的RSI6
   const weeklyRSIMap = new Map(weeklyRSI.map(item => [moment(item.日期).format('YYYY-MM-DD'), item.__RSI6__]));
   const monthlyRSIMap = new Map(monthlyRSI.map(item => [moment(item.日期).format('YYYY-MM-DD'), item.__RSI6__]));
   const quarterlyRSIMap = new Map(quarterlyRSI.map(item => [moment(item.日期).format('YYYY-MM-DD'), item.__RSI6__]));
 
   // 过滤日K数据并计算推荐级别
-  return dailyData.map(dailyItem => {
-    const rsiValues = getRSIValues(dailyItem, weeklyRSIMap, monthlyRSIMap, quarterlyRSIMap);
+  const aaa =  dailyRSI.map(dailyRSIMap => {
+    const rsiValues = getRSIValues(dailyRSIMap, weeklyRSIMap, monthlyRSIMap, quarterlyRSIMap);
     const __recommendationLevel__ = getRecommendationLevel(
       rsiValues.dailyRSIValue,
       rsiValues.weeklyRSIValue,
       rsiValues.monthlyRSIValue,
       rsiValues.quarterlyRSIValue
     );
-
     return {
-      ...dailyItem,
-      __recommendationLevel__
+      日期: dailyRSIMap.日期,
+      收盘: dailyRSIMap.收盘,
+      daily__RSI6__: rsiValues.dailyRSIValue ?? null,
+      weekly__RSI6__: rsiValues.weeklyRSIValue ?? null,
+      monthly__RSI6__: rsiValues.monthlyRSIValue ?? null,
+      quarterly__RSI6__: rsiValues.quarterlyRSIValue ?? null,
+      __recommendationLevel__: __recommendationLevel__ ?? null,
     };
-  }).filter(item => item.__recommendationLevel__ > 0);
+  })
+  return aaa
 };
 
 // 查找3连阳或以上且第1阳的换手率在过去5年10%低位的情况
@@ -625,9 +718,9 @@ export const findThreeConsecutiveRises = (params: {
         const day1 = rawData[i];
         const day2 = rawData[i + 1];
         const day3 = rawData[i + 2];
-        
+
         if (day1.换手率 !== undefined && day2.换手率 !== undefined && day3.换手率 !== undefined &&
-            day1.换手率 <= percentile05 && day2.换手率 <= percentile05 && day3.换手率 <= percentile05) {
+          day1.换手率 <= percentile05 && day2.换手率 <= percentile05 && day3.换手率 <= percentile05) {
           // 提取连续阳线的数据
           const consecutiveData = rawData.slice(i, i + consecutiveRises);
           result.push({
@@ -656,7 +749,7 @@ export const calculateVolatility = (params: {
   period?: number; // 滚动周期，默认20日
 }): (any & { __波动率__: number })[] => {
   const { data, navKey, dateKey, period = 20 } = params;
-  
+
   if (!data || data.length < period) {
     return data?.map(item => ({ ...item, __波动率__: 0 })) || [];
   }
@@ -664,7 +757,7 @@ export const calculateVolatility = (params: {
   // 计算日增长率
   const dataWithGrowth = data.map((item, index) => {
     const currentItem = { ...item };
-    
+
     if (index > 0) {
       const prevNav = Number(data[index - 1][navKey]);
       const currentNav = Number(currentItem[navKey]);
@@ -672,14 +765,14 @@ export const calculateVolatility = (params: {
         currentItem['__日增长率__'] = ((currentNav - prevNav) / prevNav) * 100;
       }
     }
-    
+
     return currentItem;
   });
 
   // 计算滚动波动率（标准差）
   const result = dataWithGrowth.map((item, index) => {
     const currentItem = { ...item };
-    
+
     if (index >= period - 1) { // 需要至少period个数据点
       const growthRates = [];
       for (let i = index - (period - 1); i <= index; i++) {
@@ -687,7 +780,7 @@ export const calculateVolatility = (params: {
           growthRates.push(dataWithGrowth[i]['__日增长率__']);
         }
       }
-      
+
       if (growthRates.length > 0) {
         const mean = growthRates.reduce((a, b) => a + b, 0) / growthRates.length;
         const variance = growthRates.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / growthRates.length;
@@ -698,7 +791,7 @@ export const calculateVolatility = (params: {
     } else {
       currentItem['__波动率__'] = 0;
     }
-    
+
     return currentItem;
   });
 
@@ -709,3 +802,28 @@ export const calculateVolatility = (params: {
 export const calculateAnnualizedVolatility = (volatility: number, tradingDaysPerYear: number = 252): number => {
   return volatility * Math.sqrt(tradingDaysPerYear);
 };
+
+// 推荐级别对应的标注样式
+const ANNOTATION_STYLES: Record<number, { color: string; fontSize: number }> = {
+  5: { color: '#008000', fontSize: 12 },
+  3: { color: '#42b242ff', fontSize: 10 },
+  1: { color: '#9fe49fff', fontSize: 8 },
+};
+
+// 生成推荐买点标注
+export const createRecommendationAnnotations = <T extends { 日期: string; 收盘: number; __recommendationLevel__: number }>(
+  items: T[],
+) => items.map(item => {
+  const style = ANNOTATION_STYLES[item.__recommendationLevel__] || ANNOTATION_STYLES[1];
+  return {
+    type: 'text' as const,
+    data: [new Date(item.日期), item.收盘],
+    style: {
+      text: '●',
+      fontSize: style.fontSize,
+      dx: -(style.fontSize / 2),
+      stroke: style.color,
+      fill: style.color,
+    },
+  };
+});

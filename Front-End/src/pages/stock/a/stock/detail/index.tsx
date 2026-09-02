@@ -50,10 +50,9 @@ const pageStyle: React.CSSProperties = { padding: '24px' };
 const titleStyle: React.CSSProperties = { margin: 0 };
 
 const StockDetail: React.FC = () => {
-  const [loading, setLoading] = useState(false);
   // const [symbolInfo, setSymbolInfo] = useState<Record<string, string>>({});
   const [rawData, setRawData] = useState<StockDetailData[]>([]);
-  const [activeTab, setActiveTab] = useState<string>('valuation');
+  const [activeTab, setActiveTab] = useState<string>('rsi-filter');
 
   const [searchParams] = useSearchParams();
   const symbol = searchParams.get('symbol') || '';
@@ -62,6 +61,31 @@ const StockDetail: React.FC = () => {
 
   // 事件处理函数 - 使用 useCallback 缓存
   const handleTabChange = useCallback((key: string) => setActiveTab(key), []);
+
+
+  useEffect(() => {
+    if (!symbol) return;
+    const fetchData = async () => {
+      try {
+        const params: Record<string, string> = {
+          symbol, 
+          adjust: 'hfq',
+          start_date: '20180101' // todo
+        };
+        const response = await apiClient.get('/api/public/stock_zh_a_hist_tx', { params });
+        setRawData(response?.data?.map((item: Record<string, unknown>) => ({
+          日期: item.date,
+          收盘: Number(item.close),
+        })) || []);
+      } catch (error) {
+        console.error('Error fetching stock_zh_a_hist_tx data:', error);
+      } finally {
+        // do nothing
+      }
+    };
+    fetchData();
+  }, []);
+
 
   // 缓存子组件渲染 - 避免每次渲染重新创建
   const priceAndTurnoverComponent = useMemo(() => (
@@ -89,11 +113,11 @@ const StockDetail: React.FC = () => {
     </Suspense>
   ), [rawData]);
 
-  const threeConsecutiveRisesComponent = useMemo(() => (
-    <Suspense fallback={<ComponentFallback />}>
-      <ThreeConsecutiveRisesComponent data={rawData} />
-    </Suspense>
-  ), [rawData]);
+  // const threeConsecutiveRisesComponent = useMemo(() => (
+  //   <Suspense fallback={<ComponentFallback />}>
+  //     <ThreeConsecutiveRisesComponent data={rawData} />
+  //   </Suspense>
+  // ), [rawData]);
 
   // 缓存 Tabs 配置
   const tabItems = useMemo(() => [
@@ -118,31 +142,30 @@ const StockDetail: React.FC = () => {
     },
     {
       key: 'rsi-filter',
-      label: 'RSI6 超卖（日k/后复权）',
+      label: 'RSI6 技术指标',
       children: (
         <>
           <Card style={cardStyle}>
-            <Title level={5}>RSI6 超卖（日k/后复权）</Title>
+            <Title level={5}>RSI6 技术指标</Title>
             {rsiFilterMarkComponent}
           </Card>
           <Card style={cardStyle}>
-            <Title level={5}>不同周期 RSI6</Title>
             {rsiPeriodsComponent}
           </Card>
         </>
       ),
     },
-    {
-      key: 'three-rises',
-      label: '低换手三连阳（日k/后复权）',
-      children: (
-        <Card style={cardStyle}>
-          <Title level={5}>低换手三连阳（日k/后复权）</Title>
-          {threeConsecutiveRisesComponent}
-        </Card>
-      ),
-    },
-  ], [priceAndTurnoverComponent, rsiFilterMarkComponent, rsiPeriodsComponent, threeConsecutiveRisesComponent, valuationComponent]);
+    // {
+    //   key: 'three-rises',
+    //   label: '低换手三连阳',
+    //   children: (
+    //     <Card style={cardStyle}>
+    //       <Title level={5}>低换手三连阳</Title>
+    //       {threeConsecutiveRisesComponent}
+    //     </Card>
+    //   ),
+    // },
+  ], [priceAndTurnoverComponent, rsiFilterMarkComponent, rsiPeriodsComponent, valuationComponent]);
 
   return (
     <div style={pageStyle}>
@@ -151,14 +174,12 @@ const StockDetail: React.FC = () => {
           {name}({symbol})
         </Title>
       </Card>
-      <Spin spinning={loading}>
-        <Tabs
-          activeKey={activeTab}
-          onChange={handleTabChange}
-          items={tabItems}
-          destroyInactiveTabPane={false}
-        />
-      </Spin>
+      <Tabs
+        activeKey={activeTab}
+        onChange={handleTabChange}
+        items={tabItems}
+        destroyInactiveTabPane={false}
+      />
     </div>
   );
 };

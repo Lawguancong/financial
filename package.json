@@ -7,7 +7,7 @@
 
     "start:server:aktools": "p=$(lsof -ti:6670); [ -n \"$p\" ] && kill -9 $p; cd Back-End/ak/aktools && python3 -m aktools --port 6670",
     "start:frontend:aktools": "p=$(lsof -ti:6671); [ -n \"$p\" ] && kill -9 $p; cd Front-End && yarn vite --port 6671 --mode aktools",
-    "start:aktools": "trap 'kill 0' EXIT; npm run start:server:aktools & npm run start:frontend:aktools",
+    "dev": "trap 'kill 0' EXIT; npm run start:server:aktools & npm run start:frontend:aktools",
 
 
     "start:server:akshare": "cd Back-End/ak/akshare && python3 app.py --port 6680",

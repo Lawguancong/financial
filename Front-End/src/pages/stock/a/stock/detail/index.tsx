@@ -11,6 +11,7 @@ const RsiFilterMark = React.lazy(() => import('./components/RsiFilterMark'));
 const ThreeConsecutiveRisesComponent = React.lazy(() => import('./components/ThreeConsecutiveRises'));
 const RsiPeriods = React.lazy(() => import('./components/RsiPeriods'));
 const Valuation = React.lazy(() => import('./components/Valuation'));
+const PeerComparison = React.lazy(() => import('./components/PeerComparison'));
 
 const { Title } = Typography;
 
@@ -107,11 +108,17 @@ const StockDetail: React.FC = () => {
     </Suspense>
   ), [rawData]);
 
-  const rsiPeriodsComponent = useMemo(() => (
+  const peerComparisonComponent = useMemo(() => (
     <Suspense fallback={<ComponentFallback />}>
-      <RsiPeriods data={rawData} />
+      <PeerComparison />
     </Suspense>
-  ), [rawData]);
+  ), []);
+
+  // const rsiPeriodsComponent = useMemo(() => (
+  //   <Suspense fallback={<ComponentFallback />}>
+  //     <RsiPeriods data={rawData} />
+  //   </Suspense>
+  // ), [rawData]);
 
   // const threeConsecutiveRisesComponent = useMemo(() => (
   //   <Suspense fallback={<ComponentFallback />}>
@@ -149,10 +156,20 @@ const StockDetail: React.FC = () => {
             <Title level={5}>RSI6 技术指标</Title>
             {rsiFilterMarkComponent}
           </Card>
-          <Card style={cardStyle}>
+          {/* <Card style={cardStyle}>
             {rsiPeriodsComponent}
-          </Card>
+          </Card> */}
         </>
+      ),
+    },
+    {
+      key: 'peer-comparison',
+      label: '同行比较',
+      children: (
+        <Card style={cardStyle}>
+          <Title level={5}>同行比较</Title>
+          {peerComparisonComponent}
+        </Card>
       ),
     },
     // {
@@ -165,7 +182,7 @@ const StockDetail: React.FC = () => {
     //     </Card>
     //   ),
     // },
-  ], [priceAndTurnoverComponent, rsiFilterMarkComponent, rsiPeriodsComponent, valuationComponent]);
+  ], [priceAndTurnoverComponent, rsiFilterMarkComponent, valuationComponent, peerComparisonComponent]);
 
   return (
     <div style={pageStyle}>

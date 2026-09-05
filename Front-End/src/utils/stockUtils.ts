@@ -327,14 +327,14 @@ export const calculateMACD = (
 
 // K线数据类型
 export interface KLineData {
-  日期: string;
-  股票代码: string;
-  开盘: number;
-  收盘: number;
-  最高: number;
-  最低: number;
-  成交量: number;
-  成交额: number;
+  日期: string; // 日期:必传
+  收盘: number; // 收盘:必传
+  股票代码?: string;
+  开盘?: number;
+  最高?: number;
+  最低?: number;
+  成交量?: number;
+  成交额?: number;
   振幅?: number;
   涨跌幅?: number;
   涨跌额?: number;
@@ -580,15 +580,15 @@ const findMatchingPeriodRSI = (
   return 100; // 默认为 100，不满足条件
 };
 
-// 获取指定日期的各周期RSI值
-export const getRSIValues = (
-  dailyRSIMap: KLineData,
-  weeklyRSIMap: Map<string, number>,
-  monthlyRSIMap: Map<string, number>,
-  quarterlyRSIMap: Map<string, number>,
+// 获取日期的各周期（日/周/月/季）RSI值
+export const getPeriodRSIValues = (
+  dailyRSIData: KLineData, // 日K数据
+  weeklyRSIMap: Map<string, number>, // 周K RSI map映射
+  monthlyRSIMap: Map<string, number>, // 月K RSI map映射
+  quarterlyRSIMap: Map<string, number>, // 季K RSI map映射
 ) => {
-  const dayDate = moment(dailyRSIMap.日期);
-  const dailyRSIValue = dailyRSIMap['__RSI6__'];
+  const dayDate = moment(dailyRSIData.日期);
+  const dailyRSIValue = dailyRSIData['__RSI6__'];
 
   const weeklyRSIValue = findMatchingPeriodRSI(weeklyRSIMap, weekDate =>
     weekDate.year() === dayDate.year() && weekDate.week() === dayDate.week(),
@@ -624,8 +624,8 @@ export const computeRSIRecommendations = (params: {
   const quarterlyRSIMap = new Map(quarterlyRSI.map(item => [moment(item.日期).format('YYYY-MM-DD'), item.__RSI6__]));
 
   // 过滤日K数据并计算推荐级别
-  const aaa =  dailyRSI.map(dailyRSIMap => {
-    const rsiValues = getRSIValues(dailyRSIMap, weeklyRSIMap, monthlyRSIMap, quarterlyRSIMap);
+  const aaa =  dailyRSI.map(dailyRSIData => {
+    const rsiValues = getPeriodRSIValues(dailyRSIData, weeklyRSIMap, monthlyRSIMap, quarterlyRSIMap);
     const __recommendationLevel__ = getRecommendationLevel(
       rsiValues.dailyRSIValue,
       rsiValues.weeklyRSIValue,
@@ -633,12 +633,12 @@ export const computeRSIRecommendations = (params: {
       rsiValues.quarterlyRSIValue
     );
     return {
-      日期: dailyRSIMap.日期,
-      收盘: dailyRSIMap.收盘,
-      daily__RSI6__: rsiValues.dailyRSIValue ?? null,
-      weekly__RSI6__: rsiValues.weeklyRSIValue ?? null,
-      monthly__RSI6__: rsiValues.monthlyRSIValue ?? null,
-      quarterly__RSI6__: rsiValues.quarterlyRSIValue ?? null,
+      日期: dailyRSIData.日期,
+      收盘: dailyRSIData.收盘,
+      __daily__RSI6__: rsiValues.dailyRSIValue ?? null,
+      __weekly__RSI6__: rsiValues.weeklyRSIValue ?? null,
+      __monthly__RSI6__: rsiValues.monthlyRSIValue ?? null,
+      __quarterly__RSI6__: rsiValues.quarterlyRSIValue ?? null,
       __recommendationLevel__: __recommendationLevel__ ?? null,
     };
   })

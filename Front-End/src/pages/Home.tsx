@@ -237,7 +237,6 @@ const Home = () => {
 
 
   // ==================== 财务指标 ====================
-  // A股财务指标: stock_financial_analysis_indicator
   // 港股财务指标: stock_financial_hk_analysis_indicator_em
   // 美股财务指标: stock_financial_us_analysis_indicator_em
   // 主要指标(东方财富): stock_financial_analysis_indicator_em
@@ -282,16 +281,8 @@ const Home = () => {
 
 
   // 简单好用高效 不用太复杂 
-  // apiClient.get('/api/public/stock_zh_a_hist', { params }),
-
-  // 历史行情数据-新浪 接口：stock_zh_a_daily
-  // http://127.0.0.1:6670/api/public/stock_zh_a_daily?symbol=sz000001&adjust=hfq
-
-  // 历史行情数据-腾讯 接口：stock_zh_a_hist_tx
-  // http://127.0.0.1:6670/api/public/stock_zh_a_hist_tx?symbol=sz000001&adjust=hfq
-
-  // 同行比较 成长性比较接口: stock_zh_growth_comparison_em
   // 估值比较 接口: stock_zh_valuation_comparison_em
+  // A股财务指标: stock_financial_analysis_indicator
 
 
   return (

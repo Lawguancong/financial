@@ -123,6 +123,12 @@ export const menuConfigs: MenuItemConfig[] = [
             path: 'stock/a/history-dividend',
             component: lazy(() => import('@/pages/stock/a/stock/StockHistoryDividend')),
           },
+          {
+            key: 'stock/a/upward-breakthrough',
+            label: '向上突破',
+            path: 'stock/a/upward-breakthrough',
+            component: lazy(() => import('@/pages/stock/a/upward-breakthrough')),
+          },
         ],
       },
       {

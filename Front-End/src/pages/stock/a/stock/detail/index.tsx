@@ -8,6 +8,7 @@ import moment from 'moment';
 // 懒加载组件，按需加载
 const PriceAndTurnover = React.lazy(() => import('./components/PriceAndTurnover'));
 const RsiFilterMark = React.lazy(() => import('./components/RsiFilterMark'));
+const PriceAvg = React.lazy(() => import('./components/PriceAvg'));
 const ThreeConsecutiveRisesComponent = React.lazy(() => import('./components/ThreeConsecutiveRises'));
 const RsiPeriods = React.lazy(() => import('./components/RsiPeriods'));
 const Valuation = React.lazy(() => import('./components/Valuation'));
@@ -53,7 +54,7 @@ const titleStyle: React.CSSProperties = { margin: 0 };
 const StockDetail: React.FC = () => {
   // const [symbolInfo, setSymbolInfo] = useState<Record<string, string>>({});
   const [rawData, setRawData] = useState<StockDetailData[]>([]);
-  const [activeTab, setActiveTab] = useState<string>('rsi-filter');
+  const [activeTab, setActiveTab] = useState<string>('price-line-avg');
 
   const [searchParams] = useSearchParams();
   const symbol = searchParams.get('symbol') || '';
@@ -68,9 +69,18 @@ const StockDetail: React.FC = () => {
     if (!symbol) return;
     const fetchData = async () => {
       try {
+        // 9 开头 bj, 6 开头 sh, 0 开头 sz
+        const prefix = symbol.startsWith('9')
+          ? 'bj'
+          : symbol.startsWith('6')
+          ? 'sh'
+          : symbol.startsWith('0')
+          ? 'sz'
+          : '';
         const params: Record<string, string> = {
-          symbol, 
+          symbol: prefix ? `${prefix}${symbol}` : symbol,
           adjust: 'hfq',
+          start_date: '20210101' // todo
         };
         const response = await apiClient.get('/api/public/stock_zh_a_hist_tx', { params });
         setRawData(response?.data?.map((item: Record<string, unknown>) => ({
@@ -107,17 +117,18 @@ const StockDetail: React.FC = () => {
     </Suspense>
   ), [rawData]);
 
+  const priceAvgComponent = useMemo(() => (
+    <Suspense fallback={<ComponentFallback />}>
+      <PriceAvg data={rawData} />
+    </Suspense>
+  ), [rawData]);
+
   const peerComparisonComponent = useMemo(() => (
     <Suspense fallback={<ComponentFallback />}>
       <PeerComparison />
     </Suspense>
   ), []);
 
-  // const rsiPeriodsComponent = useMemo(() => (
-  //   <Suspense fallback={<ComponentFallback />}>
-  //     <RsiPeriods data={rawData} />
-  //   </Suspense>
-  // ), [rawData]);
 
   // const threeConsecutiveRisesComponent = useMemo(() => (
   //   <Suspense fallback={<ComponentFallback />}>
@@ -150,20 +161,25 @@ const StockDetail: React.FC = () => {
       key: 'rsi-filter',
       label: 'RSI6 技术指标',
       children: (
-        <>
           <Card style={cardStyle}>
             <Title level={5}>RSI6 技术指标</Title>
             {rsiFilterMarkComponent}
           </Card>
-          {/* <Card style={cardStyle}>
-            {rsiPeriodsComponent}
-          </Card> */}
-        </>
+      ),
+    },
+    {
+      key: 'price-line-avg',
+      label: '均线 技术指标(todo 待实验)',
+      children: (
+          <Card style={cardStyle}>
+            <Title level={5}>均线 技术指标</Title>
+            {priceAvgComponent}
+          </Card>
       ),
     },
     {
       key: 'peer-comparison',
-      label: '同行比较',
+      label: '同行比较（todo 待完善）',
       children: (
         <Card style={cardStyle}>
           <Title level={5}>同行比较</Title>
@@ -181,7 +197,7 @@ const StockDetail: React.FC = () => {
     //     </Card>
     //   ),
     // },
-  ], [priceAndTurnoverComponent, rsiFilterMarkComponent, valuationComponent, peerComparisonComponent]);
+  ], [priceAndTurnoverComponent, rsiFilterMarkComponent, priceAvgComponent, valuationComponent, peerComparisonComponent]);
 
   return (
     <div style={pageStyle}>

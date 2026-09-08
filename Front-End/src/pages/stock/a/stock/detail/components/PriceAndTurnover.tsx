@@ -34,8 +34,16 @@ const useStockData = (symbol: string, adjust: string) => {
     setLoading(true);
     const fetchData = async () => {
       try {
+        const prefix = symbol.startsWith('9')
+          ? 'bj'
+          : symbol.startsWith('6')
+          ? 'sh'
+          : symbol.startsWith('0')
+          ? 'sz'
+          : '';
         const params: Record<string, string> = {
-          symbol, adjust,
+          symbol: prefix ? `${prefix}${symbol}` : symbol,
+          adjust,
         };
         const response = await apiClient.get('/api/public/stock_zh_a_hist_tx', { params });
         setData(response?.data?.map((item: Record<string, unknown>) => ({

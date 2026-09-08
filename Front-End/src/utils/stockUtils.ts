@@ -542,18 +542,16 @@ export const calculatePeriodRSI = (dailyData: KLineData[]) => ({
 
 
 
-// 添加推荐级别计算逻辑
-const getRecommendationLevel = (dailyRSIValue: number, weeklyRSIValue: number, monthlyRSIValue: number, quarterlyRSIValue: number) => {
+// 计算个股 RSI6推荐级别
+const calculateStockRecommendationLevel = (dailyRSIValue: number, weeklyRSIValue: number, monthlyRSIValue: number, quarterlyRSIValue: number) => {
   switch (true) {
-    // todo 优化 推荐级别 区间 
-    case dailyRSIValue <= 10 && weeklyRSIValue <= 20 && monthlyRSIValue <= 24 && quarterlyRSIValue <= 28:
-    case dailyRSIValue <= 9 && weeklyRSIValue <= 11 && monthlyRSIValue <= 13:
-      return 5;
-    case dailyRSIValue <= 7 && weeklyRSIValue <= 11:
-    case dailyRSIValue <= 14 && weeklyRSIValue <= 17 && monthlyRSIValue <= 20:
-      return 3;
-    case dailyRSIValue <= 9 && weeklyRSIValue <= 13:
-      return 1;
+    case dailyRSIValue <= 14 && weeklyRSIValue <= 18 && monthlyRSIValue <= 22 && quarterlyRSIValue <= 25:
+      return 5; // 5颗星
+    case dailyRSIValue <= 9 && weeklyRSIValue <= 12 && monthlyRSIValue <= 15:
+      return 3; // 3颗星
+    case dailyRSIValue <= 15 && weeklyRSIValue <= 17 && monthlyRSIValue <= 19:
+    case dailyRSIValue <= 9 && weeklyRSIValue <= 12 :
+      return 1; // 1颗星
     default:
       return null;
   }
@@ -626,7 +624,7 @@ export const computeRSIRecommendations = (params: {
   // 过滤日K数据并计算推荐级别
   const aaa =  dailyRSI.map(dailyRSIData => {
     const rsiValues = getPeriodRSIValues(dailyRSIData, weeklyRSIMap, monthlyRSIMap, quarterlyRSIMap);
-    const __recommendationLevel__ = getRecommendationLevel(
+    const __recommendationLevel__ = calculateStockRecommendationLevel(
       rsiValues.dailyRSIValue,
       rsiValues.weeklyRSIValue,
       rsiValues.monthlyRSIValue,

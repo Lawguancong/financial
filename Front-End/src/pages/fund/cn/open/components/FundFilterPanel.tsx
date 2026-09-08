@@ -4,7 +4,7 @@ import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { createRangeFilter, numberSorter, stringSorter } from '@/utils/tableUtils';
 import { calculateRSI } from '@/utils/stockUtils';
-import { calculateRecommendationLevel } from '@/pages/fund/cn/open/detail/constants';
+import { calculateFundRecommendationLevel } from '@/pages/fund/cn/open/detail/constants';
 
 const { Link } = Typography;
 
@@ -61,7 +61,7 @@ const FundFilterPanel: React.FC<FundFilterPanelProps> = ({
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({
     current: 1,
-    pageSize: 50,
+    pageSize: 20,
   });
   const [excludedNames, setExcludedNames] = useState<string[]>(["C"]);
   const [includedNames, setIncludedNames] = useState<string[]>([]);
@@ -474,7 +474,7 @@ const FundFilterPanel: React.FC<FundFilterPanelProps> = ({
           累计收益率: item[closeKey],
           __monthlyRSI6__: __monthlyRSI6__,
           __quarterlyRSI6__: __quarterlyRSI6__,
-          __recommendationLevel__: calculateRecommendationLevel({
+          __recommendationLevel__: calculateFundRecommendationLevel({
             __monthlyRSI6__, __quarterlyRSI6__,
           }),
 
@@ -482,7 +482,7 @@ const FundFilterPanel: React.FC<FundFilterPanelProps> = ({
       })?.filter(item => [5, 3, 1].includes(item.__recommendationLevel__));
       console.log('RSI6Data', RSI6Data)
       return RSI6Data
-      // const recommendationLevel = calculateRecommendationLevel(latestMonthlyRSI, latestQuarterlyRSI);
+      // const recommendationLevel = calculateFundRecommendationLevel(latestMonthlyRSI, latestQuarterlyRSI);
       // return { RSI6月: latestMonthlyRSI, RSI6季: latestQuarterlyRSI, __推荐买点__: recommendationLevel };
     } catch (error) {
       console.log('Error fetching fund detail:', error);
@@ -796,17 +796,12 @@ const FundFilterPanel: React.FC<FundFilterPanelProps> = ({
             dataSource={data}
             rowKey="序号"
             scroll={{ x: 2000 }}
-            pagination={{
-              ...pagination,
-              showSizeChanger: true,
-              showTotal: (total) => `共 ${total} 条`,
-              onChange: (page, pageSize) => {
-                setPagination({ current: page, pageSize });
-              },
-              onShowSizeChange: (current, size) => {
-                setPagination({ current: 1, pageSize: size });
-              },
-            }}
+              pagination={{
+                ...pagination,
+                showSizeChanger: true,
+                showTotal: (total: number) => `共 ${total} 条`,
+                onChange: (page: number, pageSize: number) => setPagination({ current: page, pageSize }),
+              }}
           />
         </Card>
       </Spin>

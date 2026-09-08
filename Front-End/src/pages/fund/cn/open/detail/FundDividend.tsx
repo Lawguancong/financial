@@ -22,6 +22,7 @@ interface DividendRecord {
 const FundDividend: React.FC<FundDividendProps> = ({ symbol }) => {
   const [data, setData] = useState<DividendRecord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
 
   const fetchData = useCallback(async () => {
     if (!symbol) return;
@@ -200,11 +201,11 @@ const FundDividend: React.FC<FundDividendProps> = ({ symbol }) => {
             columns={columns}
             dataSource={data}
             pagination={{
-              pageSize: 10,
-              showSizeChanger: true,
-              showQuickJumper: true,
-              showTotal: (total) => `共 ${total} 次分红`,
-            }}
+              ...pagination,
+                showSizeChanger: true,
+                showTotal: (total: number) => `共 ${total} 条`,
+                onChange: (page: number, pageSize: number) => setPagination({ current: page, pageSize }),
+              }}
             rowKey="序号"
             size="middle"
             scroll={{ x: 1100 }}

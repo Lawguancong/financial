@@ -1,7 +1,6 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { Table, Typography, InputNumber, Space, Button, Input, Tabs } from 'antd';
+import React, { useEffect, useState, useRef } from 'react';
+import { Table, Typography, InputNumber, Space, Button, Input, Tabs, message } from 'antd';
 import apiClient from '@/utils/axios';
-import StockHistoryDividend from './StockHistoryDividend';
 
 const { Search } = Input;
 
@@ -13,25 +12,17 @@ interface StockData {
   代码: string;
   名称: string;
   最新价: number;
-  涨跌幅: number;
   涨跌额: number;
-  成交量: number;
-  成交额: number;
-  振幅: number;
+  涨跌幅: number;
+  买入: number;
+  卖出: number;
+  昨收: number;
+  今开: number;
   最高: number;
   最低: number;
-  今开: number;
-  昨收: number;
-  量比: number;
-  换手率: number;
-  '市盈率-动态': number;
-  市净率: number;
-  总市值: number;
-  流通市值: number;
-  涨速: number;
-  五分钟涨跌: number;
-  六十日涨跌幅: number;
-  年初至今涨跌幅: number;
+  成交量: number;
+  成交额: number;
+  时间戳: unknown;
 }
 
 interface RangeFilterValue {
@@ -166,8 +157,23 @@ const Stock: React.FC = () => {
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
   const [activeTab, setActiveTab] = useState<string>('all');
   const [selectedStocks, setSelectedStocks] = useState<StockData[]>([]);
+  const selectedStocksRef = useRef<StockData[]>([]);
+  // 保持 ref 与 state 同步
+  useEffect(() => {
+    selectedStocksRef.current = selectedStocks;
+  }, [selectedStocks]);
 
-
+  // 从 localStorage 加载自选股票
+  useEffect(() => {
+    try {
+      const savedStocks = localStorage.getItem('selectedStocks');
+      if (savedStocks) {
+        setSelectedStocks(JSON.parse(savedStocks));
+      }
+    } catch (error) {
+      console.log('加载自选股票失败:', error);
+    }
+  }, []);
 
   const fetchData = async () => {
     const cachedData = sessionStorage.getItem('stockListData');
@@ -177,17 +183,16 @@ const Stock: React.FC = () => {
         setData(parsedData);
 
         // 更新自选股票数据（除代码外）
-        if (selectedStocks.length > 0) {
-          const updatedSelectedStocks = selectedStocks.map(selectedStock => {
+        const currentSelected = selectedStocksRef.current;
+        if (currentSelected.length > 0) {
+          const updatedSelectedStocks = currentSelected.map(selectedStock => {
             const matchedStock = parsedData.find(stock => stock['代码'] === selectedStock['代码']);
             if (matchedStock) {
-              // 保留原代码，其他字段用新数据更新
               return { ...matchedStock, '代码': selectedStock['代码'] };
             }
             return selectedStock;
           });
           setSelectedStocks(updatedSelectedStocks);
-          saveSelectedStocks(updatedSelectedStocks);
         }
 
         setLoading(false);
@@ -201,104 +206,75 @@ const Stock: React.FC = () => {
     try {
       let response;
       try {
-        // response = await apiClient.get('/api/public/stock_zh_a_spot_em'); // 实时接口，非交易时间，无数据返回
         response = await apiClient.get('/api/public/stock_zh_a_spot');
       } catch {
-        // response = await apiClient.get('/api/public/stock_zh_a_spot');
+        // 
       }
       console.log('个股列表 -> response', response);
       const newData = response?.data?.map((item: any, index: number) => ({
         ...item,
         序号: item.序号 || index + 1,
-        // 代码: (item.代码 || '')?.replace(/^[a-zA-Z]+/, ''),
       })) || [];
       setData(newData);
 
       // 更新自选股票数据（除代码外）
-      if (selectedStocks.length > 0) {
-        const updatedSelectedStocks = selectedStocks.map(selectedStock => {
+      const currentSelected = selectedStocksRef.current;
+      if (currentSelected.length > 0) {
+        const updatedSelectedStocks = currentSelected.map(selectedStock => {
           const matchedStock = newData.find(stock => stock['代码'] === selectedStock['代码']);
           if (matchedStock) {
-            // 保留原代码，其他字段用新数据更新
             return { ...matchedStock, '代码': selectedStock['代码'] };
           }
           return selectedStock;
         });
         setSelectedStocks(updatedSelectedStocks);
-        saveSelectedStocks(updatedSelectedStocks);
       }
     } catch (error) {
       console.log('error', error);
-
-      // stock_zh_a_spot
-
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadSelectedStocks();
-  }, []);
-
-  // 从localStorage加载自选股票
-  const loadSelectedStocks = () => {
-    try {
-      const savedStocks = localStorage.getItem('selectedStocks');
-      if (savedStocks) {
-        setSelectedStocks(JSON.parse(savedStocks));
-      }
-    } catch (error) {
-      console.log('加载自选股票失败:', error);
-    }
-  };
-
-  // 保存自选股票到localStorage
+  // 同步自选股票到 localStorage
   const saveSelectedStocks = (stocks: StockData[]) => {
-    try {
-      localStorage.setItem('selectedStocks', JSON.stringify(stocks));
-    } catch (error) {
-      console.log('保存自选股票失败:', error);
-    }
+    localStorage.setItem('selectedStocks', JSON.stringify(stocks));
   };
 
   // 添加到自选
   const addToSelected = (stock: StockData) => {
     const isAlreadySelected = selectedStocks.some(s => s['代码'] === stock['代码']);
     if (!isAlreadySelected) {
-      const newSelectedStocks = [...selectedStocks, stock];
-      setSelectedStocks(newSelectedStocks);
-      saveSelectedStocks(newSelectedStocks);
+      const nextStocks = [...selectedStocks, stock];
+      setSelectedStocks(nextStocks);
+      saveSelectedStocks(nextStocks);
+      message.success(`已添加 ${stock.名称 || stock.代码} 到自选`);
     }
   };
 
   // 从自选中移除
   const removeFromSelected = (stock: StockData) => {
-    const newSelectedStocks = selectedStocks.filter(s => s['代码'] !== stock['代码']);
-    setSelectedStocks(newSelectedStocks);
-    saveSelectedStocks(newSelectedStocks);
-  };
-
-  // 检查股票是否已在自选中
-  const isStockSelected = (stockCode: string) => {
-    return selectedStocks.some(s => s['代码'] === stockCode);
+    const nextStocks = selectedStocks.filter(s => s['代码'] !== stock['代码']);
+    setSelectedStocks(nextStocks);
+    saveSelectedStocks(nextStocks);
+    message.info(`已从自选移除 ${stock.名称 || stock.代码}`);
   };
 
   // 置顶功能
   const moveToTop = (stock: StockData) => {
-    const newSelectedStocks = [stock, ...selectedStocks.filter(s => s['代码'] !== stock['代码'])];
-    setSelectedStocks(newSelectedStocks);
-    saveSelectedStocks(newSelectedStocks);
+    const nextStocks = [stock, ...selectedStocks.filter(s => s['代码'] !== stock['代码'])];
+    setSelectedStocks(nextStocks);
+    saveSelectedStocks(nextStocks);
   };
 
   // 置底功能
   const moveToBottom = (stock: StockData) => {
-    const newSelectedStocks = [...selectedStocks.filter(s => s['代码'] !== stock['代码']), stock];
-    setSelectedStocks(newSelectedStocks);
-    saveSelectedStocks(newSelectedStocks);
+    const nextStocks = [...selectedStocks.filter(s => s['代码'] !== stock['代码']), stock];
+    setSelectedStocks(nextStocks);
+    saveSelectedStocks(nextStocks);
   };
 
-  const columns = useMemo(() => [
+  const columns: any[] = [
     {
       title: '序号',
       dataIndex: '序号',
@@ -379,41 +355,18 @@ const Stock: React.FC = () => {
       ),
     },
     {
-      title: '市盈率(动态)',
-      dataIndex: '市盈率-动态',
-      key: '市盈率-动态',
-      width: 140,
-      sorter: numberSorter('市盈率-动态'),
-      ...createRangeFilter('市盈率-动态'),
-    } as any,
-    {
-      title: '市净率',
-      dataIndex: '市净率',
-      key: '市净率',
-      width: 100,
-      sorter: numberSorter('市净率'),
-      ...createRangeFilter('市净率'),
-    } as any,
-    {
-      title: '总市值(元)',
-      dataIndex: '总市值',
-      key: '总市值',
-      width: 120,
-      sorter: numberSorter('总市值'),
-    },
-    {
-      title: '流通市值(元)',
-      dataIndex: '流通市值',
-      key: '流通市值',
-      width: 140,
-      sorter: numberSorter('流通市值'),
-    },
-    {
       title: '最新价',
       dataIndex: '最新价',
       key: '最新价',
       width: 100,
       sorter: numberSorter('最新价'),
+    },
+    {
+      title: '涨跌额',
+      dataIndex: '涨跌额',
+      key: '涨跌额',
+      width: 100,
+      sorter: numberSorter('涨跌额'),
     },
     {
       title: '涨跌幅(%)',
@@ -428,46 +381,32 @@ const Stock: React.FC = () => {
       ),
     },
     {
-      title: '涨跌额',
-      dataIndex: '涨跌额',
-      key: '涨跌额',
+      title: '买入',
+      dataIndex: '买入',
+      key: '买入',
       width: 100,
-      sorter: numberSorter('涨跌额'),
+      sorter: numberSorter('买入'),
     },
     {
-      title: '成交量(股)',
-      dataIndex: '成交量',
-      key: '成交量',
-      width: 120,
-      sorter: numberSorter('成交量'),
-    },
-    {
-      title: '成交额(元)',
-      dataIndex: '成交额',
-      key: '成交额',
-      width: 120,
-      sorter: numberSorter('成交额'),
-    },
-    {
-      title: '换手率(%)',
-      dataIndex: '换手率',
-      key: '换手率',
-      width: 120,
-      sorter: numberSorter('换手率'),
-    },
-    {
-      title: '量比',
-      dataIndex: '量比',
-      key: '量比',
+      title: '卖出',
+      dataIndex: '卖出',
+      key: '卖出',
       width: 100,
-      sorter: numberSorter('量比'),
+      sorter: numberSorter('卖出'),
     },
     {
-      title: '振幅(%)',
-      dataIndex: '振幅',
-      key: '振幅',
+      title: '昨收',
+      dataIndex: '昨收',
+      key: '昨收',
       width: 100,
-      sorter: numberSorter('振幅'),
+      sorter: numberSorter('昨收'),
+    },
+    {
+      title: '今开',
+      dataIndex: '今开',
+      key: '今开',
+      width: 100,
+      sorter: numberSorter('今开'),
     },
     {
       title: '最高',
@@ -484,62 +423,26 @@ const Stock: React.FC = () => {
       sorter: numberSorter('最低'),
     },
     {
-      title: '今开',
-      dataIndex: '今开',
-      key: '今开',
-      width: 100,
-      sorter: numberSorter('今开'),
+      title: '成交量(股)',
+      dataIndex: '成交量',
+      key: '成交量',
+      width: 120,
+      sorter: numberSorter('成交量'),
     },
     {
-      title: '昨收',
-      dataIndex: '昨收',
-      key: '昨收',
-      width: 100,
-      sorter: numberSorter('昨收'),
-    },
-    {
-      title: '量比',
-      dataIndex: '量比',
-      key: '量比',
-      width: 100,
-      sorter: numberSorter('量比'),
-    },
-
-    {
-      title: '涨速',
-      dataIndex: '涨速',
-      key: '涨速',
-      width: 100,
-      sorter: numberSorter('涨速'),
-    },
-    {
-      title: '5分钟涨跌(%)',
-      dataIndex: '五分钟涨跌',
-      key: '五分钟涨跌',
-      width: 140,
-      sorter: numberSorter('五分钟涨跌'),
-    },
-    {
-      title: '60日涨跌幅(%)',
-      dataIndex: '六十日涨跌幅',
-      key: '六十日涨跌幅',
-      width: 140,
-      sorter: numberSorter('六十日涨跌幅'),
-    },
-    {
-      title: '年初至今涨跌幅(%)',
-      dataIndex: '年初至今涨跌幅',
-      key: '年初至今涨跌幅',
-      width: 160,
-      sorter: numberSorter('年初至今涨跌幅'),
+      title: '成交额(元)',
+      dataIndex: '成交额',
+      key: '成交额',
+      width: 120,
+      sorter: numberSorter('成交额'),
     },
     {
       title: '操作',
       key: 'action',
-      width: 200,
+      width: 120,
       fixed: 'right' as const,
       render: (_, record: StockData) => {
-        const isSelected = isStockSelected(record['代码']);
+        const isSelected = selectedStocks.some(s => s['代码'] === record['代码']);
 
         return (
           <div style={{ display: 'flex', gap: 8 }}>
@@ -572,38 +475,30 @@ const Stock: React.FC = () => {
         );
       },
     },
-  ], [selectedStocks, activeTab]);
+  ];
 
   return (
     <div style={{ padding: '24px' }}>
       <Tabs activeKey={activeTab} onChange={setActiveTab}>
-        <TabPane tab="全部" key="all">
+        <TabPane tab="沪深京A股（非交易时间）" key="all">
           <div style={{ marginBottom: '16px', textAlign: 'right' }}>
             <Button type="primary" onClick={fetchData} loading={loading}>
               搜索
             </Button>
           </div>
-          {useMemo(() => (
-            <Table
-              columns={columns}
-              dataSource={data}
-              loading={loading}
-              rowKey="代码"
-              scroll={{ x: 3000, y: 'calc(100vh - 250px)' }}
-              pagination={{
-                current: pagination.current,
-                pageSize: pagination.pageSize,
-                total: data.length,
-                showSizeChanger: true,
-                showQuickJumper: true,
-                showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
-                pageSizeOptions: ['10', '20', '50', '100'],
-                onChange: (page, pageSize) => {
-                  setPagination({ current: page, pageSize });
-                },
-              }}
-            />
-          ), [data, loading, pagination])}
+          <Table
+            columns={columns}
+            dataSource={data}
+            loading={loading}
+            rowKey="代码"
+            scroll={{ x: 3000, y: 'calc(100vh - 250px)' }}
+            pagination={{
+              ...pagination,
+              showSizeChanger: true,
+              showTotal: (total: number) => `共 ${total} 条`,
+              onChange: (page: number, pageSize: number) => setPagination({ current: page, pageSize }),
+            }}
+          />
         </TabPane>
         <TabPane tab="自选" key="selected">
           <Table
@@ -613,9 +508,6 @@ const Stock: React.FC = () => {
             scroll={{ x: 3000, y: 'calc(100vh - 200px)' }}
             pagination={false}
           />
-        </TabPane>
-        <TabPane tab="历史分红" key="dividend">
-          <StockHistoryDividend />
         </TabPane>
       </Tabs>
     </div>

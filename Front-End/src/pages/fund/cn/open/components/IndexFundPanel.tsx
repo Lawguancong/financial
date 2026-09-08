@@ -4,7 +4,7 @@ import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { numberSorter, stringSorter, createRangeFilter } from '@/utils/tableUtils';
 import { calculateRSI } from '@/utils/stockUtils';
-import { calculateRecommendationLevel } from '@/pages/fund/cn/open/detail/constants';
+import { calculateFundRecommendationLevel } from '@/pages/fund/cn/open/detail/constants';
 
 const { Link } = Typography;
 const { TabPane } = Tabs;
@@ -166,7 +166,7 @@ const IndexFundPanel: React.FC<IndexFundPanelProps> = ({
           累计收益率: item[closeKey],
           __monthlyRSI6__,
           __quarterlyRSI6__,
-          __recommendationLevel__: calculateRecommendationLevel({
+          __recommendationLevel__: calculateFundRecommendationLevel({
             __monthlyRSI6__, __quarterlyRSI6__,
           }),
         };
@@ -598,13 +598,11 @@ const IndexFundPanel: React.FC<IndexFundPanelProps> = ({
             dataSource={data}
             scroll={{ x: 3000 }}
             pagination={{
-              ...pagination,
-              showSizeChanger: true,
-              showTotal: (total: number) => `共 ${total} 条`,
-              pageSizeOptions: ['10', '20', '50', '100'],
-              onChange: (page: number, pageSize: number) =>
-                setPagination({ current: page, pageSize }),
-            }}
+                ...pagination,
+                showSizeChanger: true,
+                showTotal: (total: number) => `共 ${total} 条`,
+                onChange: (page: number, pageSize: number) => setPagination({ current: page, pageSize }),
+              }}
           />
         </Card>
       </Spin>

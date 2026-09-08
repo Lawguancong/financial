@@ -5,7 +5,7 @@ import { pick, isNumber } from 'lodash-es';
 import { calculateMaxDrawdown, calculateRSI, calculateMACD, calculatePercentile } from '@/utils';
 import moment from 'moment';
 import apiClient from '@/utils/axios';
-import { timeRangeOptions, periodOptions, keyMap, rightKeys, calculateRecommendationLevel, getLevelStyle } from './constants';
+import { timeRangeOptions, periodOptions, keyMap, rightKeys, calculateFundRecommendationLevel, getLevelStyle } from './constants';
 
 interface CumulativeReturnProps {
   symbol: string | null;
@@ -2445,7 +2445,7 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
             __RELATIVE_RETURN_10Y_15PCT__,
             __monthlyRSI6__: __monthlyRSI6__,
             __quarterlyRSI6__: __quarterlyRSI6__,
-            __recommendationLevel__: calculateRecommendationLevel({
+            __recommendationLevel__: calculateFundRecommendationLevel({
               __monthlyRSI6__, __quarterlyRSI6__,
               __monthly10th__,
               __monthly90th__,

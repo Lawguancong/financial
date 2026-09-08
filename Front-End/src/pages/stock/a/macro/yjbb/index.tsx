@@ -213,10 +213,6 @@ const PerformanceReportPage: React.FC = () => {
     };
   }, [yjbbEmData]);
 
-  const handleTableChange = (pagination: { current: number; pageSize: number }) => {
-    setPagination({ current: pagination.current, pageSize: pagination.pageSize });
-  };
-
   const columns = [
     {
       title: '序号',
@@ -655,15 +651,12 @@ const PerformanceReportPage: React.FC = () => {
             dataSource={data}
             columns={columns}
             rowKey="序号"
-            pagination={{
-              ...pagination,
-              total: data.length,
-              showSizeChanger: true,
-              showQuickJumper: true,
-              showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
-              pageSizeOptions: ['10', '20', '50', '100'],
-            }}
-            onChange={handleTableChange}
+              pagination={{
+                ...pagination,
+                showSizeChanger: true,
+                showTotal: (total: number) => `共 ${total} 条`,
+                onChange: (page: number, pageSize: number) => setPagination({ current: page, pageSize }),
+              }}
             scroll={{ x: 2000 }}
             bordered
           />

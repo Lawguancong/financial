@@ -36,7 +36,6 @@ const useStockData = (symbol: string, adjust: string) => {
       try {
         const params: Record<string, string> = {
           symbol, adjust,
-          start_date: '20240101' // todo
         };
         const response = await apiClient.get('/api/public/stock_zh_a_hist_tx', { params });
         setData(response?.data?.map((item: Record<string, unknown>) => ({

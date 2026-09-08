@@ -128,18 +128,12 @@ const FundPortfolioChange: React.FC<FundPortfolioChangeProps> = ({ symbol }) => 
             rowKey={(_, index) => String(index)}
             columns={columns}
             size="small"
-            pagination={{
-              current: pagination.current,
-              pageSize: pagination.pageSize,
-              total: data.length,
-              showSizeChanger: true,
-              showQuickJumper: true,
-              showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
-              pageSizeOptions: ['10', '20', '50', '100'],
-              onChange: (page, pageSize) => {
-                setPagination({ current: page, pageSize });
-              },
-            }}
+              pagination={{
+                ...pagination,
+                showSizeChanger: true,
+                showTotal: (total: number) => `共 ${total} 条`,
+                onChange: (page: number, pageSize: number) => setPagination({ current: page, pageSize }),
+              }}
             scroll={{ x: 'max-content' }}
           />
         ) : (

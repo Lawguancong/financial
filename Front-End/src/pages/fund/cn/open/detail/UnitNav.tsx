@@ -5,7 +5,7 @@ import { pick } from 'lodash-es';
 import { calculateMaxDrawdown, calculateRSI, calculateStartDate, calculateVolatility, calculateAnnualizedVolatility } from '@/utils';
 import moment from 'moment';
 import apiClient from '@/utils/axios';
-import { timeRangeOptions, keyMap, rightKeys, calculateRecommendationLevel, getLevelStyle } from './constants';
+import { timeRangeOptions, keyMap, rightKeys, calculateFundRecommendationLevel, getLevelStyle } from './constants';
 
 interface UnitNavProps {
   symbol: string | null;

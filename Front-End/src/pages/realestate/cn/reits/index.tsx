@@ -29,9 +29,6 @@ const ReitsRealtime: React.FC = () => {
   const [pagination, setPagination] = useState<TablePaginationConfig>({
     current: 1,
     pageSize: 20,
-    showSizeChanger: true,
-    showQuickJumper: true,
-    pageSizeOptions: ['10', '20', '50', '100'],
   });
 
   const fetchData = async () => {
@@ -241,14 +238,12 @@ const ReitsRealtime: React.FC = () => {
         columns={columns}
         dataSource={data}
         loading={loading}
-        pagination={{
-          current: pagination.current,
-          pageSize: pagination.pageSize,
-          showSizeChanger: true,
-          showQuickJumper: true,
-          showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
-          pageSizeOptions: ['10', '20', '50', '100'],
-        }}
+              pagination={{
+                ...pagination,
+                showSizeChanger: true,
+                showTotal: (total: number) => `共 ${total} 条`,
+                onChange: (page: number, pageSize: number) => setPagination({ current: page, pageSize }),
+              }}
         onChange={(newPagination) => {
           setPagination(newPagination);
         }}

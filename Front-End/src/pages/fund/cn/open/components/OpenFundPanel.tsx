@@ -253,7 +253,8 @@ const OpenFundPanel: React.FC<OpenFundPanelProps> = ({
               rowKey="序号"
               scroll={{ x: 2000 }}
               pagination={{
-                ...pagination, showSizeChanger: true,
+                ...pagination, 
+                showSizeChanger: true,
                 showTotal: (total: number) => `共 ${total} 条`,
                 onChange: (page: number, pageSize: number) => setPagination({ current: page, pageSize }),
               }}

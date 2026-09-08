@@ -6,7 +6,7 @@ import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { isNumber } from 'lodash-es'
 import { calculateMaxDrawdown, calculateStartDate, calculatePercentiles, aggregateKLineByPeriod, calculateRSI, calculatePercentile } from '@/utils';
-import { calculateRecommendationLevel, getLevelStyle } from '@/pages/fund/cn/open/detail/constants';
+import { calculateFundRecommendationLevel, getLevelStyle } from '@/pages/fund/cn/open/detail/constants';
 import dayjs from 'dayjs';
 interface IndexDetailData {
   日期: string;
@@ -116,7 +116,7 @@ const IndexDetail: React.FC = () => {
       ...item,
       // __monthlyRSI6__: __monthlyRSI6__,
       // __quarterlyRSI6__: __quarterlyRSI6__,
-      // __recommendationLevel__: calculateRecommendationLevel({
+      // __recommendationLevel__: calculateFundRecommendationLevel({
       //   __monthlyRSI6__, __quarterlyRSI6__,
       // }),
     }
@@ -144,7 +144,7 @@ const IndexDetail: React.FC = () => {
       ...item,
       __monthlyRSI6__: __monthlyRSI6__,
       __quarterlyRSI6__: __quarterlyRSI6__,
-      __recommendationLevel__: calculateRecommendationLevel({
+      __recommendationLevel__: calculateFundRecommendationLevel({
         __monthlyRSI6__, __quarterlyRSI6__,
         __monthly10th__,
         __monthly90th__,

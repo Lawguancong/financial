@@ -329,16 +329,10 @@ const FundCompany: React.FC = () => {
             rowKey="序号"
             size="middle"
             pagination={{
-              current: pagination.current,
-              pageSize: pagination.pageSize,
-              total: filteredData.length,
+              ...pagination,
               showSizeChanger: true,
-              showQuickJumper: true,
-              showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
-              pageSizeOptions: ['10', '20', '50', '100'],
-              onChange: (page, pageSize) => {
-                setPagination({ current: page, pageSize });
-              },
+              showTotal: (total: number) => `共 ${total} 条`,
+              onChange: (page: number, pageSize: number) => setPagination({ current: page, pageSize }),
             }}
             scroll={{ x: 900 }}
             rowClassName={(_record, index) => index % 2 === 0 ? 'table-row-even' : 'table-row-odd'}

@@ -117,6 +117,12 @@ export const menuConfigs: MenuItemConfig[] = [
             path: 'stock/a/repurchase',
             component: lazy(() => import('@/pages/stock/a/repurchase')),
           },
+          {
+            key: 'stock/a/history-dividend',
+            label: '历史分红',
+            path: 'stock/a/history-dividend',
+            component: lazy(() => import('@/pages/stock/a/stock/StockHistoryDividend')),
+          },
         ],
       },
       {

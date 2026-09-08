@@ -25,14 +25,7 @@ const DividendRankPanel: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [filteredData, setFilteredData] = useState<FundDividend[]>([]);
-  const [pagination, setPagination] = useState<TablePaginationConfig>({
-    current: 1,
-    pageSize: 20,
-    showSizeChanger: true,
-    showQuickJumper: true,
-    showTotal: (total: number, range: [number, number]) =>
-      `共 ${total} 条记录，第 ${range[0]}-${range[1]} 条`,
-  });
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -180,10 +173,6 @@ const DividendRankPanel: React.FC = () => {
       sorter: (a: FundDividend, b: FundDividend) => a.成立日期.localeCompare(b.成立日期),
     },
   ];
-
-  const handleTableChange = (newPagination: TablePaginationConfig) => {
-    setPagination(newPagination);
-  };
 
   return (
     <div>
@@ -347,8 +336,12 @@ const DividendRankPanel: React.FC = () => {
             columns={columns}
             dataSource={filteredData}
             rowKey={record => `${record.序号}-${record.基金代码}`}
-            pagination={pagination}
-            onChange={handleTableChange}
+            pagination={{
+              ...pagination,
+              showSizeChanger: true,
+              showTotal: (total: number) => `共 ${total} 条`,
+              onChange: (page: number, pageSize: number) => setPagination({ current: page, pageSize }),
+            }}
             size="middle"
             scroll={{ x: 1300 }}
             rowClassName={(_record, index) =>

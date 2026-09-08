@@ -47,9 +47,6 @@ const ExchangeFundPanel: React.FC<ExchangeFundPanelProps> = ({
   const [pagination, setPagination] = useState<TablePaginationConfig>({
     current: 1,
     pageSize: 20,
-    showSizeChanger: true,
-    showQuickJumper: true,
-    pageSizeOptions: ['10', '20', '50', '100'],
   });
   const [activeSubTab, setActiveSubTab] = useState<string>('all');
 
@@ -278,13 +275,9 @@ const ExchangeFundPanel: React.FC<ExchangeFundPanelProps> = ({
               columns={columns}
               dataSource={data}
               pagination={{
-                current: pagination.current,
-                pageSize: pagination.pageSize,
+                ...pagination,
                 showSizeChanger: true,
-                showQuickJumper: true,
-                showTotal: (total: number, range: [number, number]) =>
-                  `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
-                pageSizeOptions: ['10', '20', '50', '100'],
+                showTotal: (total: number) => `共 ${total} 条`,
                 onChange: (page: number, pageSize: number) => setPagination({ current: page, pageSize }),
               }}
               scroll={{ x: 1500 }}

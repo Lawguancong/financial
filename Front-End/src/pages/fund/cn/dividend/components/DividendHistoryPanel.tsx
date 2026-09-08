@@ -23,13 +23,7 @@ const DividendHistoryPanel: React.FC = () => {
   const [data, setData] = useState<DividendHistoryData[]>([]);
   const [loading, setLoading] = useState(false);
   const [year, setYear] = useState<string>(String(`${currentYear}`));
-  const [pagination, setPagination] = useState<TablePaginationConfig>({
-    current: 1,
-    pageSize: 20,
-    showSizeChanger: true,
-    showQuickJumper: true,
-    pageSizeOptions: ['10', '20', '50', '100'],
-  });
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
 
   // 生成 1999-currentYear 年份选项
   const yearOptions = Array.from({ length: currentYear - 1999 + 1 }, (_, i) => {
@@ -225,13 +219,10 @@ const DividendHistoryPanel: React.FC = () => {
         dataSource={data}
         loading={loading}
         pagination={{
-          current: pagination.current,
-          pageSize: pagination.pageSize,
+          ...pagination,
           showSizeChanger: true,
-          showQuickJumper: true,
-          showTotal: (total: number, range: [number, number]) =>
-            `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
-          pageSizeOptions: ['10', '20', '50', '100'],
+          showTotal: (total: number) => `共 ${total} 条`,
+          onChange: (page: number, pageSize: number) => setPagination({ current: page, pageSize }),
         }}
         onChange={handleTableChange}
         scroll={{ x: 'max-content' }}

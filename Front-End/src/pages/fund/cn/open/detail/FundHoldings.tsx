@@ -239,21 +239,12 @@ const FundHoldings: React.FC<FundHoldingsProps> = ({ symbol }) => {
           <Table
             columns={columns}
             dataSource={filteredData}
-            pagination={{
-              current: pagination.current,
-              pageSize: pagination.pageSize,
-              total: filteredData.length,
-              showSizeChanger: true,
-              showQuickJumper: true,
-              showTotal: (total) => `共 ${total} 只`,
-              pageSizeOptions: ['10', '20', '50', '100'],
-              onChange: (page, pageSize) => {
-                setPagination({ current: page, pageSize });
-              },
-              onShowSizeChange: (current, size) => {
-                setPagination({ current: 1, pageSize: size });
-              },
-            }}
+              pagination={{
+                ...pagination,
+                showSizeChanger: true,
+                showTotal: (total: number) => `共 ${total} 条`,
+                onChange: (page: number, pageSize: number) => setPagination({ current: page, pageSize }),
+              }}
             rowKey={(record) => `${record.季度}-${record.股票代码}`}
             size="middle"
             scroll={{ x: 700 }}

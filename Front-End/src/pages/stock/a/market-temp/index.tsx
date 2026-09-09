@@ -1,4 +1,3 @@
-import { Line } from '@ant-design/plots';
 import { DualAxes } from '@ant-design/plots';
 import React, { useEffect, useState, useMemo } from 'react';
 import apiClient from '@/utils/axios';
@@ -10,6 +9,7 @@ import { pick } from 'lodash-es';
 import { Tabs, Button } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { Macro_china_stock_market_cap } from '../macro/components';
+import StockBelowNetAssetLg from './StockBelowNetAssetLg';
 
 const Stock_buffett_index_lg = ({ key }: { key: number }) => {
   const sampleRate = 10;
@@ -620,9 +620,8 @@ const Stock_a_congestion_lg = ({ key }: { key: number }) => {
   return <>
     <DualAxes {...config} />
     <h5>大盘拥挤度:衡量市场微观结构恶化的指标，即成交额排名前5%的个股的成交额占全部A股占比创下历史极值，接近50%，预示着结构恶化，市场行情进入预警区域，或见顶，或风格发生转换。截止到2022年11月，历史上类似的情形出现过5次，市场均发生了巨大的反转，有2次市场进入牛市或维持牛市之中，且市场均发生了风格切换，分别是2008年10月和2015年1月。另三次发生了"牛转熊"现象。</h5>
-  </>
+  </>;
 };
-
 
 
 const Index: React.FC = () => {
@@ -683,6 +682,20 @@ const Index: React.FC = () => {
       children: useMemo(() => <Stock_margin_account_info key={refreshKeys['4']} />, [refreshKeys['4']]),
     },
     {
+      key: '7',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>破净股统计</span>
+          <Button
+            icon={<ReloadOutlined />}
+            size="small"
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '7': prev['7'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <StockBelowNetAssetLg key={refreshKeys['7']} />, [refreshKeys['7']]),
+    },
+    {
       key: '6',
       label: (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -739,6 +752,7 @@ const Index: React.FC = () => {
       ),
       children: useMemo(() => <Stock_a_congestion_lg key={refreshKeys['5']} />, [refreshKeys['5']]),
     },
+
 
   ];
 

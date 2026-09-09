@@ -243,7 +243,6 @@ const Home = () => {
   // 利润表: stock_financial_benefit_new_ths
   // 现金流量表: stock_financial_cash_new_ths
   // 资产负债表: stock_financial_debt_new_ths
-  // A股个股估值: stock_value_em (仅最近10年数据)
   // 分红配送-东财 接口: stock_fhps_em
   // 分红配送详情-东财 接口: stock_fhps_detail_em
   // 公司概况-巨潮资讯 接口: stock_profile_cninfo
@@ -273,16 +272,12 @@ const Home = () => {
   // todo: 风险溢价
   // todo: 市盈率、 盈利收益率、市净率、股息率、市现率
 
-  // todo: 破净统计 stock_a_below_net_asset_statisticsI  （接口不同 暂无替代方案）
-
-  // todo 把 RSI6 买入买点分析推荐 抽离 独立组件
-
-
-
 
   // 简单好用高效 不用太复杂 
   // 估值比较 接口: stock_zh_valuation_comparison_em
   // A股财务指标: stock_financial_analysis_indicator
+  // A股个股估值: stock_value_em (仅最近10年数据)
+
 
 
   return (

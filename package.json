@@ -1,16 +1,16 @@
 {
   "name": "financial",
   "scripts": {
-    "upgrade:akshare": "pip3 install akshare --upgrade -i https://pypi.org/simple",
-    "upgrade:aktools": "pip3 install aktools --upgrade -i https://pypi.org/simple",
+    "upgrade:akshare": "pip3.11 install akshare --upgrade -i https://pypi.org/simple",
+    "upgrade:aktools": "pip3.11 install aktools --upgrade -i https://pypi.org/simple",
     "upgrade:all": "npm run upgrade:akshare && npm run upgrade:aktools",
 
-    "start:server:aktools": "p=$(lsof -ti:6670); [ -n \"$p\" ] && kill -9 $p; cd Back-End/ak/aktools && python3 -m aktools --port 6670",
+    "start:server:aktools": "p=$(lsof -ti:6670); [ -n \"$p\" ] && kill -9 $p; cd Back-End/ak/aktools && python3.11 -m aktools --port 6670",
     "start:frontend:aktools": "p=$(lsof -ti:6671); [ -n \"$p\" ] && kill -9 $p; cd Front-End && yarn vite --port 6671 --mode aktools",
     "dev": "trap 'kill 0' EXIT; npm run start:server:aktools & npm run start:frontend:aktools",
 
 
-    "start:server:akshare": "cd Back-End/ak/akshare && python3 app.py --port 6680",
+    "start:server:akshare": "p=$(lsof -ti:6680); [ -n \"$p\" ] && kill -9 $p; cd Back-End/ak/akshare && python3.11 app.py --port 6680",
     "start:frontend:akshare": "cd Front-End && yarn vite --port 6681 --mode akshare"
 
   }

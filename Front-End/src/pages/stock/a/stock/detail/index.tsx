@@ -80,7 +80,7 @@ const StockDetail: React.FC = () => {
         const params: Record<string, string> = {
           symbol: prefix ? `${prefix}${symbol}` : symbol,
           adjust: 'hfq',
-          start_date: '20210101' // todo
+          // start_date: '20210101' // todo
         };
         const response = await apiClient.get('/api/public/stock_zh_a_hist_tx', { params });
         setRawData(response?.data?.map((item: Record<string, unknown>) => ({

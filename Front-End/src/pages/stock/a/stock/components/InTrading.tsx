@@ -463,7 +463,7 @@ const InTrading: React.FC = () => {
           setPagination({ current: 1, pageSize: pagination.pageSize });
         }}
       >
-        <TabPane tab="沪深京A股（非交易时间）" key="all">
+        <TabPane tab="沪深京A股（交易时间）" key="all">
           <Table
             columns={columns}
             dataSource={data}

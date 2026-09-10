@@ -3,7 +3,7 @@ import { Line } from '@ant-design/plots';
 import { Card, Space, Table } from 'antd';
 import moment from 'moment';
 import type { KLineData } from '@/utils/stockUtils';
-import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations } from '@/utils/stockUtils';
+import { createRecommendationAnnotations } from '@/utils/stockUtils';
 import { pick, isNumber } from 'lodash-es';
 
 interface RsiFilterMarkProps {

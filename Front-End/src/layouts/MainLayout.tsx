@@ -17,12 +17,12 @@ const MainLayout: React.FC = () => {
 
   // 监听屏幕尺寸变化
   useEffect(() => {
-    const handleResize = () => {
-      setCollapsed(window.innerWidth < 768);
-    };
+    // const handleResize = () => {
+    //   setCollapsed(window.innerWidth < 768);
+    // };
 
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    // window.addEventListener('resize', handleResize);
+    // return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const findSelectedKey = (path: string): string => {

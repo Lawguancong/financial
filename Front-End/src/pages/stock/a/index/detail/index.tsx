@@ -6,9 +6,10 @@ import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { isNumber } from 'lodash-es'
 import { calculateMaxDrawdown, calculateStartDate, calculatePercentiles, aggregateKLineByPeriod, calculateRSI, calculatePercentile } from '@/utils';
-import { calculateFundRecommendationLevel, getLevelStyle } from '@/pages/fund/cn/open/detail/constants';
+import { calculateIndexRecommendationLevel } from '@/utils/stockUtils';
+import { getLevelStyle } from '@/pages/fund/cn/open/detail/constants';
 import dayjs from 'dayjs';
-interface IndexDetailData {
+export interface IndexDetailData {
   日期: string;
   指数代码: string;
   指数中文全称: string;
@@ -73,8 +74,6 @@ const IndexDetail: React.FC = () => {
   const [timeRange, setTimeRange] = useState<string>('上市以来');
   const [rawData, setRawData] = useState<any[]>([]);
   const [dailyData, setDailyData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-
 
   // 计算不同周期的K线数据
   // const weeklyData = aggregateKLineByPeriod({ dailyData, period: 'weekly' });
@@ -114,11 +113,6 @@ const IndexDetail: React.FC = () => {
     const __quarterlyRSI6__ = quarterlyRSIData?.find(i => i?.itemQuarter === itemQuarter)?.__RSI6__;
     return {
       ...item,
-      // __monthlyRSI6__: __monthlyRSI6__,
-      // __quarterlyRSI6__: __quarterlyRSI6__,
-      // __recommendationLevel__: calculateFundRecommendationLevel({
-      //   __monthlyRSI6__, __quarterlyRSI6__,
-      // }),
     }
   }), [dailyData, monthlyRSIData, quarterlyRSIData]);
 
@@ -144,13 +138,7 @@ const IndexDetail: React.FC = () => {
       ...item,
       __monthlyRSI6__: __monthlyRSI6__,
       __quarterlyRSI6__: __quarterlyRSI6__,
-      __recommendationLevel__: calculateFundRecommendationLevel({
-        __monthlyRSI6__, __quarterlyRSI6__,
-        __monthly10th__,
-        __monthly90th__,
-        __quarterly10th__,
-        __quarterly90th__,
-      }),
+      __recommendationLevel__: calculateIndexRecommendationLevel(null, null, __monthlyRSI6__, __quarterlyRSI6__,),
       __monthly10th__,
       __monthly90th__,
       __quarterly10th__,
@@ -183,11 +171,7 @@ const IndexDetail: React.FC = () => {
     if (!rawData || rawData.length === 0) {
       return;
     }
-    console.log('111111 timeRange', timeRange)
-    console.log('111111 timeRange rawData', rawData)
     const startDate = calculateStartDate(dayjs(rawData?.[0]?.日期).format('YYYYMMDD'), timeRange);
-    console.log('111111 timeRange startDate', startDate)
-
     setDailyData(rawData?.filter(item => dayjs(item.日期).isAfter(dayjs(startDate))))
   }, [timeRange, rawData]);
 
@@ -195,10 +179,8 @@ const IndexDetail: React.FC = () => {
     if (!code) {
       return;
     }
-    setLoading(true);
     try {
-      
-      const startDate = '19800101'; // 默认从1990年1月1日开始查询，并去除第一个日期的空值
+      const startDate = '19800101'; // 默认从1980年1月1日开始查询，并去除第一个日期的空值
       console.log('指数详情 -> startDate', startDate);
       const response = await apiClient.get(`/api/public/stock_zh_index_hist_csindex?symbol=${code}&start_date=${startDate}&end_date=${moment().format('YYYYMMDD')}`);
       const data = response?.data || [];
@@ -227,7 +209,7 @@ const IndexDetail: React.FC = () => {
     } catch (error) {
       console.log('error', error);
     } finally {
-      setLoading(false);
+      //
     }
   }, []);
 
@@ -250,8 +232,8 @@ const IndexDetail: React.FC = () => {
       ['__最大回撤率__']: '最大回撤率(%)',
       ['__年化收益率__']: '年化收益率(%)',
       滚动市盈率: '滚动市盈率',
-      [`__滚动市盈率15%百分位__`]: `滚动市盈率15%百分位`,
-      [`__滚动市盈率85%百分位__`]: `滚动市盈率85%百分位`,
+      // [`__滚动市盈率15%百分位__`]: `滚动市盈率15%百分位`,
+      // [`__滚动市盈率85%百分位__`]: `滚动市盈率85%百分位`,
       // [`__monthlyRSI6__`]: `月RSI6`,
       // [`__quarterlyRSI6__`]: `季RSI6`,
     };
@@ -315,13 +297,6 @@ const IndexDetail: React.FC = () => {
     };
   }, [dataWithDrawdown]);
 
-  // if (loading) {
-  //   return (
-  //     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-  //       <Spin size="large" />
-  //     </div>
-  //   );
-  // }
 
   return (
     <div style={{ padding: '24px' }}>
@@ -489,15 +464,15 @@ const IndexDetail: React.FC = () => {
 
                 // 月度分位数
                 percentileData.push(
-                  { date: firstDate, value: __monthly10th__, label: '月度10%分位' },
-                  { date: lastDate, value: __monthly10th__, label: '月度10%分位' },
-                  { date: firstDate, value: __monthly90th__, label: '月度90%分位' },
-                  { date: lastDate, value: __monthly90th__, label: '月度90%分位' },
-                  // 季度分位数
-                  { date: firstDate, value: __quarterly10th__, label: '季度10%分位' },
-                  { date: lastDate, value: __quarterly10th__, label: '季度10%分位' },
-                  { date: firstDate, value: __quarterly90th__, label: '季度90%分位' },
-                  { date: lastDate, value: __quarterly90th__, label: '季度90%分位' }
+                  // { date: firstDate, value: __monthly10th__, label: '月度10%分位' },
+                  // { date: lastDate, value: __monthly10th__, label: '月度10%分位' },
+                  // { date: firstDate, value: __monthly90th__, label: '月度90%分位' },
+                  // { date: lastDate, value: __monthly90th__, label: '月度90%分位' },
+                  // // 季度分位数
+                  // { date: firstDate, value: __quarterly10th__, label: '季度10%分位' },
+                  // { date: lastDate, value: __quarterly10th__, label: '季度10%分位' },
+                  // { date: firstDate, value: __quarterly90th__, label: '季度90%分位' },
+                  // { date: lastDate, value: __quarterly90th__, label: '季度90%分位' }
                 );
               }
               console.log('1111 monthlyDataWithRSI', monthlyDataWithRSI)

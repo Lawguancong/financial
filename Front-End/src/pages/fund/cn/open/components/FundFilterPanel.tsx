@@ -4,7 +4,7 @@ import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { createRangeFilter, numberSorter, stringSorter } from '@/utils/tableUtils';
 import { calculateRSI } from '@/utils/stockUtils';
-import { calculateFundRecommendationLevel } from '@/pages/fund/cn/open/detail/constants';
+import { calculateFundRecommendationLevel } from '@/utils/stockUtils';
 
 const { Link } = Typography;
 
@@ -474,16 +474,12 @@ const FundFilterPanel: React.FC<FundFilterPanelProps> = ({
           累计收益率: item[closeKey],
           __monthlyRSI6__: __monthlyRSI6__,
           __quarterlyRSI6__: __quarterlyRSI6__,
-          __recommendationLevel__: calculateFundRecommendationLevel({
-            __monthlyRSI6__, __quarterlyRSI6__,
-          }),
+          __recommendationLevel__: calculateFundRecommendationLevel(undefined, undefined, __monthlyRSI6__, __quarterlyRSI6__,),
 
         };
       })?.filter(item => [5, 3, 1].includes(item.__recommendationLevel__));
       console.log('RSI6Data', RSI6Data)
       return RSI6Data
-      // const recommendationLevel = calculateFundRecommendationLevel(latestMonthlyRSI, latestQuarterlyRSI);
-      // return { RSI6月: latestMonthlyRSI, RSI6季: latestQuarterlyRSI, __推荐买点__: recommendationLevel };
     } catch (error) {
       console.log('Error fetching fund detail:', error);
       return [];
@@ -557,7 +553,7 @@ const FundFilterPanel: React.FC<FundFilterPanelProps> = ({
     if (calculateRecommendation) {
       const results: FundData[] = [];
       for (const item of filteredData) {
-        message.info(`正在分析【${item['基金简称']}】中...`);
+        message.info(`正在分析【${item['基金简称']}】中...`, 10);
         const calculatedData = await fetchFundDetailAndCalculate(item['基金代码']);
         if (calculatedData?.length > 0) {
           results.push({
@@ -572,6 +568,7 @@ const FundFilterPanel: React.FC<FundFilterPanelProps> = ({
         }
       }
       console.log(' results', results);
+      message.success('推荐买点计算完成');
       return results;
     }
 

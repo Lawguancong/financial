@@ -1,4 +1,4 @@
-import { HomeOutlined, BankOutlined, StockOutlined, ShoppingOutlined, ApartmentOutlined, FundOutlined, ThunderboltOutlined, ExperimentOutlined, CodeOutlined } from '@ant-design/icons';
+import { HomeOutlined, BankOutlined, StockOutlined, ShoppingOutlined, ApartmentOutlined, FundOutlined, ThunderboltOutlined, ExperimentOutlined, CodeOutlined, ReadOutlined, GlobalOutlined } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { lazy } from 'react';
 
@@ -143,18 +143,53 @@ export const menuConfigs: MenuItemConfig[] = [
           },
         ],
       },
-      // {
-      //   key: 'stock/us',
-      //   label: '美股',
-      //   path: 'stock/us',
-      //   component: lazy(() => import('@/pages/StockUS')),
-      // },
+      {
+        key: 'stock/us',
+        label: '美股',
+        children: [
+          {
+            key: 'stock/us/index',
+            label: '指数',
+            path: 'stock/us/index',
+            component: lazy(() => import('@/pages/stock/us/index')),
+          },
+        ],
+      },
       // {
       //   key: 'stock/other',
       //   label: '其它',
       //   path: 'stock/other',
       //   component: lazy(() => import('@/pages/StockOther')),
       // },
+    ],
+  },
+  {
+    key: 'global',
+    label: '全球指数',
+    icon: <GlobalOutlined />,
+    children: [
+      {
+        key: 'global/index',
+        label: '全球',
+        path: 'global/index',
+        component: lazy(() => import('@/pages/global/index')),
+        children: [
+          {
+            key: 'global/index',
+            label: '指数',
+            path: 'global/index',
+            component: lazy(() => import('@/pages/global/index')),
+            children: [
+              {
+                key: 'global/index/detail',
+                label: '指数列表',
+                path: 'global/index/detail',
+                component: lazy(() => import('@/pages/global/index/detail')),
+              }
+            ]
+          },
+        ],
+      },
     ],
   },
   {
@@ -288,8 +323,21 @@ export const menuConfigs: MenuItemConfig[] = [
             path: 'fund/cn/fund-scale-change',
             component: lazy(() => import('@/pages/fund/cn/fund-scale-change')),
           },
-          
+
         ],
+      },
+    ],
+  },
+  {
+    key: 'knowledge',
+    label: '知识课堂',
+    icon: <ReadOutlined />,
+    children: [
+      {
+        key: 'knowledge/rsi',
+        label: 'RSI',
+        path: 'knowledge/rsi',
+        component: lazy(() => import('@/pages/knowledge/rsi')),
       },
     ],
   },

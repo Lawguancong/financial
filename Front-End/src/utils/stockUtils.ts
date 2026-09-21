@@ -542,8 +542,8 @@ export const calculatePeriodRSI = (dailyData: KLineData[]) => ({
 
 
 
-// 计算个股 RSI6推荐级别
-const calculateStockRecommendationLevel = (dailyRSIValue: number, weeklyRSIValue: number, monthlyRSIValue: number, quarterlyRSIValue: number) => {
+// 计算RSI6推荐级别(个股)
+const calculateStockRecommendationLevel = (dailyRSIValue?: number, weeklyRSIValue?: number, monthlyRSIValue?: number, quarterlyRSIValue?: number) => {
   switch (true) {
     case dailyRSIValue <= 14 && weeklyRSIValue <= 18 && monthlyRSIValue <= 22 && quarterlyRSIValue <= 25:
       return 5; // 5颗星
@@ -556,6 +556,43 @@ const calculateStockRecommendationLevel = (dailyRSIValue: number, weeklyRSIValue
       return null;
   }
 };
+
+// 计算RSI6推荐级别(指数)
+export const calculateIndexRecommendationLevel = (dailyRSIValue?: number, weeklyRSIValue?: number, monthlyRSIValue?: number, quarterlyRSIValue?: number) => {
+  switch (true) {
+    case monthlyRSIValue <= 10 && quarterlyRSIValue <= 15:
+    case monthlyRSIValue <= 13 && quarterlyRSIValue <= 13:
+    case monthlyRSIValue <= 15 && quarterlyRSIValue <= 10:
+      return 5; // 5颗星
+    case monthlyRSIValue <= 15 && quarterlyRSIValue <= 20:
+    case monthlyRSIValue <= 18 && quarterlyRSIValue <= 18:
+    case monthlyRSIValue <= 20 && quarterlyRSIValue <= 15:
+      return 3; // 3颗星
+    case monthlyRSIValue <= 25 && quarterlyRSIValue <= 25:
+      return 1; // 1颗星
+    default:
+      return null;
+  }
+};
+
+// 计算RSI6推荐级别(基金)
+export const calculateFundRecommendationLevel = (dailyRSIValue?: number, weeklyRSIValue?: number, monthlyRSIValue?: number, quarterlyRSIValue?: number) => {
+  switch (true) {
+    case monthlyRSIValue <= 10 && quarterlyRSIValue <= 15:
+    case monthlyRSIValue <= 13 && quarterlyRSIValue <= 13:
+    case monthlyRSIValue <= 15 && quarterlyRSIValue <= 10:
+      return 5; // 5颗星
+    case monthlyRSIValue <= 15 && quarterlyRSIValue <= 20:
+    case monthlyRSIValue <= 18 && quarterlyRSIValue <= 18:
+    case monthlyRSIValue <= 20 && quarterlyRSIValue <= 15:
+      return 3; // 3颗星
+    case monthlyRSIValue <= 25 && quarterlyRSIValue <= 25:
+      return 1; // 1颗星
+    default:
+      return null;
+  }
+};
+
 
 // 计算分位数
 export const calculatePercentile = (data: number[], percentile: number): number => {
@@ -610,7 +647,7 @@ export const computeRSIRecommendations = (params: {
   weeklyRSI: KLineData[];
   monthlyRSI: KLineData[];
   quarterlyRSI: KLineData[];
-}): (KLineData & { __recommendationLevel__: number })[] => {
+}, type: 'stock' | 'index' = 'stock'): (KLineData & { __recommendationLevel__: number })[] => {
   const { dailyRSI, weeklyRSI, monthlyRSI, quarterlyRSI } = params;
 
   if (!dailyRSI || dailyRSI.length === 0) {
@@ -624,7 +661,8 @@ export const computeRSIRecommendations = (params: {
   // 过滤日K数据并计算推荐级别
   const aaa =  dailyRSI.map(dailyRSIData => {
     const rsiValues = getPeriodRSIValues(dailyRSIData, weeklyRSIMap, monthlyRSIMap, quarterlyRSIMap);
-    const __recommendationLevel__ = calculateStockRecommendationLevel(
+    const calculateFunc = type === 'stock' ? calculateStockRecommendationLevel : calculateIndexRecommendationLevel;
+    const __recommendationLevel__ = calculateFunc(
       rsiValues.dailyRSIValue,
       rsiValues.weeklyRSIValue,
       rsiValues.monthlyRSIValue,

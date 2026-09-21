@@ -65,31 +65,27 @@ export const rightKeys = {
   // ['__quarterlyRSI6__']: "RSI6（季）",
 };
 
-// 计算基金 RSI6推荐级别
-export const calculateFundRecommendationLevel = ({ __monthlyRSI6__, __quarterlyRSI6__, __monthly10th__, __monthly90th__, __quarterly10th__, __quarterly90th__ }) => {
-  switch (true) {
-    case __monthlyRSI6__ <= 10 && __quarterlyRSI6__ <= 15:
-    case __monthlyRSI6__ <= 13 && __quarterlyRSI6__ <= 13:
-    case __monthlyRSI6__ <= 15 && __quarterlyRSI6__ <= 10:
-      return 5; // 5颗星
-    case __monthlyRSI6__ <= 15 && __quarterlyRSI6__ <= 20:
-    case __monthlyRSI6__ <= 18 && __quarterlyRSI6__ <= 18:
-    case __monthlyRSI6__ <= 20 && __quarterlyRSI6__ <= 15:
-      return 3; // 3颗星
-    case __monthlyRSI6__ <= 25 && __quarterlyRSI6__ <= 25:
-    // case __monthlyRSI6__ <= 30 && __quarterlyRSI6__ <= 30:
-      return 1; // 1颗星
-    // case __monthlyRSI6__ > 90 && __quarterlyRSI6__ > 85:
-    //   return -1;
-    // case __monthlyRSI6__ > 95 && __quarterlyRSI6__ > 90:
-    //   return -3;
-    // case __monthlyRSI6__ > 98 && __quarterlyRSI6__ > 95:
-      // return -5;
-    default:
-      return null;
-  }
-  
-};
+// 过滤 每月最晚（最新）的一条记录
+export const convertToMonthlyData = (chartData: any[]) => {
+  const chartMonthlyLatestMap = new Map<string, any>();
+  chartData.forEach((row: any) => {
+    const dateStr = String(row?.日期 ?? '');
+    const ym = dateStr.slice(0, 7); // YYYY-MM
+    if (!ym) return;
+    const existed = chartMonthlyLatestMap.get(ym);
+    if (!existed || String(existed.日期) < dateStr) {
+      chartMonthlyLatestMap.set(ym, row);
+    }
+  });
+  const chartDataMonthly: any[] = Array.from(chartMonthlyLatestMap.values()).sort(
+    (a, b) => String(a.日期).localeCompare(String(b.日期)),
+  );
+  return chartDataMonthly;
+}
+
+
+
+
 
 // 获取推荐级别对应的样式
 export const getLevelStyle = (level: number): { color: string; fontSize: number } => {

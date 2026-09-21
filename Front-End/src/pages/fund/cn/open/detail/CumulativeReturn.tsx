@@ -5,7 +5,8 @@ import { pick, isNumber } from 'lodash-es';
 import { calculateMaxDrawdown, calculateRSI, calculateMACD, calculatePercentile } from '@/utils';
 import moment from 'moment';
 import apiClient from '@/utils/axios';
-import { timeRangeOptions, periodOptions, keyMap, rightKeys, calculateFundRecommendationLevel, getLevelStyle } from './constants';
+import { timeRangeOptions, periodOptions, keyMap, rightKeys, getLevelStyle } from './constants';
+import { calculateFundRecommendationLevel } from '@/utils/stockUtils';
 
 interface CumulativeReturnProps {
   symbol: string | null;
@@ -2445,13 +2446,7 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
             __RELATIVE_RETURN_10Y_15PCT__,
             __monthlyRSI6__: __monthlyRSI6__,
             __quarterlyRSI6__: __quarterlyRSI6__,
-            __recommendationLevel__: calculateFundRecommendationLevel({
-              __monthlyRSI6__, __quarterlyRSI6__,
-              __monthly10th__,
-              __monthly90th__,
-              __quarterly10th__,
-              __quarterly90th__,
-            }),
+            __recommendationLevel__: calculateFundRecommendationLevel(undefined, undefined, __monthlyRSI6__, __quarterlyRSI6__),
             __monthly10th__,
             __monthly90th__,
             __quarterly10th__,
@@ -2611,15 +2606,15 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
 
                 // 月度分位数
                 percentileData.push(
-                  { date: firstDate, value: __monthly10th__, label: '月度10%分位' },
-                  { date: lastDate, value: __monthly10th__, label: '月度10%分位' },
-                  { date: firstDate, value: __monthly90th__, label: '月度90%分位' },
-                  { date: lastDate, value: __monthly90th__, label: '月度90%分位' },
-                  // 季度分位数
-                  { date: firstDate, value: __quarterly10th__, label: '季度10%分位' },
-                  { date: lastDate, value: __quarterly10th__, label: '季度10%分位' },
-                  { date: firstDate, value: __quarterly90th__, label: '季度90%分位' },
-                  { date: lastDate, value: __quarterly90th__, label: '季度90%分位' }
+                  // { date: firstDate, value: __monthly10th__, label: '月度10%分位' },
+                  // { date: lastDate, value: __monthly10th__, label: '月度10%分位' },
+                  // { date: firstDate, value: __monthly90th__, label: '月度90%分位' },
+                  // { date: lastDate, value: __monthly90th__, label: '月度90%分位' },
+                  // // 季度分位数
+                  // { date: firstDate, value: __quarterly10th__, label: '季度10%分位' },
+                  // { date: lastDate, value: __quarterly10th__, label: '季度10%分位' },
+                  // { date: firstDate, value: __quarterly90th__, label: '季度90%分位' },
+                  // { date: lastDate, value: __quarterly90th__, label: '季度90%分位' }
                 );
               }
 

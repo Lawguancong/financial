@@ -4,7 +4,7 @@ import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { numberSorter, stringSorter, createRangeFilter } from '@/utils/tableUtils';
 import { calculateRSI } from '@/utils/stockUtils';
-import { calculateFundRecommendationLevel } from '@/pages/fund/cn/open/detail/constants';
+import { calculateFundRecommendationLevel } from '@/utils/stockUtils';
 
 const { Link } = Typography;
 const { TabPane } = Tabs;
@@ -166,9 +166,7 @@ const IndexFundPanel: React.FC<IndexFundPanelProps> = ({
           累计收益率: item[closeKey],
           __monthlyRSI6__,
           __quarterlyRSI6__,
-          __recommendationLevel__: calculateFundRecommendationLevel({
-            __monthlyRSI6__, __quarterlyRSI6__,
-          }),
+          __recommendationLevel__: calculateFundRecommendationLevel(undefined, undefined, __monthlyRSI6__, __quarterlyRSI6__,),
         };
       }).filter(item => [5, 3, 1].includes(item.__recommendationLevel__));
 
@@ -232,13 +230,14 @@ const IndexFundPanel: React.FC<IndexFundPanelProps> = ({
     if (calculateRecommendation) {
       const results: IndexFundData[] = [];
       for (const item of filteredData) {
-        message.info(`正在分析【${item['基金名称']}】中...`);
+        message.info(`正在分析【${item['基金名称']}】中...`, 10);
         const recommendationDates = await fetchFundDetailAndCalculate(String(item['基金代码']));
         results.push({
           ...item,
           ['__推荐买点__']: recommendationDates || '',
         });
       }
+      message.success('推荐买点计算完成');
       return results;
     }
 

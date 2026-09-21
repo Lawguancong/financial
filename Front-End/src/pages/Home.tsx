@@ -278,7 +278,17 @@ const Home = () => {
   // A股财务指标: stock_financial_analysis_indicator
   // A股个股估值: stock_value_em (仅最近10年数据)
 
+  // RSI卖出 - RSI买入 年化收益率计算 (评估是否有意义)
 
+
+  
+  // 全球指数
+  // 接口不ok index_global_spot_em
+  // https://quote.eastmoney.com/center/gridlist.html#global_qtzs
+  // 接口ok的 /api/public/index_global_hist_em?symbol=上证指数
+
+  // 港股指数
+  
 
   return (
     <>

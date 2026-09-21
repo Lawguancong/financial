@@ -26,6 +26,7 @@ interface StockData {
   成交量: number;
   成交额: number;
   时间戳: unknown;
+  __推荐买点__?: string;
 }
 
 // 周期 RSI 字段名（与 stockUtils 中返回的字段保持一致）
@@ -77,7 +78,6 @@ const OutTrading: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('selected');
   const [selectedStocks, setSelectedStocks] = useState<StockData[]>([]);
   const selectedStocksRef = useRef<StockData[]>([]);
-  const [calculateRecommendation, setCalculateRecommendation] = useState<boolean>(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [selectedRows, setSelectedRows] = useState<StockData[]>([]);
 
@@ -218,7 +218,6 @@ const OutTrading: React.FC = () => {
       const params: Record<string, string> = {
         symbol: prefix ? `${prefix}${symbol}` : symbol,
         adjust: 'hfq',
-        start_date: '20210101' // todo
       };
       const response = await apiClient.get('/api/public/stock_zh_a_hist_tx', { params });
       const stockHistoryList = response?.data?.map((item: Record<string, unknown>) => ({
@@ -230,7 +229,7 @@ const OutTrading: React.FC = () => {
       const periodRSIMap = calculatePeriodRSI(stockHistoryList);
 
       // 2) 合并为带推荐级别的图表数据
-      const chartData = computeRSIRecommendations(periodRSIMap) as ChartRow[];
+      const chartData = computeRSIRecommendations(periodRSIMap, 'stock') as ChartRow[];
 
       // 3) 过滤出推荐买点
       const buyPointList = chartData.filter(
@@ -255,18 +254,13 @@ const OutTrading: React.FC = () => {
   };
 
   const handleCalculateRecommendation = async () => {
-    // setCalculateRecommendation(!calculateRecommendation);
-    console.log('1111 calculateRecommendation');
-    console.log('11111 selectedStocks', selectedStocks);
-    console.log('勾选的行, selectedRows ', selectedRows);
-    console.log('勾选的行, selectedRowKeys ', selectedRowKeys);
     if (selectedRows?.length === 0) {
       message.warning('请选择股票');
       return;
     } else {
       const results = [];
       for (const item of selectedRows) {
-        message.info(`正在分析【${item['名称']}】中...`);
+        message.info(`正在分析【${item['名称']}】中...`, 10);
         const recommendationDates = await fetchStockDetailAndCalculate(String(item['代码']));
         results.push({
           ...item,
@@ -274,10 +268,16 @@ const OutTrading: React.FC = () => {
         });
       }
       console.log('1111, results ', results);
-      // setData();
-      // setData((prev)=> {
-      //   return prev;
-      // })
+      const resultMap = new Map(
+        results.map(r => [r['代码'], r['__推荐买点__']])
+      );
+      setSelectedStocks(prev =>
+        prev.map(item => ({
+          ...item,
+          __推荐买点__: resultMap.get(item['代码']) ?? item.__推荐买点__,
+        }))
+      );
+      message.success('推荐买点计算完成');
     }
   };
 
@@ -444,6 +444,36 @@ const OutTrading: React.FC = () => {
       sorter: numberSorter('成交额'),
     },
     {
+      title: '推荐买点',
+      dataIndex: '__推荐买点__',
+      key: '__推荐买点__',
+      width: 60,
+      sorter: stringSorter('__推荐买点__'),
+            render: (value: string) => {
+        if (!value) return <span style={{ color: '#999' }}>-</span>;
+        const dates = value.split(',')?.reverse()?.filter(d => d.trim());
+        return (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+            {dates.map((date, index) => (
+              <span
+                key={index}
+                style={{
+                  backgroundColor: '#e6f7ff',
+                  color: '#1890ff',
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  border: '1px solid #91caff',
+                }}
+              >
+                {date}
+              </span>
+            ))}
+          </div>
+        );
+      },
+    },
+    {
       title: '操作',
       key: 'action',
       width: 120,
@@ -508,23 +538,19 @@ const OutTrading: React.FC = () => {
           />
         </TabPane>
         <TabPane tab="自选" key="selected">
-          {/* <div
+          <div
             onClick={handleCalculateRecommendation}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '12px',
               padding: '8px 20px',
-              background: calculateRecommendation
-                ? 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)'
-                : 'linear-gradient(135deg, #b6bee3ff 0%, #b1aeb5ff 100%)',
+              background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
               borderRadius: '25px',
               transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-              boxShadow: calculateRecommendation
-                ? '0 8px 25px rgba(56, 239, 125, 0.5), 0 0 0 3px rgba(56, 239, 125, 0.2)'
-                : '0 4px 15px rgba(102, 126, 234, 0.3)',
+              boxShadow: '0 8px 25px rgba(56, 239, 125, 0.5), 0 0 0 3px rgba(56, 239, 125, 0.2)',
               cursor: 'pointer',
-              transform: calculateRecommendation ? 'scale(1.02)' : 'scale(1)',
+              transform: 'scale(1.02)',
               border: '2px solid transparent',
               overflow: 'hidden',
               position: 'relative'
@@ -535,9 +561,7 @@ const OutTrading: React.FC = () => {
                 width: '24px',
                 height: '24px',
                 borderRadius: '50%',
-                background: calculateRecommendation
-                  ? 'rgba(255,255,255,0.9)'
-                  : 'rgba(255,255,255,0.7)',
+                background: 'rgba(255,255,255,0.9)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -546,7 +570,7 @@ const OutTrading: React.FC = () => {
               }}
             >
               <span style={{ fontSize: '14px', fontWeight: 'bold' }}>
-                {calculateRecommendation ? '✓' : '○'}
+                ✓
               </span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -554,15 +578,15 @@ const OutTrading: React.FC = () => {
                 fontWeight: 'bold', color: '#fff', fontSize: '14px',
                 textShadow: '0 1px 2px rgba(0,0,0,0.2)'
               }}>
-                {calculateRecommendation ? '✨ 已启用智能分析' : '💡 计算推荐买点'}
+                计算推荐买点
               </span>
               <span style={{
                 color: 'rgba(255,255,255,0.85)', fontSize: '11px', marginTop: '2px'
               }}>
-                {calculateRecommendation ? '搜索后将分析最佳买入时机...' : '启用后将计算RSI指标'}
+                启用后将计算RSI指标
               </span>
             </div>
-          </div> */}
+          </div>
           <Table
             rowSelection={{
               selectedRowKeys,

@@ -1,8 +1,13 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Table, Typography, Input, Button, Tabs } from 'antd';
+import { Table, Typography, Input, Button, Tabs, message, Select } from 'antd';
 import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { numberSorter, createRangeFilter, createDateRangeFilter } from '@/utils/tableUtils';
+import type { IndexDetailData } from './detail';
+import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations } from '@/utils/stockUtils';
+import { convertToMonthlyData } from '@/pages/fund/cn/open/detail/constants';
+
+
 
 const { Link } = Typography;
 const { TabPane } = Tabs;
@@ -26,6 +31,7 @@ interface IndexData {
   指数合规: string;
   指数热点: string | null;
   指数年化率?: number;
+  __推荐买点__?: string;
 }
 
 const stringSorter = (key: keyof IndexData) => (a: IndexData, b: IndexData) => {
@@ -39,10 +45,116 @@ const Index: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({
     current: 1,
-    pageSize: 20,
+    pageSize: 100,
   });
   const [activeTab, setActiveTab] = useState<string>('all');
   const [selectedIndices, setSelectedIndices] = useState<IndexData[]>([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [selectedRows, setSelectedRows] = useState<IndexData[]>([]);
+  const [excludedNames, setExcludedNames] = useState<string[]>(["债", "CS", "韩", "年", "-", "+", "对冲", "目标", "海外", "ESG", "内地", "SHS", "易方达", "AA", "交银", "太保", "智选", "SSH", "ABS", "海外", "期权", "城镇"]);
+
+
+  const onSelectChange = (newSelectedRowKeys: React.Key[], newSelectedRows: IndexData[]) => {
+    setSelectedRowKeys(newSelectedRowKeys);
+    setSelectedRows(newSelectedRows);
+  };
+
+  const handleCalculateRecommendation = async () => {
+    console.log('11111 selectedRows', selectedRows)
+    if (selectedRows?.length === 0) {
+      message.warning('请选择指数');
+      return;
+    } else {
+      const results = [];
+      for (const item of selectedRows) {
+        message.info(`正在分析【${item['指数简称']}】中...`, 10);
+        const recommendationDates = await fetchIndexDetailAndCalculate(String(item['指数代码']));
+        results.push({
+          ...item,
+          ['__推荐买点__']: recommendationDates || '',
+        });
+      }
+      console.log('1111, 指数计算的推荐买点 ', results);
+      const resultMap = new Map(
+        results.map(r => [r['指数代码'], r['__推荐买点__']])
+      );
+      console.log('11111 resultMap', resultMap)
+
+
+      const latestData = [...selectedIndices].map(item => ({
+        ...item,
+        // __推荐买点__: selectedRows?.find((row: IndexData) => row['指数代码'] === item['指数代码']) ? resultMap.get(item['指数代码']) || `上次计算时间：${moment().format('YYYY/MM/DD HH:mm')}` : item.__推荐买点__,
+        __推荐买点__:  resultMap.get(item['指数代码']) || item.__推荐买点__,
+      }))
+      setSelectedIndices(latestData);
+      saveSelectedIndices(latestData);
+      message.success('推荐买点计算完成');
+    }
+  };
+
+  console.log('11111 selectedIndices', selectedIndices)
+
+  // 计算推荐买点
+  const fetchIndexDetailAndCalculate = async (symbol: string): Promise<string | null> => {
+    try {
+
+      const startDate = '19800101'; // 默认从1980年1月1日开始查询，并去除第一个日期的空值
+      const response = await apiClient.get(`/api/public/stock_zh_index_hist_csindex?symbol=${symbol}&start_date=${startDate}&end_date=${moment().format('YYYYMMDD')}`);
+      const data = response?.data || [];
+      const firstNonMultipleIndex = data.findIndex((item: IndexDetailData) => Number(item.收盘) % 100 !== 0);
+      const formatData = (0 < firstNonMultipleIndex && firstNonMultipleIndex < 10) ? data.slice(firstNonMultipleIndex - 1) : data;
+      const stockHistoryList = formatData?.map((item: IndexDetailData) => ({
+        日期: item.日期,
+        收盘: Number(item.收盘),
+      })) || [];
+
+
+
+      // 1) 计算日/周/月/季 K 线的 RSI6 值
+      const periodRSIMap = calculatePeriodRSI(stockHistoryList);
+
+      // 2) 合并为带推荐级别的图表数据
+      const chartData = computeRSIRecommendations(periodRSIMap, 'index') as any[];
+
+      // // 过滤 每月最晚（最新）的一条记录
+      // const chartMonthlyLatestMap = new Map<string, any>();
+      // chartData.forEach((row: any) => {
+      //   const dateStr = String(row?.日期 ?? '');
+      //   const ym = dateStr.slice(0, 7); // YYYY-MM
+      //   if (!ym) return;
+      //   const existed = chartMonthlyLatestMap.get(ym);
+      //   if (!existed || String(existed.日期) < dateStr) {
+      //     chartMonthlyLatestMap.set(ym, row);
+      //   }
+      // });
+      // const chartDataMonthly: any[] = Array.from(chartMonthlyLatestMap.values()).sort(
+      //   (a, b) => String(a.日期).localeCompare(String(b.日期)),
+      // );
+      // const chartDataMonthly = convertToMonthlyData(chartData);
+
+      // 3) 过滤出推荐买点
+      const buyPointList = chartData.filter(
+        (row): row is any => row.__recommendationLevel__ != null,
+      );
+
+      // 4) 过滤 每月最晚（最新）的一条记录
+      const chartDataMonthly = convertToMonthlyData(buyPointList);
+
+      // console.log('1111 chartMonthlyLatestMap', chartMonthlyLatestMap.values())
+      console.log('1111 chartDataMonthly', chartDataMonthly)
+
+
+
+      // 返回推荐买点日期字符串
+      // return ''
+      return chartDataMonthly?.reverse()?.map(item => moment(item['日期'])?.format('YYYY-MM-DD'))?.join(',');
+    } catch (error) {
+      console.log('Error fetching fund detail:', error);
+      return '';
+    }
+  };
+
+
 
   const getUniqueValues = (data: IndexData[], key: keyof IndexData): string[] => {
     return Array.from(new Set(data.map(item => String(item[key] || ''))))
@@ -115,6 +227,7 @@ const Index: React.FC = () => {
             style={{ width: 188, marginBottom: 8, display: 'block' }}
           />
           <div style={{ display: 'flex', gap: 8 }}>
+
             <Button
               type="primary"
               onClick={confirm}
@@ -152,6 +265,36 @@ const Index: React.FC = () => {
           {name}
         </Link>
       ),
+    },
+    {
+      title: '推荐买点',
+      dataIndex: '__推荐买点__',
+      key: '__推荐买点__',
+      width: 60,
+      sorter: stringSorter('__推荐买点__'),
+      render: (value: string) => {
+        if (!value) return <span style={{ color: '#999' }}>-</span>;
+        const dates = value.split(',')?.filter(d => d.trim());
+        return (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+            {dates.map((date, index) => (
+              <span
+                key={index}
+                style={{
+                  backgroundColor: '#e6f7ff',
+                  color: '#1890ff',
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  border: '1px solid #91caff',
+                }}
+              >
+                {date}
+              </span>
+            ))}
+          </div>
+        );
+      },
     },
     // {
     //   title: '发布时间',
@@ -200,14 +343,15 @@ const Index: React.FC = () => {
     //   ...createRangeFilter('指数年化率'),
     //   render: (_, record: IndexData) => `${(record['指数年化率'])?.toFixed(2)}%`,
     // },
+
     {
       title: '操作',
       key: 'action',
-      width: 60,
+      width: 40,
       fixed: 'right' as const,
       render: (_, record: IndexData) => {
         const isSelected = isIndexSelected(record['指数代码']);
-        
+
         return (
           <div style={{ display: 'flex', gap: 8 }}>
             <Button
@@ -246,7 +390,7 @@ const Index: React.FC = () => {
     try {
       const response = await apiClient.get('/api/public/index_csindex_all');
       console.log('指数列表 -> response', response);
-      const newData = (response?.data || []).map((item: IndexData) => {
+      let newData = (response?.data || []).map((item: IndexData) => {
         if (!item['发布时间'] || !item['最新收盘'] || !item['基点'] || item['基点'] === 0) {
           return { ...item, '指数年化率': undefined };
         }
@@ -257,6 +401,16 @@ const Index: React.FC = () => {
         const annualReturn = Math.pow(item['最新收盘'] / item['基点'], 1 / years) - 1;
         return { ...item, '指数年化率': annualReturn * 100 };
       });
+
+      if (excludedNames.length > 0) {
+        newData = newData.filter((item: any) => {
+          const indexNameShortName = String(item['指数简称'] || '').toLowerCase();
+          return !excludedNames.some(excludedName =>
+            indexNameShortName.includes(excludedName.toLowerCase())
+          );
+        });
+      }
+
       setData(newData);
 
       // 更新自选指数数据（除指数代码外）
@@ -343,10 +497,20 @@ const Index: React.FC = () => {
 
 
   return (
-    <div style={{ padding: '24px', height: 'calc(100vh - 64px - 32px)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ padding: '0 24px', height: 'calc(100vh - 64px - 32px)', display: 'flex', flexDirection: 'column' }}>
       <Tabs activeKey={activeTab} onChange={setActiveTab}>
         <TabPane tab="全部" key="all">
           <div style={{ marginBottom: '16px', textAlign: 'right' }}>
+            不包含指数简称：
+            <Select
+              mode="tags"
+              style={{ width: 500 }}
+              placeholder="不包含指数简称"
+              value={excludedNames}
+              onChange={setExcludedNames}
+            />
+
+
             <Button type="primary" onClick={fetchData} loading={loading}>
               搜索
             </Button>
@@ -356,7 +520,7 @@ const Index: React.FC = () => {
             dataSource={data}
             loading={loading}
             rowKey="指数代码"
-            scroll={{ x: 2000, y: 'calc(100vh - 200px)' }}
+            scroll={{ x: 2000, y: 'calc(100vh - 350px)' }}
             pagination={{
               ...pagination,
               showSizeChanger: true,
@@ -371,22 +535,65 @@ const Index: React.FC = () => {
           />
         </TabPane>
         <TabPane tab="自选" key="selected">
+          <div
+            onClick={handleCalculateRecommendation}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '8px 20px',
+              background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+              borderRadius: '25px',
+              transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+              boxShadow: '0 8px 25px rgba(56, 239, 125, 0.5), 0 0 0 3px rgba(56, 239, 125, 0.2)',
+              cursor: 'pointer',
+              transform: 'scale(1.02)',
+              border: '2px solid transparent',
+              overflow: 'hidden',
+              position: 'relative'
+            }}
+          >
+            <div
+              style={{
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                background: 'rgba(255,255,255,0.9)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.3s ease',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+              }}
+            >
+              <span style={{ fontSize: '14px', fontWeight: 'bold' }}>
+                ✓
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{
+                fontWeight: 'bold', color: '#fff', fontSize: '14px',
+                textShadow: '0 1px 2px rgba(0,0,0,0.2)'
+              }}>
+                计算推荐买点
+              </span>
+              <span style={{
+                color: 'rgba(255,255,255,0.85)', fontSize: '11px', marginTop: '2px'
+              }}>
+                启用后将计算RSI指标
+              </span>
+            </div>
+          </div>
           <Table
+            rowSelection={{
+              selectedRowKeys,
+              onChange: onSelectChange,
+            }}
             columns={columns}
             dataSource={selectedIndices}
             rowKey="指数代码"
-            scroll={{ x: 2000, y: 'calc(100vh - 200px)' }}
-            pagination={{
-              ...pagination,
-              showSizeChanger: true,
-              showTotal: (total) => `共 ${total} 条`,
-              onChange: (page, pageSize) => {
-                setPagination({ current: page, pageSize });
-              },
-              onShowSizeChange: (current, size) => {
-                setPagination({ current: 1, pageSize: size });
-              },
-            }}
+            scroll={{ x: 2000, y: 'calc(100vh - 350px)' }}
+            pagination={false}
           />
         </TabPane>
       </Tabs>

@@ -6,6 +6,7 @@ import { numberSorter, createRangeFilter, createDateRangeFilter } from '@/utils/
 import type { IndexDetailData } from './detail';
 import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations } from '@/utils/stockUtils';
 import { convertToMonthlyData } from '@/pages/fund/cn/open/detail/constants';
+import GrowthVsValue from './GrowthVsValue';
 
 
 
@@ -595,6 +596,9 @@ const Index: React.FC = () => {
             scroll={{ x: 2000, y: 'calc(100vh - 350px)' }}
             pagination={false}
           />
+        </TabPane>
+        <TabPane tab="300成长vs300价值" key="growthVsValue">
+          <GrowthVsValue />
         </TabPane>
       </Tabs>
     </div>

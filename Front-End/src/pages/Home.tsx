@@ -288,6 +288,9 @@ const Home = () => {
   // 接口ok的 /api/public/index_global_hist_em?symbol=上证指数
 
   // 港股指数
+  // RSI6月 10% 分位 + RSI6季度 10% 分位 买点
+  // 基金详情 要补全服用 RSI 计算
+  // 除基金外 封装方法， 计算 卖点-买点 年化收益率
 
   return (
     <>

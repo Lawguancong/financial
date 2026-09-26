@@ -114,6 +114,15 @@ interface PercentileHolding {
 
 type PercentileTradeStatus = '已平仓' | '持仓中';
 
+// 月+季 RSI6 共振买点（月/季 RSI6 同时跌破历史分位，带推荐级别）
+interface MonthlyQuarterlyBuyPoint {
+  日期: string;
+  收盘: number;
+  monthlyRsi: number;
+  quarterlyRsi: number;
+  level: number;
+}
+
 // 百分位买卖配对交易记录
 interface PercentileTrade {
   buyDate: string;
@@ -193,8 +202,21 @@ const WEEKLY_RSI_BUY_PERCENTILE = 1;
 /** 周RSI6 卖出分位：周RSI6 突破该历史分位且收益率＞0 时卖出 */
 const WEEKLY_RSI_SELL_PERCENTILE = 90;
 
+/** 月+季 RSI6 共振买点分级规则：级别越高，分位阈值越严（月/季 RSI6 同时跌破对应分位） */
+interface MqLevelRule {
+  level: number;
+  percentile: number;
+}
+const MQ_LEVEL_RULES: MqLevelRule[] = [
+  { level: 5, percentile: 3 },
+  { level: 3, percentile: 5 },
+  { level: 1, percentile: 10 },
+];
+
 // 周/月 RSI6 主题色（与 rsiPeriods 中对应周期颜色一致，用于百分位阈值展示）
 const weeklyRsiColor = rsiPeriods.find(({ periodKey }) => periodKey === 'weekly')!.color;
+const monthlyRsiColor = rsiPeriods.find(({ periodKey }) => periodKey === 'monthly')!.color;
+const quarterlyRsiColor = rsiPeriods.find(({ periodKey }) => periodKey === 'quarterly')!.color;
 
 // 主图“指数 · 买点标注”右轴只展示月/季 RSI6（日/周 RSI6 不在主图展示）
 const mainChartRsiPeriods = rsiPeriods.filter(
@@ -386,6 +408,9 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
     percentileThresholds,
     percentileTrades,
     percentileChartConfig,
+    monthlyQuarterlyBuyList,
+    monthlyQuarterlyThresholds,
+    monthlyQuarterlyChartConfig,
   } = useMemo(() => {
     const emptyResult = {
       buyPointList: [] as BuyPointRow[],
@@ -395,6 +420,9 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
       percentileThresholds: null as PercentileThresholds | null,
       percentileTrades: [] as PercentileTrade[],
       percentileChartConfig: {} as Record<string, unknown>,
+      monthlyQuarterlyBuyList: [] as MonthlyQuarterlyBuyPoint[],
+      monthlyQuarterlyThresholds: null as Record<number, { monthly: number; quarterly: number }> | null,
+      monthlyQuarterlyChartConfig: {} as Record<string, unknown>,
     };
 
     if (!data?.length) {
@@ -667,7 +695,66 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
       }
     }
 
-    // 9) 百分位买卖标注图：左轴收盘价/指数折线 + 右轴周RSI6阈值参考线，叠加买点/卖点标注
+    // 9) 月+季 RSI6 共振买点：月RSI6 与 季RSI6 同时跌破历史分位，按分位严度分级（★5/★3/★1）
+    // 按月扫描，季度值取该月时点最近一个已完成季度的 RSI6（季度序列按日期 <= 月日期 取最近）
+    const monthlyQuarterlyBuyList: MonthlyQuarterlyBuyPoint[] = [];
+    let monthlyQuarterlyThresholds: Record<number, { monthly: number; quarterly: number }> | null = null;
+    {
+      const monthlyRsiArr = periodRSIMap.monthlyRSI.slice(rsiWarmup);
+      const quarterlyRsiArr = periodRSIMap.quarterlyRSI.slice(rsiWarmup);
+
+      const monthlyRsiValues = monthlyRsiArr
+        .map((item) => item.__RSI6__)
+        .filter((value): value is number => typeof value === 'number');
+      const quarterlyRsiValues = quarterlyRsiArr
+        .map((item) => item.__RSI6__)
+        .filter((value): value is number => typeof value === 'number');
+
+      if (monthlyRsiValues.length && quarterlyRsiValues.length) {
+        // 按级别计算月/季 RSI6 分位阈值
+        const thresholds: Record<number, { monthly: number; quarterly: number }> = {};
+        for (const { level, percentile } of MQ_LEVEL_RULES) {
+          thresholds[level] = {
+            monthly: Number(calculatePercentile(monthlyRsiValues, percentile).toFixed(2)),
+            quarterly: Number(calculatePercentile(quarterlyRsiValues, percentile).toFixed(2)),
+          };
+        }
+        monthlyQuarterlyThresholds = thresholds;
+
+        let qIdx = 0;
+        for (const m of monthlyRsiArr) {
+          const monthlyRsi = m.__RSI6__;
+          if (typeof monthlyRsi !== 'number') continue;
+
+          // 推进季度指针到最近一个 日期 <= 当前月日期 的季度点
+          while (
+            qIdx + 1 < quarterlyRsiArr.length &&
+            quarterlyRsiArr[qIdx + 1].日期 <= m.日期
+          ) {
+            qIdx += 1;
+          }
+          const quarterlyRsi = quarterlyRsiArr[qIdx]?.__RSI6__;
+          if (typeof quarterlyRsi !== 'number') continue;
+
+          // 从高到低匹配，取命中的最高级别
+          const hitRule = MQ_LEVEL_RULES.find(
+            ({ level }) =>
+              monthlyRsi < thresholds[level].monthly && quarterlyRsi < thresholds[level].quarterly,
+          );
+          if (hitRule) {
+            monthlyQuarterlyBuyList.push({
+              日期: m.日期,
+              收盘: m.收盘,
+              monthlyRsi,
+              quarterlyRsi,
+              level: hitRule.level,
+            });
+          }
+        }
+      }
+    }
+
+    // 10) 百分位买卖标注图：左轴收盘价/指数折线 + 右轴周RSI6阈值参考线，叠加买点/卖点标注
     // 与主图一致：周RSI6 不单独绘制折线，仅通过左轴 tooltip 展示数值
 
     // 买点（绿●）/ 卖点（红●）圆点标注，Y 坐标取当次成交价（风格与推荐买点标注一致）
@@ -799,7 +886,156 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
       annotations: percentileAnnotations,
     };
 
-    return { buyPointList, mainChartConfig, rsiLineConfigs, rsiStats, percentileThresholds, percentileTrades, percentileChartConfig };
+    // 11) 月&季 RSI6 共振买点标注图：左轴价格线 + 右轴月/季 RSI6 线 + 买点标注
+    // 买点标注按推荐级别着色（★5 深绿、★3 中绿、★1 浅绿），与定量买点风格一致
+    const mqAnnotationColorMap: Record<number, { fill: string; shadow: string }> = {
+      5: { fill: '#00a800', shadow: 'rgba(0, 168, 0, 0.65)' },
+      3: { fill: '#3cbc3c', shadow: 'rgba(60, 188, 60, 0.6)' },
+      1: { fill: '#7ed957', shadow: 'rgba(126, 217, 87, 0.55)' },
+    };
+    const monthlyQuarterlyAnnotations = monthlyQuarterlyBuyList.map((point) => {
+      const color = mqAnnotationColorMap[point.level] || mqAnnotationColorMap[1];
+      return {
+        type: 'text' as const,
+        data: [new Date(point.日期), point.收盘],
+        style: {
+          text: '●',
+          fontSize: 14,
+          textAlign: 'center',
+          textBaseline: 'middle',
+          fill: color.fill,
+          stroke: '#ffffff',
+          lineWidth: 1.5,
+          shadowColor: color.shadow,
+          shadowBlur: 6,
+        },
+      };
+    });
+
+    // 右轴月/季 RSI6 折线数据（仅月末/季末点，不按日填充）
+    const monthlyQuarterlyRsiData = [
+      ...periodRSIMap.monthlyRSI
+        .map((item) => ({
+          date: item.日期,
+          label: monthlyPeriodMeta.label,
+          value: item.__RSI6__,
+        }))
+        .filter((row) => row.value != null),
+      ...periodRSIMap.quarterlyRSI
+        .map((item) => ({
+          date: item.日期,
+          label: quarterlyPeriodMeta.label,
+          value: item.__RSI6__,
+        }))
+        .filter((row) => row.value != null),
+    ];
+
+    const mqColorDomain = [mainName, monthlyPeriodMeta.label, quarterlyPeriodMeta.label];
+    const mqColorRange = [mainColor, monthlyPeriodMeta.color, quarterlyPeriodMeta.color];
+
+    // 月/季 RSI6 ★1 级（10% 分位）水平参考线（落在右轴 RSI 轴上，与 RSI 折线共享 scale id）
+    const mqLevel1 = MQ_LEVEL_RULES.find(({ level }) => level === 1)!;
+    const mqThresholdLineYMarks = monthlyQuarterlyThresholds
+      ? [
+          {
+            type: 'lineY' as const,
+            data: [monthlyQuarterlyThresholds[mqLevel1.level].monthly],
+            scale: { y: { id: 'mqRsiY' } },
+            axis: false,
+            tooltip: false,
+            style: {
+              stroke: monthlyPeriodMeta.color,
+              lineDash: [4, 4],
+              lineWidth: 1,
+              opacity: 0.7,
+            },
+          },
+          {
+            type: 'lineY' as const,
+            data: [monthlyQuarterlyThresholds[mqLevel1.level].quarterly],
+            scale: { y: { id: 'mqRsiY' } },
+            axis: false,
+            tooltip: false,
+            style: {
+              stroke: quarterlyPeriodMeta.color,
+              lineDash: [4, 4],
+              lineWidth: 1,
+              opacity: 0.7,
+            },
+          },
+        ]
+      : [];
+
+    const monthlyQuarterlyChartConfig = {
+      xField: (d: { date: string }) => new Date(d.date),
+      height: 420,
+      autoFit: true,
+      animation: { appear: { duration: 800 } },
+      tooltip: { showCrosshairs: true, shared: true },
+      children: [
+        {
+          data: mainData,
+          type: 'line' as const,
+          yField: 'value',
+          colorField: 'label',
+          shapeField: 'smooth' as const,
+          style: { lineWidth: 2 },
+          scale: { color: { domain: mqColorDomain, range: mqColorRange } },
+          axis: {
+            y: {
+              title: mainName,
+              style: { titleFill: mainColor },
+            },
+          },
+          tooltip: {
+            title: (d: { date: string }) => moment(d.date).format('YYYY-MM-DD'),
+            items: [
+              (d: { date: string; value: number }) => ({
+                name: mainName,
+                color: mainColor,
+                value: formatTooltipValue(d.value),
+              }),
+              (d: { date: string }) => ({
+                name: monthlyPeriodMeta.label,
+                color: monthlyPeriodMeta.color,
+                value: formatTooltipValue(monthlyTooltipMap.get(moment(d.date).format('YYYY-MM'))),
+              }),
+              (d: { date: string }) => {
+                const date = moment(d.date);
+                return {
+                  name: quarterlyPeriodMeta.label,
+                  color: quarterlyPeriodMeta.color,
+                  value: formatTooltipValue(
+                    quarterlyTooltipMap.get(`${date.year()}-Q${date.quarter()}`),
+                  ),
+                };
+              },
+            ],
+          },
+        },
+        {
+          data: monthlyQuarterlyRsiData,
+          type: 'line' as const,
+          yField: 'value',
+          colorField: 'label',
+          shapeField: 'smooth' as const,
+          style: { lineWidth: 1.5 },
+          scale: { y: { id: 'mqRsiY' }, color: { domain: mqColorDomain, range: mqColorRange } },
+          axis: {
+            y: {
+              position: 'right' as const,
+              title: `月/季RSI6（${MQ_LEVEL_RULES.map((r) => r.percentile).join('/')}% 分位）`,
+              style: { titleFill: monthlyPeriodMeta.color },
+            },
+          },
+          tooltip: false,
+        },
+        ...mqThresholdLineYMarks,
+      ],
+      annotations: monthlyQuarterlyAnnotations,
+    };
+
+    return { buyPointList, mainChartConfig, rsiLineConfigs, rsiStats, percentileThresholds, percentileTrades, percentileChartConfig, monthlyQuarterlyBuyList, monthlyQuarterlyThresholds, monthlyQuarterlyChartConfig };
   }, [data, type, mainName]);
 
   // 买点表格列：收盘列标题随标的类型切换（指数 / 收盘价）
@@ -912,6 +1148,56 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
     [mainName],
   );
 
+  // 月+季 RSI6 共振买点表格列
+  const monthlyQuarterlyColumns = useMemo(
+    () => [
+      {
+        title: '推荐级别',
+        dataIndex: 'level',
+        key: 'level',
+        align: 'center' as const,
+        width: 100,
+        render: renderRecommendationStars,
+      },
+      {
+        title: '日期',
+        dataIndex: '日期',
+        key: '日期',
+        width: 120,
+        render: (text: string) => moment(text).format('YYYY-MM-DD'),
+      },
+      {
+        title: mainName,
+        dataIndex: '收盘',
+        key: '收盘',
+        align: 'right' as const,
+        width: 100,
+        render: (value: number) => value?.toFixed(2),
+      },
+      {
+        title: '月RSI6',
+        dataIndex: 'monthlyRsi',
+        key: 'monthlyRsi',
+        align: 'right' as const,
+        width: 100,
+        render: (value: number) => (
+          <span style={{ color: monthlyRsiColor, fontWeight: 600 }}>{value.toFixed(2)}</span>
+        ),
+      },
+      {
+        title: '季RSI6',
+        dataIndex: 'quarterlyRsi',
+        key: 'quarterlyRsi',
+        align: 'right' as const,
+        width: 100,
+        render: (value: number) => (
+          <span style={{ color: quarterlyRsiColor, fontWeight: 600 }}>{value.toFixed(2)}</span>
+        ),
+      },
+    ],
+    [mainName],
+  );
+
   if (!data?.length) {
     return <div>暂无数据</div>;
   }
@@ -983,7 +1269,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
         </div>
       </CollapsibleCard>
 
-      <CollapsibleCard title="RSI指标-推荐买点-（适合高波）（RSI6 定量）" bodyPaddingZero>
+      <CollapsibleCard title="RSI指标-推荐买点-（RSI6 定量）" bodyPaddingZero>
         <QuantRuleNote type={type} />
         <Table
           dataSource={buyPointList}
@@ -996,7 +1282,47 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
         />
       </CollapsibleCard>
 
-      <CollapsibleCard title={`RSI指标-推荐买点-（适合低波）（周RSI6 ${WEEKLY_RSI_BUY_PERCENTILE}% / ${WEEKLY_RSI_SELL_PERCENTILE}% 分位）`} bodyPaddingZero>
+      <CollapsibleCard title="RSI指标-推荐买点-（月&季RSI6 百分位分级）" bodyPaddingZero>
+        <div
+          style={{
+            padding: '8px 12px',
+            fontSize: 12,
+            lineHeight: 1.8,
+            color: '#8c8c8c',
+            background: '#fafafa',
+            borderBottom: '1px solid #f0f0f0',
+          }}
+        >
+          规则：月RSI6 与 季RSI6 同时跌破对应历史分位时记为买点，按分位严度分级（星级越高共振越强）。
+          {MQ_LEVEL_RULES.map(({ level, percentile }) => (
+            <div key={level}>
+              <span style={{ color: '#ffd700', fontWeight: 700 }}>{'★'.repeat(level)}</span>：月RSI6{' '}
+              <span style={{ color: monthlyRsiColor, fontWeight: 600 }}>
+                ＜ {monthlyQuarterlyThresholds?.[level].monthly.toFixed(2)}
+              </span>
+              （历史{percentile}%分位）且 季RSI6{' '}
+              <span style={{ color: quarterlyRsiColor, fontWeight: 600 }}>
+                ＜ {monthlyQuarterlyThresholds?.[level].quarterly.toFixed(2)}
+              </span>
+              （历史{percentile}%分位）
+            </div>
+          ))}
+          <div style={{ color: '#595959' }}>
+            按月扫描，季度值取当月时点最近一个已完成季度的 RSI6；同一月份满足多个级别时取最高星级展示。
+          </div>
+        </div>
+        <Table
+          dataSource={monthlyQuarterlyBuyList}
+          columns={monthlyQuarterlyColumns}
+          rowKey="日期"
+          pagination={false}
+          size="middle"
+          bordered
+          scroll={{ x: 480 }}
+        />
+      </CollapsibleCard>
+
+      <CollapsibleCard title={`RSI指标-推荐买点-（周RSI6 ${WEEKLY_RSI_BUY_PERCENTILE}% / ${WEEKLY_RSI_SELL_PERCENTILE}% 分位）`} bodyPaddingZero>
         <div
           style={{
             padding: '8px 12px',
@@ -1059,6 +1385,41 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
           </span>
         </div>
         <DualAxes {...mainChartConfig} />
+      </CollapsibleCard>
+
+      <CollapsibleCard
+        title={
+          <span style={{ fontWeight: 600 }}>
+            <span
+              style={{
+                display: 'inline-block',
+                width: 4,
+                height: 14,
+                background: mainColor,
+                marginRight: 8,
+                borderRadius: 2,
+                verticalAlign: 'middle',
+              }}
+            />
+            {mainName} · 买点标注（月&季RSI6 {MQ_LEVEL_RULES.map((r) => r.percentile).join('/')}%百分位分级）
+          </span>
+        }
+        cardStyle={{
+          background: 'linear-gradient(180deg, #fafbfc 0%, #f0f2f5 100%)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8, fontSize: 12, color: '#595959' }}>
+          <span>
+            <span style={{ color: '#00a800', fontWeight: 700 }}>●</span> 买点（月+季RSI6 共振超卖）
+          </span>
+          <span>
+            <span style={{ color: monthlyRsiColor, fontWeight: 700 }}>━</span> 月RSI6
+          </span>
+          <span>
+            <span style={{ color: quarterlyRsiColor, fontWeight: 700 }}>━</span> 季RSI6
+          </span>
+        </div>
+        <DualAxes {...monthlyQuarterlyChartConfig} />
       </CollapsibleCard>
 
       <CollapsibleCard

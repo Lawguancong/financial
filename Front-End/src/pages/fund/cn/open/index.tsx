@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Table, Card, Tabs } from 'antd';
+import { Button, Table, Card, Tabs, Space, message } from 'antd';
 import moment from 'moment';
 import { numberSorter } from '@/utils/tableUtils';
+import { fetchFundRecommendationPoints } from '@/utils/fundUtils';
 import OpenFundPanel from './components/OpenFundPanel';
 import IndexFundPanel from './components/IndexFundPanel';
 import ExchangeFundPanel from './components/ExchangeFundPanel';
@@ -16,6 +17,10 @@ const FundOpen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('open');
   const [selectedFunds, setSelectedFunds] = useState<FundData[]>([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 100 });
+  // 自选基金表格勾选的基金代码
+  const [checkedFundCodes, setCheckedFundCodes] = useState<string[]>([]);
+  // 推荐买点批量计算中
+  const [calculating, setCalculating] = useState(false);
 
   // 自选基金操作
   const loadSelectedFunds = () => {
@@ -47,6 +52,7 @@ const FundOpen: React.FC = () => {
     const newFunds = selectedFunds.filter(f => f['基金代码'] !== fund['基金代码']);
     setSelectedFunds(newFunds);
     saveSelectedFunds(newFunds);
+    setCheckedFundCodes(prev => prev.filter(code => code !== fund['基金代码']));
   };
 
   const isFundSelected = (fundCode: string) =>
@@ -62,6 +68,37 @@ const FundOpen: React.FC = () => {
     const newFunds = [...selectedFunds.filter(f => f['基金代码'] !== fund['基金代码']), fund];
     setSelectedFunds(newFunds);
     saveSelectedFunds(newFunds);
+  };
+
+  // 对已勾选的自选基金批量计算推荐买点（逻辑与「开放式基金 - 筛选」一致）
+  const calculateCheckedFunds = async () => {
+    // 只计算当前自选列表中仍存在且被勾选的基金
+    const targets = selectedFunds.filter(f => checkedFundCodes.includes(String(f['基金代码'])));
+    if (targets.length === 0) {
+      message.warning('请先勾选需要计算的基金');
+      return;
+    }
+    setCalculating(true);
+    try {
+      let working = [...selectedFunds];
+      for (const fund of targets) {
+        const code = String(fund['基金代码']);
+        const fundName = fund['基金名称'] || fund['基金简称'] || code;
+        message.info(`正在分析【${fundName}】中...`, 10);
+        const recommendationPoints = await fetchFundRecommendationPoints(code);
+        working = working.map(f =>
+          f['基金代码'] === fund['基金代码']
+            ? { ...f, __推荐买点__: recommendationPoints }
+            : f,
+        );
+        // 每算完一只即更新表格与本地缓存，结果渐进可见
+        setSelectedFunds(working);
+        saveSelectedFunds(working);
+      }
+      message.success(`推荐买点计算完成（共 ${targets.length} 只）`);
+    } finally {
+      setCalculating(false);
+    }
   };
 
   useEffect(() => { loadSelectedFunds(); }, []);
@@ -95,6 +132,35 @@ const FundOpen: React.FC = () => {
         );
       },
     },
+      {
+      title: '推荐买点',
+      dataIndex: '__推荐买点__',
+      key: '__推荐买点__',
+      width: 400,
+      render: (value: string) => {
+        if (!value) return <span style={{ color: '#999' }}>-</span>;
+        const dates = value.split(',').reverse().filter(d => d.trim());
+        return (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {dates.map((date, index) => (
+              <span
+                key={index}
+                style={{
+                  backgroundColor: '#e6f7ff',
+                  color: '#1890ff',
+                  padding: '2px 8px',
+                  borderRadius: 4,
+                  fontSize: 12,
+                  border: '1px solid #91caff',
+                }}
+              >
+                {date}
+              </span>
+            ))}
+          </div>
+        );
+      },
+    },
     { title: '日期', dataIndex: '日期', key: '日期', width: 120,
       render: (v: string) => v ? moment(v).format('YYYY-MM-DD') : '-' },
     { title: '单位净值', dataIndex: '单位净值', key: '单位净值', width: 100,
@@ -122,13 +188,14 @@ const FundOpen: React.FC = () => {
     { title: '成立来', dataIndex: '成立来', key: '成立来', width: 100,
       sorter: numberSorter('成立来'), render: (v: number) => `${v?.toFixed(2)}%` },
     { title: '手续费', dataIndex: '手续费', key: '手续费', width: 150 },
+  
     {
       title: '操作', key: 'action', width: 180,
       render: (_: unknown, record: FundData) => (
         <div style={{ display: 'flex', gap: 4 }}>
-          <Button type="primary" size="small" onClick={() => removeFromSelected(record)}>取消自选</Button>
-          <Button size="small" onClick={() => moveToTop(record)}>置顶</Button>
-          <Button size="small" onClick={() => moveToBottom(record)}>置底</Button>
+          <Button type="primary" size="small" disabled={calculating} onClick={() => removeFromSelected(record)}>取消自选</Button>
+          <Button size="small" disabled={calculating} onClick={() => moveToTop(record)}>置顶</Button>
+          <Button size="small" disabled={calculating} onClick={() => moveToBottom(record)}>置底</Button>
         </div>
       ),
     },
@@ -163,11 +230,34 @@ const FundOpen: React.FC = () => {
         </TabPane>
         <TabPane tab="自选基金" key="selected">
           <Card>
+            <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Space>
+                <Button
+                  type="primary"
+                  loading={calculating}
+                  disabled={checkedFundCodes.length === 0}
+                  onClick={calculateCheckedFunds}
+                >
+                  计算推荐买点{checkedFundCodes.length > 0 ? `（已选 ${checkedFundCodes.length} 只）` : ''}
+                </Button>
+                {checkedFundCodes.length > 0 && (
+                  <Button disabled={calculating} onClick={() => setCheckedFundCodes([])}>
+                    清空勾选
+                  </Button>
+                )}
+              </Space>
+              <span style={{ color: '#888' }}>共 {selectedFunds.length} 只自选基金</span>
+            </div>
             <Table
+              rowSelection={{
+                selectedRowKeys: checkedFundCodes,
+                onChange: (keys: React.Key[]) => setCheckedFundCodes(keys.map(String)),
+                getCheckboxProps: () => ({ disabled: calculating }),
+              }}
               columns={selectedColumns}
               dataSource={selectedFunds}
-              rowKey="序号"
-              scroll={{ x: 2000 }}
+              rowKey="基金代码"
+              scroll={{ x: 2400 }}
               pagination={{
                 ...pagination,
                 showSizeChanger: true,

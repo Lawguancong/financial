@@ -1,0 +1,54 @@
+Front-End/src/pages/stock/a/stock/detail/components/RsiFilterMark.tsx
+  s_249a40a66d0d32::t_fb1daddab2786b 613-614,621
+  s_249a40a66d0d32::t_07fa2764c5b9e3 1014,1016,1018
+  s_249a40a66d0d32::t_e2a58318be63a9 1078
+  s_249a40a66d0d32::t_44268c230bc808 617-618
+  s_249a40a66d0d32::t_d322e46c5eae08 1072-1077,1079-1084,1093-1095
+  s_249a40a66d0d32::t_baa1623e916a58 852,859
+  s_249a40a66d0d32::t_0c3d6d3b1e83b5 680,684-685,688,697,703
+  s_249a40a66d0d32::t_67bc99b0a0fa88 99,103-104
+  h_8d10030941b6f7 192,194,701,705,986,999
+  s_249a40a66d0d32::t_82cba5cb5b8a07 715,797,799
+  s_249a40a66d0d32::t_c8e0ece84a7322 856-858,860-862
+  s_249a40a66d0d32::t_5221773f6c7d12 1056-1060,1085-1092
+  s_249a40a66d0d32::t_ed97cc2ad4a189 796
+  s_249a40a66d0d32::t_b69a0487272642 196
+  s_249a40a66d0d32::t_533002fae87119 673
+  s_249a40a66d0d32::t_b6d5a105310942 388,397
+  s_249a40a66d0d32::t_987bf6bf730cd5 713-714,724,731-743
+  s_249a40a66d0d32::t_ea9a746dfdfc86 719
+  s_249a40a66d0d32::t_5616bde15e42a2 590,598-603,607
+  s_249a40a66d0d32::t_ac9fd66e429416 193
+  s_249a40a66d0d32::t_4eb1af4633aa1c 101-102
+  s_249a40a66d0d32::t_9088cd30c7f0d0 190-191,195
+  s_249a40a66d0d32::t_95e1a9b8abecf3 1012
+  s_249a40a66d0d32::t_912e7ee8a7af59 670-671,752-755
+  s_249a40a66d0d32::t_34f1a8f53fe18e 827,831
+  s_249a40a66d0d32::t_2d46db847fabfd 681-683,686-687,698-700,702,704,706
+  s_249a40a66d0d32::t_3f51afbf98563a 716-718,720-723,725-730,744-747,749
+  s_249a40a66d0d32::t_2cdf5548ed3fa4 672,674-679,689-696,707-712,748,750-751,756-795,798,800-802
+  s_249a40a66d0d32::t_345d1dc9faadfc 630-631,642
+  s_249a40a66d0d32::t_ac7e47406f6d03 1069-1071
+  h_8d10030941b6f7 1064-1068
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "be3ec8070849c93d039609110c3f90fc7070f492",
+  "prompts": {},
+  "humans": {
+    "h_8d10030941b6f7": {
+      "author": "罗冠聪 <luoguancong@ruqimobility.com>"
+    }
+  },
+  "sessions": {
+    "s_249a40a66d0d32": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6ab7826aa6e8a20210a4684a",
+        "model": "unknown"
+      },
+      "human_author": "罗冠聪 <luoguancong@ruqimobility.com>"
+    }
+  }
+}

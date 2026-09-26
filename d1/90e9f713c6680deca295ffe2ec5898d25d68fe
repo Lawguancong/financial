@@ -1,0 +1,64 @@
+.trae/skills/g2-crossfreq-tooltip/SKILL.md
+  s_ff27c77b5e2939::t_8fb67cf91378d0 1-101
+Front-End/src/pages/stock/a/stock/detail/index.tsx
+  s_ff27c77b5e2939::t_972d3b5e711f07 116
+  h_8d10030941b6f7 57
+Front-End/src/pages/stock/a/stock/detail/components/RsiFilterMark.tsx
+  s_ff27c77b5e2939::t_5fb691aaf35ac0 311-322,474
+  s_ff27c77b5e2939::t_569439d692ecd0 61,328,381-382
+  s_ff27c77b5e2939::t_900273ac88c32f 325-327
+  s_ff27c77b5e2939::t_cf676189ee1579 2
+  s_ff27c77b5e2939::t_a0bd7b7150d055 553
+  s_ff27c77b5e2939::t_4b6f51e24f23dc 34,36
+  s_ff27c77b5e2939::t_fd01d97838b2d9 349-350,361-372
+  h_8d10030941b6f7 8,263,266
+  s_ff27c77b5e2939::t_52b1ab2fdf5704 333,352,383-385,389,406-407
+  s_ff27c77b5e2939::t_446aaca38f48ea 287,291,296-297
+  s_ff27c77b5e2939::t_22ca9c8d95347a 1
+  s_ff27c77b5e2939::t_babaf33158c167 47,52,288,295,298,329-331,334-348,391-405,408-410
+  s_ff27c77b5e2939::t_90eb80b4bc583c 4,12-13,16-33,35,37-40
+  s_ff27c77b5e2939::t_74894454dc845d 299-300,304-310,323-324
+  s_ff27c77b5e2939::t_62a1f4a3d0db35 351,353-355,357,359,373-380,386-388
+  s_ff27c77b5e2939::t_e9f10d11b3c1c2 41-46
+  s_ff27c77b5e2939::t_80e452012ed9c3 48-51
+  s_ff27c77b5e2939::t_d87e98d76f1a8a 53-55,58-60
+  s_ff27c77b5e2939::t_e0061b3d778334 62-64
+  s_ff27c77b5e2939::t_7cbaa568382de8 332
+  s_ff27c77b5e2939::t_8b4f3a2a6b65cb 390
+  s_ff27c77b5e2939::t_47a095a9c66247 411-413
+  s_ff27c77b5e2939::t_dea7dbc922a92b 471-473
+  s_ff27c77b5e2939::t_689b792e13654f 475-477
+  s_ff27c77b5e2939::t_15cb71b8ac1bda 554-555
+  h_8d10030941b6f7 56-57,65-69,157-164,264-265,414-417,419-438,478-482,490,565,567,575,581,584,588-589,591,629
+Front-End/src/pages/global/index/detail/index.tsx
+  s_ff27c77b5e2939::t_022d527eca5442 58
+Front-End/src/pages/stock/us/index/index.tsx
+  s_ff27c77b5e2939::t_c076726fbede55 138
+Front-End/src/pages/stock/a/index/detail/index.tsx
+  s_ff27c77b5e2939::t_abc95100de4475 3
+  s_ff27c77b5e2939::t_18e34d35526c78 254
+  s_ff27c77b5e2939::t_138a149de5901b 7,9-11
+  s_ff27c77b5e2939::t_b93f2880f8f084 255
+  s_ff27c77b5e2939::t_7da464fa400e29 43,47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d190e9f713c6680deca295ffe2ec5898d25d68fe",
+  "prompts": {},
+  "humans": {
+    "h_8d10030941b6f7": {
+      "author": "罗冠聪 <luoguancong@ruqimobility.com>"
+    }
+  },
+  "sessions": {
+    "s_ff27c77b5e2939": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6ab72147a6e8a20210a45ae2",
+        "model": "unknown"
+      },
+      "human_author": "罗冠聪 <luoguancong@ruqimobility.com>"
+    }
+  }
+}

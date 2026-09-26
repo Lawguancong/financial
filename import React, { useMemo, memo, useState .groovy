@@ -95,25 +95,7 @@ type ChartRow = KLineData & {
 // 过滤后的买点数据行（推荐级别必不为 null）
 type BuyPointRow = ChartRow & { __recommendationLevel__: number };
 
-// 周 RSI6 历史分位阈值（用于百分位买点）
-interface PercentileThresholds {
-  /** 历史3%分位：周RSI6 跌破该值买入 */
-  p3: number;
-  /** 历史95%分位：周RSI6 突破该值且盈利时卖出 */
-  p95: number;
-}
-
-// 持仓中的买入记录（用于与卖出信号配对）
-interface PercentileHolding {
-  buyDate: string;
-  buyRsi: number;
-  buyPrice: number;
-  buyTime: number;
-}
-
-type PercentileTradeStatus = '已平仓' | '持仓中';
-
-// 百分位买卖配对交易记录
+// 百分位策略交易记录（周RSI6 低于 3% 分位买入、高于 95% 分位卖出）
 interface PercentileTrade {
   buyDate: string;
   buyRsi: number;
@@ -121,10 +103,10 @@ interface PercentileTrade {
   sellDate: string | null;
   sellRsi: number | null;
   sellPrice: number | null;
-  holdingDays: number | null;
-  returnRate: number | null;
-  annualizedReturn: number | null;
-  status: PercentileTradeStatus;
+  /** 卖出收益率(%)，持仓中为 null */
+  returnPct: number | null;
+  /** 持有天数（自然日，含非交易日）；持仓中按买入日到最后一根周K计算 */
+  holdingDays: number;
 }
 
 // 样式常量
@@ -186,9 +168,6 @@ const rsiPeriods: RsiPeriodMeta[] = [
 
 const rsiWarmup = 6; // calculateRSI 前 6 个点为预热值（固定 50），计算分位时剔除
 
-// 周 RSI6 主题色（与 rsiPeriods 中周线颜色保持一致，用于百分位阈值展示）
-const weeklyRsiColor = rsiPeriods.find(({ periodKey }) => periodKey === 'weekly')!.color;
-
 // 主图“指数 · 买点标注”右轴只展示月/季 RSI6（日/周 RSI6 不在主图展示）
 const mainChartRsiPeriods = rsiPeriods.filter(
   ({ periodKey }) => periodKey === 'monthly' || periodKey === 'quarterly',
@@ -196,6 +175,9 @@ const mainChartRsiPeriods = rsiPeriods.filter(
 
 // 主图折线（指数/收盘价）颜色：折线、左轴标题、图例、tooltip 统一使用
 const mainColor = '#ff0033';
+
+// 周 RSI6 系列色（百分位策略表格中信号列使用）
+const weeklyRsiColor = rsiPeriods.find(({ periodKey }) => periodKey === 'weekly')!.color;
 
 type RsiStatus = 'overbought' | 'oversold' | 'normal';
 
@@ -234,23 +216,6 @@ const rowToDate = (row: { 日期: string }) => new Date(row.日期);
 const renderRecommendationStars = (level: number) => (
   <span style={{ color: '#ffd700', letterSpacing: 1 }}>{'★'.repeat(level)}</span>
 );
-
-// 收益率 / 年化收益率渲染：正红负绿，空值显示 --
-const renderPercent = (value: number | null) =>
-  value == null ? (
-    '--'
-  ) : (
-    <span
-      style={{
-        color: value >= 0 ? '#cf1322' : '#3f8600',
-        fontWeight: 500,
-        fontVariantNumeric: 'tabular-nums',
-      }}
-    >
-      {value >= 0 ? '+' : ''}
-      {value.toFixed(2)}%
-    </span>
-  );
 
 // 表格基础列
 const baseTableColumns = [
@@ -312,6 +277,112 @@ const buildRsiLineConfig = (periodMeta: RsiPeriodMeta, data: KLineData[]) => ({
  */
 const rsiDataKeyOf = (periodKey: RsiPeriodKey) => `${periodKey}RSI` as const;
 
+/**
+ * 周 RSI6 百分位策略：周RSI6 < buyThreshold（3% 分位）时买入，
+ * 周RSI6 > sellThreshold（95% 分位）且卖出价高于买入价（收益率 > 0）时卖出，
+ * 任一不满足则继续持有，等待下一次同时满足；一买一卖顺序配对，同一时间只持有一笔。
+ * 末尾未卖出的买入以“持仓中”保留。
+ */
+const buildPercentileTrades = (
+  weeklyRsiList: Array<{ 日期: string; 收盘: number; __RSI6__: number | null }>,
+  buyThreshold: number,
+  sellThreshold: number,
+): PercentileTrade[] => {
+  const trades: PercentileTrade[] = [];
+  let openTrade: PercentileTrade | null = null;
+
+  for (const item of weeklyRsiList) {
+    const rsi = item.__RSI6__;
+    if (typeof rsi !== 'number') {
+      continue;
+    }
+    if (!openTrade && rsi < buyThreshold) {
+      openTrade = {
+        buyDate: item.日期,
+        buyRsi: Number(rsi.toFixed(2)),
+        buyPrice: item.收盘,
+        sellDate: null,
+        sellRsi: null,
+        sellPrice: null,
+        returnPct: null,
+        holdingDays: 0,
+      };
+    } else if (openTrade && rsi > sellThreshold && item.收盘 > openTrade.buyPrice) {
+      const trade = openTrade;
+      trade.sellDate = item.日期;
+      trade.sellRsi = Number(rsi.toFixed(2));
+      trade.sellPrice = item.收盘;
+      trade.returnPct = Number(
+        (((item.收盘 - trade.buyPrice) / trade.buyPrice) * 100).toFixed(2),
+      );
+      // 自然日口径：卖出日 - 买入日，包含周末/节假日等非交易日
+      trade.holdingDays = moment(item.日期).diff(moment(trade.buyDate), 'day');
+      trades.push(trade);
+      openTrade = null;
+    }
+    // RSI 虽超买但卖出价不高于买入价（收益率 <= 0）时不卖，继续持有等下一次信号
+  }
+
+  if (openTrade) {
+    // 持仓中：持有天数算到序列最后一根周K
+    const lastDate = weeklyRsiList[weeklyRsiList.length - 1]?.日期;
+    openTrade.holdingDays = lastDate ? moment(lastDate).diff(moment(openTrade.buyDate), 'day') : 0;
+    trades.push(openTrade);
+  }
+  return trades;
+};
+
+/**
+ * 百分位策略买卖点标注（G2 v5 text annotation）：
+ * 买入点用周RSI系列色「买」，卖出点用红色「卖」，均带白色描边保证在折线上可辨；
+ * 通过 connector 引导线 + startMarker 圆点把文字标签指向具体的信号点位（买在下、卖在上）；
+ * 持仓中的交易只有买入点。日期/价格取信号周K，即当周最后交易日的日收盘点，落在主图折线上。
+ */
+const buildPercentileAnnotations = (trades: PercentileTrade[]) =>
+  trades.flatMap((trade) => {
+    const markers: Array<Record<string, unknown>> = [
+      {
+        type: 'text' as const,
+        data: [new Date(trade.buyDate), trade.buyPrice],
+        style: {
+          text: '买',
+          fontSize: 13,
+          dx: -7,
+          dy: 24,
+          fill: weeklyRsiColor,
+          stroke: '#ffffff',
+          lineWidth: 2,
+          // 引导线：标签 → 信号点位，圆点（startMarker）强化指向
+          connector: true,
+          startMarker: true,
+          startMarkerFill: '#2C3542',
+          startMarkerFillOpacity: 0.65,
+        },
+      },
+    ];
+    if (trade.sellDate && trade.sellPrice != null) {
+      markers.push({
+        type: 'text' as const,
+        data: [new Date(trade.sellDate), trade.sellPrice],
+        style: {
+          text: '卖',
+          fontSize: 13,
+          dx: -7,
+          dy: -22,
+          fill: '#cf1322',
+          stroke: '#ffffff',
+          lineWidth: 2,
+          // 引导线：标签 → 信号点位，圆点（startMarker）强化指向
+          connector: true,
+          startMarker: true,
+          startMarkerFill: '#2C3542',
+          startMarkerFillOpacity: 0.65,
+        },
+      });
+    }
+    return markers;
+  });
+
 const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
   // 主图系列名称：指数场景显示“指数”，股票场景保留“收盘价”
   const mainName = type === 'index' ? '指数' : '收盘价';
@@ -321,16 +392,18 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
     mainChartConfig,
     rsiLineConfigs,
     rsiStats,
-    percentileThresholds,
     percentileTrades,
+    percentileThresholds,
+    percentileChartConfig,
   } = useMemo(() => {
     const emptyResult = {
       buyPointList: [] as BuyPointRow[],
       mainChartConfig: {} as Record<string, unknown>,
       rsiLineConfigs: {} as Record<RsiPeriodKey, Record<string, unknown>>,
       rsiStats: [] as RsiStat[],
-      percentileThresholds: null as PercentileThresholds | null,
       percentileTrades: [] as PercentileTrade[],
+      percentileThresholds: null as null | { p3: number; p95: number },
+      percentileChartConfig: {} as Record<string, unknown>,
     };
 
     if (!data?.length) {
@@ -523,83 +596,38 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
       return { label, color, current, p10, p90, position, status };
     });
 
-    // 8) 周 RSI6 历史分位阈值（3% / 95%）与百分位买卖配对
-    const weeklyRsiValues = periodRSIMap.weeklyRSI
-      .slice(rsiWarmup)
+    // 8) 百分位策略（周 RSI6）：低于历史 3% 分位买入、高于 95% 分位卖出，配对计算收益率
+    // 阈值口径与上方分位卡片一致：剔除前 rsiWarmup 个预热点后的全历史分位
+    const weeklyValidBars = periodRSIMap.weeklyRSI.slice(rsiWarmup);
+    const weeklyRsiValues = weeklyValidBars
       .map((item) => item.__RSI6__)
       .filter((value): value is number => typeof value === 'number');
-
-    const percentileThresholds: PercentileThresholds | null = weeklyRsiValues.length
+    const percentileThresholds = weeklyRsiValues.length
       ? {
-          p3: Number(calculatePercentile(weeklyRsiValues, 3).toFixed(2)),
-          p95: Number(calculatePercentile(weeklyRsiValues, 95).toFixed(2)),
+          p3: calculatePercentile(weeklyRsiValues, 3),
+          p95: calculatePercentile(weeklyRsiValues, 95),
         }
       : null;
+    const percentileTrades = percentileThresholds
+      ? buildPercentileTrades(weeklyValidBars, percentileThresholds.p3, percentileThresholds.p95)
+      : [];
 
-    // 逐周扫描周 RSI6：空仓时跌破 p3 建仓，超买（>p95）且盈利时卖出并配对
-    const percentileTrades: PercentileTrade[] = [];
-    if (percentileThresholds) {
-      let holding: PercentileHolding | null = null;
+    // 9) 百分位策略主图：复用定量主图（指数/收盘价 + 月/季 RSI6、统一 tooltip），
+    // 仅将标注替换为百分位策略的买/卖点
+    const percentileChartConfig = {
+      ...mainChartConfig,
+      annotations: buildPercentileAnnotations(percentileTrades),
+    };
 
-      for (const item of periodRSIMap.weeklyRSI.slice(rsiWarmup)) {
-        const rsi = item.__RSI6__;
-        if (typeof rsi !== 'number') continue;
-
-        if (!holding) {
-          // 空仓期间首次跌破 3% 分位时建仓；持仓期间再次更低不重复买入
-          if (rsi < percentileThresholds.p3) {
-            holding = {
-              buyDate: item.日期,
-              buyRsi: rsi,
-              buyPrice: item.收盘,
-              buyTime: new Date(item.日期).getTime(),
-            };
-          }
-          continue;
-        }
-
-        const returnRate = ((item.收盘 - holding.buyPrice) / holding.buyPrice) * 100;
-        // 仅当超买且收益率为正时卖出；超买但未盈利则继续持有等待下一次信号
-        if (rsi > percentileThresholds.p95 && returnRate > 0) {
-          const holdingDays = Math.max(
-            1,
-            Math.round((new Date(item.日期).getTime() - holding.buyTime) / (24 * 60 * 60 * 1000)),
-          );
-          const tradeReturnRate = Number(returnRate.toFixed(2));
-          percentileTrades.push({
-            buyDate: holding.buyDate,
-            buyRsi: holding.buyRsi,
-            buyPrice: Number(holding.buyPrice.toFixed(2)),
-            sellDate: item.日期,
-            sellRsi: rsi,
-            sellPrice: Number(item.收盘.toFixed(2)),
-            holdingDays,
-            returnRate: tradeReturnRate,
-            annualizedReturn: calculateAnnualizedReturn(tradeReturnRate, holdingDays),
-            status: '已平仓',
-          });
-          holding = null;
-        }
-      }
-
-      // 末尾未卖出：记为持仓中
-      if (holding) {
-        percentileTrades.push({
-          buyDate: holding.buyDate,
-          buyRsi: holding.buyRsi,
-          buyPrice: Number(holding.buyPrice.toFixed(2)),
-          sellDate: null,
-          sellRsi: null,
-          sellPrice: null,
-          holdingDays: null,
-          returnRate: null,
-          annualizedReturn: null,
-          status: '持仓中',
-        });
-      }
-    }
-
-    return { buyPointList, mainChartConfig, rsiLineConfigs, rsiStats, percentileThresholds, percentileTrades };
+    return {
+      buyPointList,
+      mainChartConfig,
+      rsiLineConfigs,
+      rsiStats,
+      percentileTrades,
+      percentileThresholds,
+      percentileChartConfig,
+    };
   }, [data, type, mainName]);
 
   // 买点表格列：收盘列标题随标的类型切换（指数 / 收盘价）
@@ -613,7 +641,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
     [mainName],
   );
 
-  // 百分位买卖配对交易表格列
+  // 百分位策略交易表格列
   const percentileTradeColumns = useMemo(
     () => [
       {
@@ -621,87 +649,116 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
         dataIndex: 'buyDate',
         key: 'buyDate',
         width: 110,
-        render: (text: string) => moment(text).format('YYYY-MM-DD'),
+        render: (value: string) => moment(value).format('YYYY-MM-DD'),
       },
       {
-        title: '买入RSI6',
+        title: '买入周RSI6',
         dataIndex: 'buyRsi',
         key: 'buyRsi',
         align: 'right' as const,
         width: 100,
         render: (value: number) => (
-          <span style={{ color: weeklyRsiColor, fontWeight: 600 }}>{value.toFixed(2)}</span>
+          <span style={{ color: weeklyRsiColor, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+            {value?.toFixed(2)}
+          </span>
         ),
       },
       {
-        title: mainName,
+        title: `买入${mainName}`,
         dataIndex: 'buyPrice',
         key: 'buyPrice',
         align: 'right' as const,
-        width: 100,
-        render: (value: number) => value?.toFixed(2),
+        width: 110,
+        render: (value: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{value?.toFixed(2)}</span>,
       },
       {
         title: '卖出日期',
         dataIndex: 'sellDate',
         key: 'sellDate',
         width: 110,
-        render: (text: string | null) => (text ? moment(text).format('YYYY-MM-DD') : '--'),
+        render: (value: string | null) => (value ? moment(value).format('YYYY-MM-DD') : '--'),
       },
       {
-        title: '卖出RSI6',
+        title: '持有日期（天/非交易日）',
+        dataIndex: 'holdingDays',
+        key: 'holdingDays',
+        align: 'right' as const,
+        width: 160,
+        render: (value: number, record: PercentileTrade) => (
+          <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+            {value}
+            {record.sellDate == null && (
+              <span style={{ color: '#bfbfbf', fontSize: 12 }}>（至今）</span>
+            )}
+          </span>
+        ),
+      },
+      {
+        title: '卖出周RSI6',
         dataIndex: 'sellRsi',
         key: 'sellRsi',
         align: 'right' as const,
         width: 100,
-        render: (value: number | null) => (value != null ? value.toFixed(2) : '--'),
+        render: (value: number | null) =>
+          value != null ? <span style={{ fontVariantNumeric: 'tabular-nums' }}>{value.toFixed(2)}</span> : '--',
       },
       {
-        title: '卖出价',
+        title: `卖出${mainName}`,
         dataIndex: 'sellPrice',
         key: 'sellPrice',
         align: 'right' as const,
-        width: 100,
-        render: (value: number | null) => (value != null ? value.toFixed(2) : '--'),
+        width: 110,
+        render: (value: number | null) =>
+          value != null ? <span style={{ fontVariantNumeric: 'tabular-nums' }}>{value.toFixed(2)}</span> : '--',
       },
       {
-        title: '持有天数',
-        dataIndex: 'holdingDays',
-        key: 'holdingDays',
-        align: 'right' as const,
-        width: 90,
-        render: (value: number | null) => (value != null ? value : '--'),
-      },
-      {
-        title: '收益率',
-        dataIndex: 'returnRate',
-        key: 'returnRate',
-        align: 'right' as const,
-        width: 100,
-        render: renderPercent,
-      },
-      {
-        title: '年化收益率',
-        dataIndex: 'annualizedReturn',
-        key: 'annualizedReturn',
+        title: '收益率(%)',
+        dataIndex: 'returnPct',
+        key: 'returnPct',
         align: 'right' as const,
         width: 110,
-        render: renderPercent,
+        render: (value: number | null) => {
+          if (value == null) {
+            return '--';
+          }
+          // A 股配色习惯：盈利红、亏损绿
+          const color = value > 0 ? '#cf1322' : value < 0 ? '#389e0d' : '#595959';
+          return (
+            <span style={{ color, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+              {value > 0 ? '+' : ''}
+              {value.toFixed(2)}
+            </span>
+          );
+        },
+      },
+      {
+        title: '年化收益率(%)',
+        key: 'annualizedReturnPct',
+        align: 'right' as const,
+        width: 130,
+        // 由区间收益率与持有天数（自然日）按复利口径换算，见公共方法 calculateAnnualizedReturn
+        render: (_: unknown, record: PercentileTrade) => {
+          const annualized = calculateAnnualizedReturn(record.returnPct, record.holdingDays);
+          if (annualized == null) {
+            return '--';
+          }
+          const color = annualized > 0 ? '#cf1322' : annualized < 0 ? '#389e0d' : '#595959';
+          return (
+            <span style={{ color, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+              {annualized > 0 ? '+' : ''}
+              {annualized.toFixed(2)}
+            </span>
+          );
+        },
       },
       {
         title: '状态',
-        dataIndex: 'status',
+        dataIndex: 'sellDate',
         key: 'status',
         align: 'center' as const,
         width: 90,
-        render: (status: PercentileTradeStatus) => (
-          <Tag
-            color={status === '持仓中' ? 'processing' : 'default'}
-            style={{ marginInlineEnd: 0 }}
-          >
-            {status}
-          </Tag>
-        ),
+        render: (value: string | null) =>
+          value ? <Tag color="default">已卖出</Tag> : <Tag color="green">持仓中</Tag>,
       },
     ],
     [mainName],
@@ -840,7 +897,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
                 verticalAlign: 'middle',
               }}
             />
-            {mainName} · 买点标注
+            {mainName} · 买点标注（定量）
           </span>
         }
         cardStyle={{
@@ -848,6 +905,36 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
         }}
       >
         <DualAxes {...mainChartConfig} />
+      </CollapsibleCard>
+
+      <CollapsibleCard
+        title={
+          <span style={{ fontWeight: 600 }}>
+            <span
+              style={{
+                display: 'inline-block',
+                width: 4,
+                height: 14,
+                background: weeklyRsiColor,
+                marginRight: 8,
+                borderRadius: 2,
+                verticalAlign: 'middle',
+              }}
+            />
+            {mainName} · 买点标注（百分位）
+          </span>
+        }
+        cardStyle={{
+          background: 'linear-gradient(180deg, #fafbfc 0%, #f0f2f5 100%)',
+        }}
+      >
+        <div style={{ fontSize: 12, color: '#8c8c8c', marginBottom: 4 }}>
+          <span style={{ color: weeklyRsiColor, fontWeight: 600 }}>买</span>
+          ：周RSI6 ＜ {percentileThresholds?.p3.toFixed(2)}（3%分位）建仓；
+          <span style={{ color: '#cf1322', fontWeight: 600 }}>卖</span>
+          ：周RSI6 ＞ {percentileThresholds?.p95.toFixed(2)}（95%分位）且收益率＞0 时卖出
+        </div>
+        <DualAxes {...percentileChartConfig} />
       </CollapsibleCard>
 
       <CollapsibleCard

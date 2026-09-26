@@ -602,6 +602,24 @@ export const calculatePercentile = (data: number[], percentile: number): number 
   return sortedData[Math.max(0, index)];
 };
 
+/**
+ * 计算年化收益率（复利口径，365 个自然日/年）
+ * @param returnPct 区间收益率（百分数，如 12.5 表示 12.5%）
+ * @param holdingDays 持有天数（自然日，含非交易日）
+ * @returns 年化收益率（百分数）；持仓 0 天或参数非法时返回 null
+ */
+export const calculateAnnualizedReturn = (
+  returnPct: number | null | undefined,
+  holdingDays: number | null | undefined,
+): number | null => {
+  if (returnPct == null || !Number.isFinite(returnPct)) return null;
+  if (!holdingDays || holdingDays <= 0 || !Number.isFinite(holdingDays)) return null;
+  const growth = 1 + returnPct / 100;
+  // 亏损超过 -100% 时本金已为负，复利年化无意义
+  if (growth <= 0) return null;
+  return Number((((Math.pow(growth, 365 / holdingDays)) - 1) * 100).toFixed(2));
+};
+
 // 在周期 RSI 映射中查找匹配给定日期的值
 const findMatchingPeriodRSI = (
   rsiMap: Map<string, number>,
@@ -839,11 +857,21 @@ export const calculateAnnualizedVolatility = (volatility: number, tradingDaysPer
   return volatility * Math.sqrt(tradingDaysPerYear);
 };
 
-// 推荐级别对应的标注样式
-const ANNOTATION_STYLES: Record<number, { color: string; fontSize: number }> = {
-  5: { color: '#008000', fontSize: 12 },
-  3: { color: '#42b242ff', fontSize: 10 },
-  1: { color: '#9fe49fff', fontSize: 8 },
+// 推荐级别对应的标注样式（更大、更饱和；5星额外发光，在指数线上更醒目）
+const ANNOTATION_STYLES: Record<
+  number,
+  { color: string; fontSize: number; stroke: string; lineWidth: number; shadowColor?: string; shadowBlur?: number }
+> = {
+  5: {
+    color: '#00a800',
+    fontSize: 16,
+    stroke: '#ffffff',
+    lineWidth: 1.5,
+    shadowColor: 'rgba(0, 168, 0, 0.65)',
+    shadowBlur: 8,
+  },
+  3: { color: '#3cbc3c', fontSize: 13, stroke: '#ffffff', lineWidth: 1.2 },
+  1: { color: '#7ed957', fontSize: 11, stroke: '#ffffff', lineWidth: 1 },
 };
 
 // 生成推荐买点标注
@@ -858,8 +886,12 @@ export const createRecommendationAnnotations = <T extends { 日期: string; 收�
       text: '●',
       fontSize: style.fontSize,
       dx: -(style.fontSize / 2),
-      stroke: style.color,
       fill: style.color,
+      // 白色描边让圆点在红绿走势线和网格上都有对比，强推荐额外外发光
+      stroke: style.stroke,
+      lineWidth: style.lineWidth,
+      shadowColor: style.shadowColor,
+      shadowBlur: style.shadowBlur,
     },
   };
 });

@@ -3,6 +3,8 @@ import { Table, Card, Spin, Select, Space } from 'antd';
 import type { TablePaginationConfig } from 'antd';
 import apiClient from '@/utils/axios';
 import { numberSorter, stringSorter, createRangeFilter } from '@/utils/tableUtils';
+import type { KLineData } from '@/utils/stockUtils';
+import IndexMetrics from './IndexMetrics';
 const RsiFilterMark = React.lazy(() => import('@/pages/stock/a/stock/detail/components/RsiFilterMark'));
 
 interface IndexData extends Record<string, unknown> {
@@ -23,7 +25,7 @@ const indexOptions = [
 ];
 
 const UsIndexPage: React.FC = () => {
-  const [data, setData] = useState<IndexData[]>([]);
+  const [data, setData] = useState<KLineData[]>([]);
   const [loading, setLoading] = useState(false);
   const [symbol, setSymbol] = useState<string>('.INX');
   // const [pagination, setPagination] = useState<TablePaginationConfig>({
@@ -37,7 +39,7 @@ const UsIndexPage: React.FC = () => {
       const response = await apiClient.get('/api/public/index_us_stock_sina', {
         params: { symbol: sym },
       });
-      setData(response?.data?.map((item: AnimationPlayState) => ({
+      setData(response?.data?.map((item: { date: string; close: number }) => ({
       日期: item.date,
       收盘: Number(item.close),
       })) || []);
@@ -131,9 +133,9 @@ const UsIndexPage: React.FC = () => {
       }
     >
 
-      <span style={{ color: 'red' }}>todo 增加 指数/回撤率/年化收益率/波动率等</span>
       <Spin spinning={loading}>
-      <RsiFilterMark data={data} />
+        <IndexMetrics data={data} />
+        <RsiFilterMark data={data} />
         {/* <Table
           rowKey="date"
           columns={columns}

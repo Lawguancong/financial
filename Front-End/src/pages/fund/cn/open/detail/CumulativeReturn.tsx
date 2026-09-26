@@ -2560,21 +2560,21 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
               <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontWeight: '500', color: '#666' }}>月度RSI6 10%分位:</span>
-                  <span style={{ color: '#1890ff', fontWeight: '600' }}>{RSI6LevelData?.[0]?.['__monthly10th__']?.toFixed(2) || '-'}</span>
+                  <span style={{ color: '#1890ff', fontWeight: '600' }}>{RSI6Data?.[0]?.['__monthly10th__']?.toFixed(2) || '-'}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontWeight: '500', color: '#666' }}>月度RSI6 90%分位:</span>
-                  <span style={{ color: '#1890ff', fontWeight: '600' }}>{RSI6LevelData?.[0]?.['__monthly90th__']?.toFixed(2) || '-'}</span>
+                  <span style={{ color: '#1890ff', fontWeight: '600' }}>{RSI6Data?.[0]?.['__monthly90th__']?.toFixed(2) || '-'}</span>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontWeight: '500', color: '#666' }}>季度RSI6 10%分位:</span>
-                  <span style={{ color: '#1890ff', fontWeight: '600' }}>{RSI6LevelData?.[0]?.['__quarterly10th__']?.toFixed(2) || '-'}</span>
+                  <span style={{ color: '#1890ff', fontWeight: '600' }}>{RSI6Data?.[0]?.['__quarterly10th__']?.toFixed(2) || '-'}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontWeight: '500', color: '#666' }}>季度RSI6 90%分位:</span>
-                  <span style={{ color: '#1890ff', fontWeight: '600' }}>{RSI6LevelData?.[0]?.['__quarterly90th__']?.toFixed(2) || '-'}</span>
+                  <span style={{ color: '#1890ff', fontWeight: '600' }}>{RSI6Data?.[0]?.['__quarterly90th__']?.toFixed(2) || '-'}</span>
                 </div>
               </div>
             </div>
@@ -2667,7 +2667,7 @@ const CumulativeReturn: React.FC<CumulativeReturnProps> = ({ symbol }) => {
         </Collapse.Panel>
       </Collapse>
       <Collapse defaultActiveKey={["1"]} style={{ marginTop: 16 }}>
-        <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📊 MACD指标</span>} key="1">
+        <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📊 MACD指标（实验中。。）</span>} key="1">
           <Card style={{ marginTop: '16px' }}>
             {useMemo(() => {
               if (macdData?.montyly?.length === 0) return null;

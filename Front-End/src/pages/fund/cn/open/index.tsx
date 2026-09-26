@@ -15,7 +15,7 @@ interface FundData {
 const FundOpen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('open');
   const [selectedFunds, setSelectedFunds] = useState<FundData[]>([]);
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 100 });
 
   // 自选基金操作
   const loadSelectedFunds = () => {

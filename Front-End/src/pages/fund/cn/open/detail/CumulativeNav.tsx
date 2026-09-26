@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Select, Button, Card, Spin, Table } from 'antd';
 import { DualAxes, Line } from '@ant-design/plots';
 import { pick } from 'lodash-es';
-import { calculateMaxDrawdown, calculateRSI, calculateStartDate } from '@/utils';
+import { calculateMaxDrawdown, calculateRSI, calculateStartDate, calculateVolatility, calculateAnnualizedVolatility } from '@/utils';
 import moment from 'moment';
 import apiClient from '@/utils/axios';
 import { timeRangeOptions, keyMap, rightKeys, getLevelStyle } from './constants';
@@ -79,8 +79,25 @@ const CumulativeNav: React.FC<CumulativeNavProps> = ({ symbol }) => {
       });
     }
 
-    const dataFormat = calculateMaxDrawdown({
+    // 参考单位净值走势：先计算 20 日滚动波动率，再年化
+    const dataWithVolatility = calculateVolatility({
       data: filteredData,
+      navKey: keyMap[indicator].数据,
+      dateKey: keyMap[indicator].日期,
+      period: 20, // 20日滚动波动率
+    });
+
+    // 年化波动率 = 日波动率 * sqrt(252)
+    const dataWithAnnualizedVolatility = dataWithVolatility.map(item => {
+      const currentItem = { ...item };
+      if (currentItem['__波动率__'] !== undefined && currentItem['__波动率__'] > 0) {
+        currentItem['__年化波动率__'] = calculateAnnualizedVolatility(currentItem['__波动率__']);
+      }
+      return currentItem;
+    });
+
+    const dataFormat = calculateMaxDrawdown({
+      data: dataWithAnnualizedVolatility,
       leftKey: keyMap[indicator].数据,
       dateKey: keyMap[indicator].日期,
     })?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...memoizedRightKeys }))).map((key) => {

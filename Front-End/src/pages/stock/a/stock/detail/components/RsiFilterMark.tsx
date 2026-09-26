@@ -4,7 +4,8 @@ import { Card, Space, Table, Tag } from 'antd';
 import { RightOutlined } from '@ant-design/icons';
 import moment from 'moment';
 import type { KLineData } from '@/utils/stockUtils';
-import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations, calculatePercentile, calculateAnnualizedReturn } from '@/utils/stockUtils';
+import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations, calculatePercentile, calculateAnnualizedReturn, stockRsiRecommendationRules, indexRsiRecommendationRules, rsiPeriodLabelMap } from '@/utils/stockUtils';
+import type { RsiRecommendationRules } from '@/utils/stockUtils';
 import { convertToMonthlyData } from '@/pages/fund/cn/open/detail/constants';
 
 interface RsiFilterMarkProps {
@@ -251,6 +252,61 @@ const renderPercent = (value: number | null) =>
       {value.toFixed(2)}%
     </span>
   );
+
+// 规则说明容器样式（与「推荐买点（百分位）」保持一致）
+const ruleNoteStyle: React.CSSProperties = {
+  padding: '8px 12px',
+  fontSize: 12,
+  lineHeight: 1.8,
+  color: '#8c8c8c',
+  background: '#fafafa',
+  borderBottom: '1px solid #f0f0f0',
+};
+
+// 星级标签样式
+const ruleLevelStyle: React.CSSProperties = {
+  color: '#d48806',
+  fontWeight: 600,
+};
+
+/**
+ * 「推荐买点（定量）」规则说明
+ * 打分口径直接映射自 stockRsiRecommendationRules / indexRsiRecommendationRules，
+ * 与 calculateStockRecommendationLevel / calculateIndexRecommendationLevel 共用同一份规则表，
+ * 避免文案与实际计算逻辑不一致。
+ */
+const QuantRuleNote: React.FC<{ type: 'stock' | 'index' }> = ({ type }) => {
+  const rules: RsiRecommendationRules =
+    type === 'stock' ? stockRsiRecommendationRules : indexRsiRecommendationRules;
+  // 星级从高到低展示
+  const levels = Object.keys(rules)
+    .map(Number)
+    .sort((a, b) => b - a);
+
+  return (
+    <div style={ruleNoteStyle}>
+      规则：{type === 'stock' ? '按日/周/月/季' : '按月度/季度'} RSI6 综合打分，星级越高代表超卖共振越强
+      {type === 'index' ? '；指数按月取每月最晚的一条信号展示' : ''}。
+      {levels.map((level) => {
+        const groups = rules[level];
+        // 每组内条件用「且」连接，多组之间用「，或」连接
+        const groupsText = groups
+          .map((group) =>
+            group
+              .map(({ period, threshold }) => `${rsiPeriodLabelMap[period]} ≤ ${threshold}`)
+              .join(' 且 '),
+          )
+          .join('，或 ');
+        return (
+          <div key={level}>
+            <span style={ruleLevelStyle}>★{level}</span>：{groupsText}
+          </div>
+        );
+      })}
+      <div style={{ color: '#595959' }}>不满足以上任一条件则不构成买点，表格仅展示命中的买点记录。</div>
+    </div>
+  );
+};
 
 // 表格基础列
 const baseTableColumns = [
@@ -779,6 +835,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
       </CollapsibleCard>
 
       <CollapsibleCard title="RSI指标-推荐买点（定量）" bodyPaddingZero>
+        <QuantRuleNote type={type} />
         <Table
           dataSource={buyPointList}
           columns={buyPointsColumns}
@@ -840,7 +897,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
                 verticalAlign: 'middle',
               }}
             />
-            {mainName} · 买点标注
+            {mainName} · 买点标注（定量）
           </span>
         }
         cardStyle={{

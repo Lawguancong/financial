@@ -542,38 +542,144 @@ export const calculatePeriodRSI = (dailyData: KLineData[]) => ({
 
 
 
-// 计算RSI6推荐级别(个股)
-const calculateStockRecommendationLevel = (dailyRSIValue?: number, weeklyRSIValue?: number, monthlyRSIValue?: number, quarterlyRSIValue?: number) => {
-  switch (true) {
-    case dailyRSIValue <= 14 && weeklyRSIValue <= 18 && monthlyRSIValue <= 22 && quarterlyRSIValue <= 25:
-      return 5; // 5颗星
-    case dailyRSIValue <= 9 && weeklyRSIValue <= 12 && monthlyRSIValue <= 15:
-      return 3; // 3颗星
-    case dailyRSIValue <= 15 && weeklyRSIValue <= 17 && monthlyRSIValue <= 19:
-    case dailyRSIValue <= 9 && weeklyRSIValue <= 12 :
-      return 1; // 1颗星
-    default:
-      return null;
-  }
+// RSI 推荐级别规则：单一条件（某周期 RSI6 ≤ 阈值）
+export interface RsiThresholdCondition {
+  period: 'daily' | 'weekly' | 'monthly' | 'quarterly';
+  threshold: number;
+}
+
+// 某一星级的一组条件：组内为「且」，多组之间为「或」
+export type RsiLevelRule = RsiThresholdCondition[][];
+
+// RSI 推荐级别规则表：星级（5/3/1）→ 条件组
+export type RsiRecommendationRules = Record<number, RsiLevelRule>;
+
+// 周期 RSI 中文名（用于规则文案与条件取值）
+export const rsiPeriodLabelMap: Record<RsiThresholdCondition['period'], string> = {
+  daily: '日RSI6',
+  weekly: '周RSI6',
+  monthly: '月RSI6',
+  quarterly: '季RSI6',
 };
 
-// 计算RSI6推荐级别(指数)
-export const calculateIndexRecommendationLevel = (dailyRSIValue?: number, weeklyRSIValue?: number, monthlyRSIValue?: number, quarterlyRSIValue?: number) => {
-  switch (true) {
-    case monthlyRSIValue <= 10 && quarterlyRSIValue <= 15:
-    case monthlyRSIValue <= 13 && quarterlyRSIValue <= 13:
-    case monthlyRSIValue <= 15 && quarterlyRSIValue <= 10:
-      return 5; // 5颗星
-    case monthlyRSIValue <= 15 && quarterlyRSIValue <= 20:
-    case monthlyRSIValue <= 18 && quarterlyRSIValue <= 18:
-    case monthlyRSIValue <= 20 && quarterlyRSIValue <= 15:
-      return 3; // 3颗星
-    case monthlyRSIValue <= 25 && quarterlyRSIValue <= 25:
-      return 1; // 1颗星
-    default:
-      return null;
-  }
+// 个股 RSI6 推荐级别规则
+export const stockRsiRecommendationRules: RsiRecommendationRules = {
+  5: [
+    [
+      { period: 'daily', threshold: 14 },
+      { period: 'weekly', threshold: 18 },
+      { period: 'monthly', threshold: 22 },
+      { period: 'quarterly', threshold: 25 },
+    ],
+  ],
+  3: [
+    [
+      { period: 'daily', threshold: 9 },
+      { period: 'weekly', threshold: 12 },
+      { period: 'monthly', threshold: 15 },
+    ],
+  ],
+  1: [
+    [
+      { period: 'daily', threshold: 15 },
+      { period: 'weekly', threshold: 17 },
+      { period: 'monthly', threshold: 19 },
+    ],
+    [
+      { period: 'daily', threshold: 9 },
+      { period: 'weekly', threshold: 12 },
+    ],
+  ],
 };
+
+// 指数 RSI6 推荐级别规则
+export const indexRsiRecommendationRules: RsiRecommendationRules = {
+  5: [
+    [
+      { period: 'monthly', threshold: 10 },
+      { period: 'quarterly', threshold: 15 },
+    ],
+    [
+      { period: 'monthly', threshold: 13 },
+      { period: 'quarterly', threshold: 13 },
+    ],
+    [
+      { period: 'monthly', threshold: 15 },
+      { period: 'quarterly', threshold: 10 },
+    ],
+  ],
+  3: [
+    [
+      { period: 'monthly', threshold: 15 },
+      { period: 'quarterly', threshold: 20 },
+    ],
+    [
+      { period: 'monthly', threshold: 18 },
+      { period: 'quarterly', threshold: 18 },
+    ],
+    [
+      { period: 'monthly', threshold: 20 },
+      { period: 'quarterly', threshold: 15 },
+    ],
+  ],
+  1: [
+    [
+      { period: 'monthly', threshold: 25 },
+      { period: 'quarterly', threshold: 25 },
+    ],
+  ],
+};
+
+// 根据规则表计算 RSI6 推荐级别
+const calculateRecommendationLevelByRules = (
+  rules: RsiRecommendationRules,
+  dailyRSIValue?: number,
+  weeklyRSIValue?: number,
+  monthlyRSIValue?: number,
+  quarterlyRSIValue?: number,
+) => {
+  const periodValueMap: Record<RsiThresholdCondition['period'], number | undefined> = {
+    daily: dailyRSIValue,
+    weekly: weeklyRSIValue,
+    monthly: monthlyRSIValue,
+    quarterly: quarterlyRSIValue,
+  };
+
+  // 星级从高到低匹配：5 → 3 → 1
+  for (const level of [5, 3, 1]) {
+    const groups = rules[level];
+    if (!groups) continue;
+    // 任一条件组全部命中即达标（组内「且」，组间「或」）
+    const hit = groups.some((group) =>
+      group.every(({ period, threshold }) => {
+        const value = periodValueMap[period];
+        return typeof value === 'number' && value <= threshold;
+      }),
+    );
+    if (hit) return level;
+  }
+  return null;
+};
+
+// 计算RSI6推荐级别(个股)
+const calculateStockRecommendationLevel = (dailyRSIValue?: number, weeklyRSIValue?: number, monthlyRSIValue?: number, quarterlyRSIValue?: number) =>
+  calculateRecommendationLevelByRules(
+    stockRsiRecommendationRules,
+    dailyRSIValue,
+    weeklyRSIValue,
+    monthlyRSIValue,
+    quarterlyRSIValue,
+  );
+
+// 计算RSI6推荐级别(指数)
+export const calculateIndexRecommendationLevel = (dailyRSIValue?: number, weeklyRSIValue?: number, monthlyRSIValue?: number, quarterlyRSIValue?: number) =>
+  calculateRecommendationLevelByRules(
+    indexRsiRecommendationRules,
+    dailyRSIValue,
+    weeklyRSIValue,
+    monthlyRSIValue,
+    quarterlyRSIValue,
+  );
 
 // 计算RSI6推荐级别(基金)
 export const calculateFundRecommendationLevel = (dailyRSIValue?: number, weeklyRSIValue?: number, monthlyRSIValue?: number, quarterlyRSIValue?: number) => {

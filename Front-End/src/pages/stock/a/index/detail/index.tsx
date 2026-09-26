@@ -1,14 +1,14 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Spin, Radio, Tag, Collapse, Card, Table } from 'antd';
+import { Radio, Tag, Collapse, Card } from 'antd';
 import { DualAxes } from '@ant-design/plots';
 import apiClient from '@/utils/axios';
 import moment from 'moment';
-import { isNumber } from 'lodash-es'
-import { calculateMaxDrawdown, calculateStartDate, calculatePercentiles, aggregateKLineByPeriod, calculateRSI, calculatePercentile } from '@/utils';
-import { calculateIndexRecommendationLevel } from '@/utils/stockUtils';
-import { getLevelStyle } from '@/pages/fund/cn/open/detail/constants';
+import { calculateMaxDrawdown, calculateStartDate, calculatePercentiles } from '@/utils';
 import dayjs from 'dayjs';
+
+// RSI·推荐级别：与 /stock/us/index 统一复用同一组件（路由层提供 Suspense 边界）
+const RsiFilterMark = React.lazy(() => import('@/pages/stock/a/stock/detail/components/RsiFilterMark'));
 export interface IndexDetailData {
   日期: string;
   指数代码: string;
@@ -32,42 +32,6 @@ export interface IndexDetailData {
   // ['__quarterlyRSI6__']: number | null;
 }
 
-const leftKey = '收盘';
-const leftName = '收盘';
-const dateKey = '日期';
-const dateName = '日期';
-
-const tableColumns = [
-  {
-    title: '推荐级别',
-    dataIndex: '__recommendationLevel__',
-    key: '__recommendationLevel__',
-    render: (level: number) => {
-      const { color, fontSize } = getLevelStyle(level);
-      return <span style={{ color, fontSize }}>{'★'.repeat(Math.abs(level))}</span>;
-    },
-  },
-  {
-    title: dateName,
-    dataIndex: dateKey,
-    key: dateKey,
-    render: (text: string) => moment(text).format('YYYY-MM-DD'),
-  },
-  {
-    title: 'RSI6（月）',
-    dataIndex: '__monthlyRSI6__',
-    key: '__monthlyRSI6__',
-    render: (value: number) => value?.toFixed(2),
-  },
-  {
-    title: 'RSI6（季）',
-    dataIndex: '__quarterlyRSI6__',
-    key: '__quarterlyRSI6__',
-    render: (value: number) => value?.toFixed(2),
-  }
-]
-
-
 const IndexDetail: React.FC = () => {
   const [searchParams] = useSearchParams();
   const code = searchParams.get('code');
@@ -75,97 +39,15 @@ const IndexDetail: React.FC = () => {
   const [rawData, setRawData] = useState<any[]>([]);
   const [dailyData, setDailyData] = useState<any[]>([]);
 
-  // 计算不同周期的K线数据
-  // const weeklyData = aggregateKLineByPeriod({ dailyData, period: 'weekly' });
-  const monthlyData = useMemo(() => aggregateKLineByPeriod({ dailyData, period: 'monthly' }), [dailyData]);
-  const quarterlyData = useMemo(() => aggregateKLineByPeriod({ dailyData, period: 'quarterly' }), [dailyData]);
-  // 计算不同周期的RSI
-  // const dailyRSIData = calculateRSI({ data, closeKey: '收盘', period: 6 });
-  // const weeklyRSIData = calculateRSI({ data: weeklyData, closeKey: '收盘', period: 6 });
-  const monthlyRSIData = useMemo(() => calculateRSI({ data: monthlyData, closeKey: '收盘', period: 6 })?.map(item => {
-    const date = moment(item.日期);
-    const itemMonth = date.format('YYYY-MM');
-    return {
-      日期: item.日期,
-      __RSI6__: item.__RSI6__,
-      itemMonth,
-    }
-  }), [monthlyData]);
-  const quarterlyRSIData = useMemo(() => calculateRSI({ data: quarterlyData, closeKey: '收盘', period: 6 })?.map(item => {
-    const date = moment(item.日期);
-    const year = date.year();
-    const quarter = date.quarter();
-    const itemQuarter = `${year}Q${quarter}`;
-    return {
-      日期: item.日期,
-      __RSI6__: item.__RSI6__,
-      itemQuarter
-    }
-  }), [quarterlyData]);
-  // todo  日: dailyData 月: monthlyData 季: quarterlyData
-  const dailyDataWithRSI = useMemo(() => dailyData?.map((item: IndexDetailData) => {
-    const date = moment(item.日期);
-    const itemMonth = date.format('YYYY-MM');
-    const year = date.year();
-    const quarter = date.quarter();
-    const itemQuarter = `${year}Q${quarter}`;
-    const __monthlyRSI6__ = monthlyRSIData?.find(i => i?.itemMonth === itemMonth)?.__RSI6__;
-    const __quarterlyRSI6__ = quarterlyRSIData?.find(i => i?.itemQuarter === itemQuarter)?.__RSI6__;
-    return {
-      ...item,
-    }
-  }), [dailyData, monthlyRSIData, quarterlyRSIData]);
-
-  // 提取RSI6数值
-  const monthlyRSIValues = useMemo(() => monthlyRSIData.map(item => item['__RSI6__']).filter(value => typeof value === 'number' && !isNaN(value)), [monthlyRSIData]);
-  const quarterlyRSIValues = useMemo(() => quarterlyRSIData.map(item => item['__RSI6__']).filter(value => typeof value === 'number' && !isNaN(value)), [quarterlyRSIData]);
-
-
-  // 计算10%和90%分位数
-  const __monthly10th__ = useMemo(() => calculatePercentile(monthlyRSIValues, 10), [monthlyRSIValues]);
-  const __monthly90th__ = useMemo(() => calculatePercentile(monthlyRSIValues, 90), [monthlyRSIValues]);
-  const __quarterly10th__ = useMemo(() => calculatePercentile(quarterlyRSIValues, 10), [quarterlyRSIValues]);
-  const __quarterly90th__ = useMemo(() => calculatePercentile(quarterlyRSIValues, 90), [quarterlyRSIValues]);
-  const monthlyDataWithRSI = useMemo(() => monthlyData?.map((item: IndexDetailData) => {
-    const date = moment(item.日期);
-    const itemMonth = date.format('YYYY-MM');
-    const year = date.year();
-    const quarter = date.quarter();
-    const itemQuarter = `${year}Q${quarter}`;
-    const __monthlyRSI6__ = monthlyRSIData?.find(i => i?.itemMonth === itemMonth)?.__RSI6__;
-    const __quarterlyRSI6__ = quarterlyRSIData?.find(i => i?.itemQuarter === itemQuarter)?.__RSI6__;
-    return {
-      ...item,
-      __monthlyRSI6__: __monthlyRSI6__,
-      __quarterlyRSI6__: __quarterlyRSI6__,
-      __recommendationLevel__: calculateIndexRecommendationLevel(null, null, __monthlyRSI6__, __quarterlyRSI6__,),
-      __monthly10th__,
-      __monthly90th__,
-      __quarterly10th__,
-      __quarterly90th__,
-    }
-  }), [monthlyData, monthlyRSIData, quarterlyRSIData, __monthly10th__, __monthly90th__, __quarterly10th__, __quarterly90th__]);
-
   const dataWithDrawdown = useMemo(() => calculateMaxDrawdown({
-    data: dailyDataWithRSI,
+    data: dailyData,
     leftKey: '收盘',
     dateKey: '日期',
     percentKey: '滚动市盈率'
-  }), [dailyDataWithRSI]);
-
-  console.log('指数详情 -> dataWithDrawdown', dataWithDrawdown);
-  // setData(dataWithDrawdown as unknown as IndexDetailData[]);
-
-
+  }), [dailyData]);
 
   // const [data, setData] = useState<IndexDetailData[]>([]);
   const { percentile15, percentile85 } = useMemo(() => calculatePercentiles(dataWithDrawdown as unknown as { [key: string]: number }[], '滚动市盈率'), [dataWithDrawdown]);
-  const RSI6LevelData = useMemo(() => monthlyDataWithRSI?.filter((item: any) => isNumber(item.__recommendationLevel__)), [monthlyDataWithRSI]);
-
-
-
-
-
 
   useEffect(() => {
     if (!rawData || rawData.length === 0) {
@@ -187,25 +69,6 @@ const IndexDetail: React.FC = () => {
       const firstNonMultipleIndex = data.findIndex((item: IndexDetailData) => Number(item.收盘) % 100 !== 0);
       console.log('111 firstNonMultipleIndex', firstNonMultipleIndex)
       setRawData((0 < firstNonMultipleIndex && firstNonMultipleIndex < 10) ? data.slice(firstNonMultipleIndex - 1) : data)
-      
-
-
-
-
-
-
-
-
-
-
-
-
-      console.log('有RSI的数据 -> dailyDataWithRSI', dailyDataWithRSI);
-      console.log('有RSI的数据 -> monthlyDataWithRSI', monthlyDataWithRSI);
-
-
-
-
     } catch (error) {
       console.log('error', error);
     } finally {
@@ -388,143 +251,8 @@ const IndexDetail: React.FC = () => {
       </Collapse>
 
       <Collapse defaultActiveKey={["1"]} style={{ marginTop: 16 }}>
-        <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📈📊📉 RSI·推荐级别 ({RSI6LevelData?.length}条)</span>} key="1">
-          <Card style={{ marginTop: '16px' }}>
-            <Table
-              dataSource={RSI6LevelData}
-              columns={tableColumns}
-              rowKey={dateKey}
-              pagination={false}
-            />
-          </Card>
-          <Card>
-            <div>
-              <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontWeight: '500', color: '#666' }}>月度RSI6 10%分位:</span>
-                  <span style={{ color: '#1890ff', fontWeight: '600' }}>{RSI6LevelData?.[0]?.['__monthly10th__']?.toFixed(2) || '-'}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontWeight: '500', color: '#666' }}>月度RSI6 90%分位:</span>
-                  <span style={{ color: '#1890ff', fontWeight: '600' }}>{RSI6LevelData?.[0]?.['__monthly90th__']?.toFixed(2) || '-'}</span>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontWeight: '500', color: '#666' }}>季度RSI6 10%分位:</span>
-                  <span style={{ color: '#1890ff', fontWeight: '600' }}>{RSI6LevelData?.[0]?.['__quarterly10th__']?.toFixed(2) || '-'}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontWeight: '500', color: '#666' }}>季度RSI6 90%分位:</span>
-                  <span style={{ color: '#1890ff', fontWeight: '600' }}>{RSI6LevelData?.[0]?.['__quarterly90th__']?.toFixed(2) || '-'}</span>
-                </div>
-              </div>
-            </div>
-            {useMemo(() => {
-              const leftData = monthlyDataWithRSI.map(item => ({
-                date: item[dateKey],
-                value: item[leftKey],
-                label: leftName
-              }));
-              const rightDataMonthly = monthlyDataWithRSI.map(item => ({
-                date: item[dateKey],
-                value: item['__monthlyRSI6__'],
-                label: 'RSI6（月）'
-              }));
-              const rightDataQuarterly = monthlyDataWithRSI.map(item => ({
-                date: item[dateKey],
-                value: item['__quarterlyRSI6__'],
-                label: 'RSI6（季）'
-              }));
-
-              const annotationsData = RSI6LevelData?.map((item: any) => {
-                const { color, fontSize } = getLevelStyle(item.__recommendationLevel__);
-                return {
-                  type: 'text' as const,
-                  data: [new Date(item[dateKey]), item[leftKey]],
-                  style: {
-                    text: '●',
-                    fontSize: fontSize,
-                    dx: -(fontSize / 2),
-                    stroke: color,
-                    fill: color,
-                  },
-                };
-              })
-              // todo
-              // 添加分位数数据
-              const percentileData = [];
-              if (monthlyDataWithRSI.length > 0) {
-                const firstDate = monthlyDataWithRSI[0][dateKey];
-                const lastDate = monthlyDataWithRSI[monthlyDataWithRSI.length - 1][dateKey];
-                const __monthly10th__ = monthlyDataWithRSI[0]['__monthly10th__'];
-                const __monthly90th__ = monthlyDataWithRSI[0]['__monthly90th__'];
-                const __quarterly10th__ = monthlyDataWithRSI[0]['__quarterly10th__'];
-                const __quarterly90th__ = monthlyDataWithRSI[0]['__quarterly90th__'];
-
-                // 月度分位数
-                percentileData.push(
-                  // { date: firstDate, value: __monthly10th__, label: '月度10%分位' },
-                  // { date: lastDate, value: __monthly10th__, label: '月度10%分位' },
-                  // { date: firstDate, value: __monthly90th__, label: '月度90%分位' },
-                  // { date: lastDate, value: __monthly90th__, label: '月度90%分位' },
-                  // // 季度分位数
-                  // { date: firstDate, value: __quarterly10th__, label: '季度10%分位' },
-                  // { date: lastDate, value: __quarterly10th__, label: '季度10%分位' },
-                  // { date: firstDate, value: __quarterly90th__, label: '季度90%分位' },
-                  // { date: lastDate, value: __quarterly90th__, label: '季度90%分位' }
-                );
-              }
-              console.log('1111 monthlyDataWithRSI', monthlyDataWithRSI)
-              console.log('1111 分位数数据', percentileData)
-
-              return (
-                <DualAxes
-                  title={{ title: '累计收益率与RSI6走势' }}
-                  xField={(d: { date: string }) => new Date(d.date)}
-                  smooth={true}
-                  children={[
-                    {
-                      data: leftData,
-                      type: 'line',
-                      yField: 'value',
-                      colorField: 'label',
-                      shapeField: 'smooth',
-                      style: { stroke: '#5B8FF9', lineWidth: 2 },
-                      axis: {
-                        y: {
-                          title: '累计收益率',
-                          style: { titleFill: '#5B8FF9' },
-                        },
-                      },
-                    },
-                    {
-                      data: [...rightDataMonthly, ...rightDataQuarterly, ...percentileData],
-                      type: 'line',
-                      yField: 'value',
-                      colorField: 'label',
-                      shapeField: 'smooth',
-                      axis: {
-                        y: {
-                          position: 'right',
-                          title: 'RSI6',
-                          style: { titleFill: '#6c6868ff' },
-                        },
-                      },
-                      style: (datum: any) => {
-                        if (datum.label.includes('分位')) {
-                          return { stroke: '#999', lineWidth: 1, lineDash: [5, 5] };
-                        }
-                        return {};
-                      },
-                    },
-                  ]}
-                  annotations={annotationsData}
-                />
-              );
-            }, [monthlyDataWithRSI, RSI6LevelData])}
-
-          </Card>
+        <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📈📊📉 RSI·推荐级别</span>} key="1">
+          <RsiFilterMark data={dailyData} type="index" />
         </Collapse.Panel>
       </Collapse>
     </div>

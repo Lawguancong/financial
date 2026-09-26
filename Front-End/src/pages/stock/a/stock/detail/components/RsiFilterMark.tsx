@@ -1,13 +1,71 @@
-import React, { useMemo, memo } from 'react';
-import { Line } from '@ant-design/plots';
+import React, { useMemo, memo, useState } from 'react';
+import { Line, DualAxes } from '@ant-design/plots';
 import { Card, Space, Table, Tag } from 'antd';
+import { RightOutlined } from '@ant-design/icons';
 import moment from 'moment';
 import type { KLineData } from '@/utils/stockUtils';
 import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations, calculatePercentile } from '@/utils/stockUtils';
+import { convertToMonthlyData } from '@/pages/fund/cn/open/detail/constants';
 
 interface RsiFilterMarkProps {
   data: KLineData[]; // data数据格式参考KLineData
+  /** 标的类型：股票 / 指数，决定推荐级别的计算口径 */
+  type: 'stock' | 'index';
 }
+
+/** 可折叠 Card（默认展开） */
+interface CollapsibleCardProps {
+  title: React.ReactNode;
+  defaultOpen?: boolean;
+  /** 与 Card styles.body 一致，表格卡片需要去掉内边距 */
+  bodyPaddingZero?: boolean;
+  cardStyle?: React.CSSProperties;
+  children: React.ReactNode;
+}
+
+const CollapsibleCard: React.FC<CollapsibleCardProps> = ({
+  title,
+  defaultOpen = true,
+  bodyPaddingZero = false,
+  cardStyle,
+  children,
+}) => {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <Card
+      size="small"
+      variant="outlined"
+      style={{ borderRadius: 8, ...cardStyle }}
+      styles={bodyPaddingZero ? { body: { padding: 0 } } : undefined}
+      title={
+        <div
+          onClick={() => setOpen((prev) => !prev)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            width: '100%',
+            cursor: 'pointer',
+            userSelect: 'none',
+          }}
+        >
+          <RightOutlined
+            style={{
+              fontSize: 12,
+              color: '#8c8c8c',
+              transition: 'transform 0.2s ease',
+              transform: open ? 'rotate(90deg)' : 'rotate(0deg)',
+            }}
+          />
+          {title}
+        </div>
+      }
+    >
+      {open ? children : null}
+    </Card>
+  );
+};
 
 // 周期 RSI 字段名（与 stockUtils 中返回的字段保持一致）
 type RsiFieldKey =
@@ -96,6 +154,14 @@ const rsiPeriods: RsiPeriodMeta[] = [
 
 const rsiWarmup = 6; // calculateRSI 前 6 个点为预热值（固定 50），计算分位时剔除
 
+// 主图“指数 · 买点标注”右轴只展示月/季 RSI6（日/周 RSI6 不在主图展示）
+const mainChartRsiPeriods = rsiPeriods.filter(
+  ({ periodKey }) => periodKey === 'monthly' || periodKey === 'quarterly',
+);
+
+// 主图折线（指数/收盘价）颜色：折线、左轴标题、图例、tooltip 统一使用
+const mainColor = '#ff0033';
+
 type RsiStatus = 'overbought' | 'oversold' | 'normal';
 
 // 超买 / 超卖 / 中性 状态标签配色（卡片主色统一使用各周期折线色）
@@ -175,8 +241,6 @@ const rsiTableColumns = rsiPeriods.map(({ fieldKey, label, color }) => ({
   ),
 }));
 
-const buyPointsColumns = [...baseTableColumns, ...rsiTableColumns];
-
 /**
  * 构建单周期 RSI 折线图配置
  */
@@ -196,7 +260,10 @@ const buildRsiLineConfig = (periodMeta: RsiPeriodMeta, data: KLineData[]) => ({
  */
 const rsiDataKeyOf = (periodKey: RsiPeriodKey) => `${periodKey}RSI` as const;
 
-const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data }) => {
+const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
+  // 主图系列名称：指数场景显示“指数”，股票场景保留“收盘价”
+  const mainName = type === 'index' ? '指数' : '收盘价';
+
   const {
     buyPointList,
     mainChartConfig,
@@ -217,50 +284,158 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data }) => {
     // 1) 计算日/周/月/季 K 线的 RSI6 值
     const periodRSIMap = calculatePeriodRSI(data);
 
-    // 2) 合并为带推荐级别的图表数据
-    const chartData = computeRSIRecommendations(periodRSIMap) as ChartRow[];
+    // 2) 合并为带推荐级别的图表数据（按标的类型 stock/index 选择推荐级别口径）
+    const chartData = computeRSIRecommendations(periodRSIMap, type) as ChartRow[];
 
     // 3) 过滤出推荐买点
-    const buyPointList = chartData.filter(
+    let buyPointList = chartData.filter(
       (row): row is BuyPointRow => row.__recommendationLevel__ != null,
     );
+
+    if (type === 'index') {
+      // 过滤初 每月最晚（最新）的一条记录，用于指数推荐级别
+      // 以“月”为单位，避免太多推荐买点
+      buyPointList = convertToMonthlyData(buyPointList);
+    }
 
     // 4) 生成买点标注
     const annotations = createRecommendationAnnotations(buyPointList);
 
-    // 5) 构造主图（收盘价折线 + 买点标注）
+    // 5) 构造主图 DualAxes：左轴指数/收盘价折线 + 买点标注，右轴各周期 RSI6
+    // 左轴数据（指数/收盘价）
+    const mainData = chartData.map((item) => ({
+      date: item.日期,
+      label: mainName,
+      value: item.收盘,
+    }));
+    // 右轴数据（仅月/季 RSI6）：取月K/季K 的实际数据点（月末/季末），
+    // 不按日重复填充，避免月内数值恒定造成“平台式直线”，配合 smooth 呈现光滑曲线
+    const rsiLongData = mainChartRsiPeriods.flatMap((periodMeta) =>
+      periodRSIMap[rsiDataKeyOf(periodMeta.periodKey)]
+        .map((item) => ({
+          date: item.日期,
+          label: periodMeta.label,
+          value: item.__RSI6__,
+        }))
+        .filter((row) => row.value != null),
+    );
+
+    // 统一颜色映射：所有系列 label → 颜色（保证折线、图例、tooltip 颜色一致）
+    const colorDomain = [mainName, ...mainChartRsiPeriods.map(({ label }) => label)];
+    const colorRange = [mainColor, ...mainChartRsiPeriods.map(({ color }) => color)];
+
+    // tooltip 查表：日 RSI 按日精确匹配；周/月/季 RSI 只有周期末数据点，
+    // shared tooltip 按相同日期匹配会漏掉，故按年周/年月/年季补齐对应周期值。
+    // 周匹配口径与 stockUtils.getPeriodRSIValues 一致（year + week）。
+    const dailyTooltipMap = new Map(
+      periodRSIMap.dailyRSI.map((item) => [moment(item.日期).format('YYYY-MM-DD'), item.__RSI6__]),
+    );
+    const weeklyTooltipMap = new Map(
+      periodRSIMap.weeklyRSI.map((item) => {
+        const date = moment(item.日期);
+        return [`${date.year()}-${date.week()}`, item.__RSI6__] as const;
+      }),
+    );
+    const monthlyTooltipMap = new Map(
+      periodRSIMap.monthlyRSI.map((item) => [moment(item.日期).format('YYYY-MM'), item.__RSI6__]),
+    );
+    const quarterlyTooltipMap = new Map(
+      periodRSIMap.quarterlyRSI.map((item) => {
+        const date = moment(item.日期);
+        return [`${date.year()}-Q${date.quarter()}`, item.__RSI6__] as const;
+      }),
+    );
+    const formatTooltipValue = (value: number | null | undefined) =>
+      typeof value === 'number' && !Number.isNaN(value) ? value.toFixed(2) : '--';
+
+    const dailyPeriodMeta = rsiPeriods.find(({ periodKey }) => periodKey === 'daily')!;
+    const weeklyPeriodMeta = rsiPeriods.find(({ periodKey }) => periodKey === 'weekly')!;
+    const monthlyPeriodMeta = mainChartRsiPeriods.find(({ periodKey }) => periodKey === 'monthly')!;
+    const quarterlyPeriodMeta = mainChartRsiPeriods.find(({ periodKey }) => periodKey === 'quarterly')!;
+
     const mainChartConfig = {
-      data: chartData,
-      xField: rowToDate,
-      yField: '收盘',
-      smooth: true,
-      autoFit: true,
+      xField: (d: { date: string }) => new Date(d.date),
       height: 420,
+      autoFit: true,
       animation: { appear: { duration: 800 } },
-      appendPadding: [8, 0, 8, 0],
-      yAxis: { title: { text: '收盘价', style: { fill: '#262626' } } },
-      xAxis: {
-        label: { style: { fill: '#595959', fontSize: 11 } },
-      },
-      style: { stroke: '#ff0033ff', lineWidth: 2 },
-      lineStyle: { lineWidth: 2 },
-      annotations,
-      tooltip: {
-        showCrosshairs: true,
-        shared: true,
-        domStyles: {
-          'g2-tooltip': { boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)' },
+      tooltip: { showCrosshairs: true, shared: true },
+      children: [
+        {
+          data: mainData,
+          type: 'line' as const,
+          yField: 'value',
+          colorField: 'label',
+          shapeField: 'smooth' as const,
+          style: { lineWidth: 2 },
+          scale: { color: { domain: colorDomain, range: colorRange } },
+          axis: {
+            y: {
+              title: mainName,
+              style: { titleFill: mainColor },
+            },
+          },
+          // tooltip 单一控制点：日频 hover 时补齐日/周/月/季 RSI6
+          // （日/周 RSI6 仅在 tooltip 展示，不在主图绘制折线）
+          // G2 v5: items 为数组，每个元素是 (datum) => { name, color, value }
+          tooltip: {
+            title: (d: { date: string }) => moment(d.date).format('YYYY-MM-DD'),
+            items: [
+              (d: { date: string; value: number }) => ({
+                name: mainName,
+                color: mainColor,
+                value: formatTooltipValue(d.value),
+              }),
+              (d: { date: string }) => ({
+                name: dailyPeriodMeta.label,
+                color: dailyPeriodMeta.color,
+                value: formatTooltipValue(dailyTooltipMap.get(moment(d.date).format('YYYY-MM-DD'))),
+              }),
+              (d: { date: string }) => {
+                const date = moment(d.date);
+                return {
+                  name: weeklyPeriodMeta.label,
+                  color: weeklyPeriodMeta.color,
+                  value: formatTooltipValue(weeklyTooltipMap.get(`${date.year()}-${date.week()}`)),
+                };
+              },
+              (d: { date: string }) => ({
+                name: monthlyPeriodMeta.label,
+                color: monthlyPeriodMeta.color,
+                value: formatTooltipValue(monthlyTooltipMap.get(moment(d.date).format('YYYY-MM'))),
+              }),
+              (d: { date: string }) => {
+                const date = moment(d.date);
+                return {
+                  name: quarterlyPeriodMeta.label,
+                  color: quarterlyPeriodMeta.color,
+                  value: formatTooltipValue(
+                    quarterlyTooltipMap.get(`${date.year()}-Q${date.quarter()}`),
+                  ),
+                };
+              },
+            ],
+          },
         },
-        title: (d: { 日期: string }) => moment(d.日期).format('YYYY-MM-DD'),
-        items: [
-          { field: '收盘', name: '收盘价', color: '#ff0033ff' },
-          ...rsiPeriods.map(({ fieldKey, label, color }) => ({
-            field: fieldKey,
-            name: label,
-            color,
-          })),
-        ],
-      },
+        {
+          data: rsiLongData,
+          type: 'line' as const,
+          yField: 'value',
+          colorField: 'label',
+          shapeField: 'smooth' as const,
+          style: { lineWidth: 1.5 },
+          scale: { color: { domain: colorDomain, range: colorRange } },
+          axis: {
+            y: {
+              position: 'right' as const,
+              title: 'RSI6',
+              style: { titleFill: '#6c6868ff' },
+            },
+          },
+          // 右轴 RSI 已在左轴 tooltip 中统一展示，关闭自身条目避免月末日期重复
+          tooltip: false,
+        },
+      ],
+      annotations,
     };
 
     // 6) 构造各周期 RSI 折线图配置
@@ -293,7 +468,18 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data }) => {
     });
 
     return { buyPointList, mainChartConfig, rsiLineConfigs, rsiStats };
-  }, [data]);
+  }, [data, type, mainName]);
+
+  // 买点表格列：收盘列标题随标的类型切换（指数 / 收盘价）
+  const buyPointsColumns = useMemo(
+    () => [
+      baseTableColumns[0],
+      baseTableColumns[1],
+      { ...baseTableColumns[2], title: mainName },
+      ...rsiTableColumns,
+    ],
+    [mainName],
+  );
 
   if (!data?.length) {
     return <div>暂无数据</div>;
@@ -301,12 +487,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data }) => {
 
   return (
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-      <Card
-        size="small"
-        variant="outlined"
-        title="各周期 RSI6 · 历史分位参考"
-        style={{ borderRadius: 8 }}
-      >
+      <CollapsibleCard title="各周期 RSI6 · 历史分位参考">
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {rsiStats.map((stat) => {
             const meta = rsiStatusMeta[stat.status];
@@ -369,15 +550,9 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data }) => {
             );
           })}
         </div>
-      </Card>
+      </CollapsibleCard>
 
-      <Card
-        size="small"
-        variant="outlined"
-        title="RSI指标-推荐买点"
-        style={{ borderRadius: 8 }}
-        styles={{ body: { padding: 0 } }}
-      >
+      <CollapsibleCard title="RSI指标-推荐买点" bodyPaddingZero>
         <Table
           dataSource={buyPointList}
           columns={buyPointsColumns}
@@ -387,11 +562,9 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data }) => {
           bordered
           scroll={{ x: 720 }}
         />
-      </Card>
+      </CollapsibleCard>
 
-      <Card
-        size="small"
-        variant="outlined"
+      <CollapsibleCard
         title={
           <span style={{ fontWeight: 600 }}>
             <span
@@ -399,26 +572,23 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data }) => {
                 display: 'inline-block',
                 width: 4,
                 height: 14,
-                background: '#ff0033ff',
+                background: mainColor,
                 marginRight: 8,
                 borderRadius: 2,
                 verticalAlign: 'middle',
               }}
             />
-            收盘价 · 买点标注
+            {mainName} · 买点标注
           </span>
         }
-        style={{ 
-          borderRadius: 8,
+        cardStyle={{
           background: 'linear-gradient(180deg, #fafbfc 0%, #f0f2f5 100%)',
         }}
       >
-        <Line {...mainChartConfig} />
-      </Card>
+        <DualAxes {...mainChartConfig} />
+      </CollapsibleCard>
 
-      <Card
-        size="small"
-        variant="outlined"
+      <CollapsibleCard
         title={
           <span style={{ fontWeight: 600 }}>
             <span
@@ -435,7 +605,6 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data }) => {
             RSI6 技术指标
           </span>
         }
-        style={{ borderRadius: 8 }}
       >
         <Space orientation="vertical" size={12} style={{ width: '100%' }}>
           {rsiPeriods.map(({ periodKey, label, color }) => (
@@ -457,7 +626,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data }) => {
             </div>
           ))}
         </Space>
-      </Card>
+      </CollapsibleCard>
     </Space>
   );
 };

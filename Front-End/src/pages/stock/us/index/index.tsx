@@ -135,7 +135,7 @@ const UsIndexPage: React.FC = () => {
 
       <Spin spinning={loading}>
         <IndexMetrics data={data} />
-        <RsiFilterMark data={data} />
+        <RsiFilterMark data={data} type="index" />
         {/* <Table
           rowKey="date"
           columns={columns}

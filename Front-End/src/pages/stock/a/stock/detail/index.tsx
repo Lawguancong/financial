@@ -54,7 +54,7 @@ const titleStyle: React.CSSProperties = { margin: 0 };
 const StockDetail: React.FC = () => {
   // const [symbolInfo, setSymbolInfo] = useState<Record<string, string>>({});
   const [rawData, setRawData] = useState<StockDetailData[]>([]);
-  const [activeTab, setActiveTab] = useState<string>('price-line-avg');
+  const [activeTab, setActiveTab] = useState<string>('rsi-filter');
 
   const [searchParams] = useSearchParams();
   const symbol = searchParams.get('symbol') || '';
@@ -113,7 +113,7 @@ const StockDetail: React.FC = () => {
 
   const rsiFilterMarkComponent = useMemo(() => (
     <Suspense fallback={<ComponentFallback />}>
-      <RsiFilterMark data={rawData} />
+      <RsiFilterMark data={rawData} type="stock" />
     </Suspense>
   ), [rawData]);
 

@@ -4,14 +4,19 @@ import { Card, Space, Table, Tag } from 'antd';
 import { RightOutlined } from '@ant-design/icons';
 import moment from 'moment';
 import type { KLineData } from '@/utils/stockUtils';
-import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations, calculatePercentile, calculateAnnualizedReturn, stockRsiRecommendationRules, indexRsiRecommendationRules, rsiPeriodLabelMap } from '@/utils/stockUtils';
+import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations, calculatePercentile, calculateAnnualizedReturn, stockRsiRecommendationRules, indexRsiRecommendationRules, fundRsiRecommendationRules, rsiPeriodLabelMap } from '@/utils/stockUtils';
 import type { RsiRecommendationRules } from '@/utils/stockUtils';
 import { convertToMonthlyData } from '@/pages/fund/cn/open/detail/constants';
 
 interface RsiFilterMarkProps {
   data: KLineData[]; // data数据格式参考KLineData
-  /** 标的类型：股票 / 指数，决定推荐级别的计算口径 */
-  type: 'stock' | 'index';
+  /** 标的类型：股票 / 指数 / 基金，决定推荐级别的计算口径 */
+  type: 'stock' | 'index' | 'fund';
+  /**
+   * 可见的 RSI6 周期，默认展示全部四周期（日/周/月/季）。
+   * 基金等场景仅有月/季 RSI6 数据时，可传 ['monthly', 'quarterly'] 隐藏日/周相关内容。
+   */
+  visiblePeriods?: RsiPeriodKey[];
 }
 
 /**
@@ -452,18 +457,24 @@ const ruleLevelStyle: React.CSSProperties = {
  * 与 calculateStockRecommendationLevel / calculateIndexRecommendationLevel 共用同一份规则表，
  * 避免文案与实际计算逻辑不一致。
  */
-const QuantRuleNote: React.FC<{ type: 'stock' | 'index' }> = ({ type }) => {
+const QuantRuleNote: React.FC<{ type: 'stock' | 'index' | 'fund' }> = ({ type }) => {
   const rules: RsiRecommendationRules =
-    type === 'stock' ? stockRsiRecommendationRules : indexRsiRecommendationRules;
+    type === 'stock'
+      ? stockRsiRecommendationRules
+      : type === 'fund'
+        ? fundRsiRecommendationRules
+        : indexRsiRecommendationRules;
   // 星级从高到低展示
   const levels = Object.keys(rules)
     .map(Number)
     .sort((a, b) => b - a);
 
+  const periodText = type === 'stock' ? '日/周/月/季' : '月度/季度';
+  const extraNote = type === 'index' ? '；指数按月取每月最晚的一条信号展示' : '';
+
   return (
     <div style={ruleNoteStyle}>
-      规则：{type === 'stock' ? '按日/周/月/季' : '按月度/季度'} RSI6 综合打分，星级越高代表超卖共振越强
-      {type === 'index' ? '；指数按月取每月最晚的一条信号展示' : ''}。
+      规则：按{periodText} RSI6 综合打分，星级越高代表超卖共振越强{extraNote}。
       {levels.map((level) => {
         const groups = rules[level];
         // 每组内条件用「且」连接，多组之间用「，或」连接
@@ -512,19 +523,7 @@ const baseTableColumns = [
   },
 ];
 
-// 各周期 RSI 表格列
-const rsiTableColumns = rsiPeriods.map(({ fieldKey, label, color }) => ({
-  title: label,
-  dataIndex: fieldKey,
-  key: fieldKey,
-  align: 'right' as const,
-  width: 100,
-  render: (value: number) => (
-    <span style={{ color: value != null ? color : '#bfbfbf', fontWeight: 500 }}>
-      {value?.toFixed(2)}
-    </span>
-  ),
-}));
+// 各周期 RSI 表格列（在组件内根据 visiblePeriods 动态生成，见 rsiTableColumnsMemo）
 
 /**
  * 构建单周期 RSI6 折线图配置
@@ -549,9 +548,17 @@ const buildRsiLineConfig = (periodMeta: RsiPeriodMeta, data: KLineData[]) => ({
  */
 const rsiDataKeyOf = (periodKey: RsiPeriodKey) => `${periodKey}RSI` as const;
 
-const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
-  // 主图系列名称：指数场景显示“指数”，股票场景保留“收盘价”
-  const mainName = type === 'index' ? '指数' : '收盘价';
+const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriods }) => {
+  // 主图系列名称：指数场景显示"指数"，基金场景显示"累计收益率"，股票场景保留"收盘价"
+  const mainName = type === 'index' ? '指数' : type === 'fund' ? '累计收益率' : '收盘价';
+
+  // 可见周期：未指定时展示全部四周期；指定后仅展示传入的周期
+  const visibleRsiPeriods = visiblePeriods
+    ? rsiPeriods.filter(({ periodKey }) => visiblePeriods.includes(periodKey))
+    : rsiPeriods;
+  const visiblePeriodKeySet = new Set(visibleRsiPeriods.map(({ periodKey }) => periodKey));
+  const showWeekly = visiblePeriodKeySet.has('weekly');
+  const showDaily = visiblePeriodKeySet.has('daily');
 
   const {
     buyPointList,
@@ -595,8 +602,8 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
       (row): row is BuyPointRow => row.__recommendationLevel__ != null,
     );
 
-    if (type === 'index') {
-      // 过滤初 每月最晚（最新）的一条记录，用于指数推荐级别
+    if (type === 'index' || type === 'fund') {
+      // 过滤初 每月最晚（最新）的一条记录，用于指数/基金推荐级别
       // 以“月”为单位，避免太多推荐买点
       buyPointList = convertToMonthlyData(buyPointList);
     }
@@ -675,7 +682,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
               style: { titleFill: mainColor },
             },
           },
-          // tooltip 单一控制点：日频 hover 时补齐日/周/月/季 RSI6
+          // tooltip 单一控制点：日频 hover 时补齐可见周期的 RSI6
           // （日/周 RSI6 仅在 tooltip 展示，不在主图绘制折线）
           // G2 v5: items 为数组，每个元素是 (datum) => { name, color, value }
           tooltip: {
@@ -686,19 +693,27 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
                 color: mainColor,
                 value: formatTooltipValue(d.value),
               }),
-              (d: { date: string }) => ({
-                name: dailyPeriodMeta.label,
-                color: dailyPeriodMeta.color,
-                value: formatTooltipValue(dailyTooltipMap.get(moment(d.date).format('YYYY-MM-DD'))),
-              }),
-              (d: { date: string }) => {
-                const date = moment(d.date);
-                return {
-                  name: weeklyPeriodMeta.label,
-                  color: weeklyPeriodMeta.color,
-                  value: formatTooltipValue(weeklyTooltipMap.get(`${date.year()}-${date.week()}`)),
-                };
-              },
+              ...(showDaily
+                ? [
+                    (d: { date: string }) => ({
+                      name: dailyPeriodMeta.label,
+                      color: dailyPeriodMeta.color,
+                      value: formatTooltipValue(dailyTooltipMap.get(moment(d.date).format('YYYY-MM-DD'))),
+                    }),
+                  ]
+                : []),
+              ...(showWeekly
+                ? [
+                    (d: { date: string }) => {
+                      const date = moment(d.date);
+                      return {
+                        name: weeklyPeriodMeta.label,
+                        color: weeklyPeriodMeta.color,
+                        value: formatTooltipValue(weeklyTooltipMap.get(`${date.year()}-${date.week()}`)),
+                      };
+                    },
+                  ]
+                : []),
               (d: { date: string }) => ({
                 name: monthlyPeriodMeta.label,
                 color: monthlyPeriodMeta.color,
@@ -739,15 +754,15 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
       annotations,
     };
 
-    // 6) 构造各周期 RSI 折线图配置
-    const rsiLineConfigs = rsiPeriods.reduce((configs, periodMeta) => {
+    // 6) 构造各周期 RSI 折线图配置（仅可见周期）
+    const rsiLineConfigs = visibleRsiPeriods.reduce((configs, periodMeta) => {
       const rsiData = periodRSIMap[rsiDataKeyOf(periodMeta.periodKey)];
       configs[periodMeta.periodKey] = buildRsiLineConfig(periodMeta, rsiData);
       return configs;
     }, {} as Record<RsiPeriodKey, Record<string, unknown>>);
 
-    // 7) 各周期 RSI6 当前值、历史 10%/90% 分位、超买超卖状态
-    const rsiStats: RsiStat[] = rsiPeriods.map(({ label, color, periodKey }) => {
+    // 7) 各周期 RSI6 当前值、历史 10%/90% 分位、超买超卖状态（仅可见周期）
+    const rsiStats: RsiStat[] = visibleRsiPeriods.map(({ label, color, periodKey }) => {
       // 剔除前 rsiWarmup 个预热点（固定值 50），避免干扰分位
       const values = getRsiValues(periodRSIMap, periodKey);
 
@@ -1235,7 +1250,25 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
     };
 
     return { buyPointList, mainChartConfig, rsiLineConfigs, rsiStats, percentileThresholds, percentileTrades, percentileChartConfig, monthlyQuarterlyBuyList, monthlyQuarterlyThresholds, monthlyQuarterlySellThresholds, monthlyQuarterlyChartConfig };
-  }, [data, type, mainName]);
+  }, [data, type, mainName, visibleRsiPeriods, showDaily, showWeekly]);
+
+  // 各周期 RSI 表格列（仅展示可见周期）
+  const rsiTableColumns = useMemo(
+    () =>
+      visibleRsiPeriods.map(({ fieldKey, label, color }) => ({
+        title: label,
+        dataIndex: fieldKey,
+        key: fieldKey,
+        align: 'right' as const,
+        width: 100,
+        render: (value: number) => (
+          <span style={{ color: value != null ? color : '#bfbfbf', fontWeight: 500 }}>
+            {value?.toFixed(2)}
+          </span>
+        ),
+      })),
+    [visibleRsiPeriods],
+  );
 
   // 买点表格列：收盘列标题随标的类型切换（指数 / 收盘价）
   const buyPointsColumns = useMemo(
@@ -1245,7 +1278,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
       { ...baseTableColumns[2], title: mainName },
       ...rsiTableColumns,
     ],
-    [mainName],
+    [mainName, rsiTableColumns],
   );
 
   // 百分位买卖配对交易表格列
@@ -1574,7 +1607,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
           }
         >
           <Space orientation="vertical" size={12} style={{ width: '100%' }}>
-            {rsiPeriods.map(({ periodKey, label, color }) => (
+            {visibleRsiPeriods.map(({ periodKey, label, color }) => (
               <div key={periodKey} style={chartContainerStyle}>
                 <div style={chartLabelStyle}>
                   <span
@@ -1750,6 +1783,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
           <DualAxes {...mainChartConfig} />
         </CollapsibleCard>
       </CollapsibleCard>
+      {showWeekly && (
       <CollapsibleCard
         title={
           <>
@@ -1828,6 +1862,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
           <DualAxes {...percentileChartConfig} />
         </CollapsibleCard>
       </CollapsibleCard>
+      )}
 
     </Space>
   );

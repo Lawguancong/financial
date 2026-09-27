@@ -630,6 +630,44 @@ export const indexRsiRecommendationRules: RsiRecommendationRules = {
   ],
 };
 
+// 基金 RSI6 推荐级别规则（与指数相同口径：仅月/季 RSI6 综合打分）
+export const fundRsiRecommendationRules: RsiRecommendationRules = {
+  5: [
+    [
+      { period: 'monthly', threshold: 10 },
+      { period: 'quarterly', threshold: 15 },
+    ],
+    [
+      { period: 'monthly', threshold: 13 },
+      { period: 'quarterly', threshold: 13 },
+    ],
+    [
+      { period: 'monthly', threshold: 15 },
+      { period: 'quarterly', threshold: 10 },
+    ],
+  ],
+  3: [
+    [
+      { period: 'monthly', threshold: 15 },
+      { period: 'quarterly', threshold: 20 },
+    ],
+    [
+      { period: 'monthly', threshold: 18 },
+      { period: 'quarterly', threshold: 18 },
+    ],
+    [
+      { period: 'monthly', threshold: 20 },
+      { period: 'quarterly', threshold: 15 },
+    ],
+  ],
+  1: [
+    [
+      { period: 'monthly', threshold: 25 },
+      { period: 'quarterly', threshold: 25 },
+    ],
+  ],
+};
+
 // 根据规则表计算 RSI6 推荐级别
 const calculateRecommendationLevelByRules = (
   rules: RsiRecommendationRules,
@@ -681,23 +719,15 @@ export const calculateIndexRecommendationLevel = (dailyRSIValue?: number, weekly
     quarterlyRSIValue,
   );
 
-// 计算RSI6推荐级别(基金)
-export const calculateFundRecommendationLevel = (dailyRSIValue?: number, weeklyRSIValue?: number, monthlyRSIValue?: number, quarterlyRSIValue?: number) => {
-  switch (true) {
-    case monthlyRSIValue <= 10 && quarterlyRSIValue <= 15:
-    case monthlyRSIValue <= 13 && quarterlyRSIValue <= 13:
-    case monthlyRSIValue <= 15 && quarterlyRSIValue <= 10:
-      return 5; // 5颗星
-    case monthlyRSIValue <= 15 && quarterlyRSIValue <= 20:
-    case monthlyRSIValue <= 18 && quarterlyRSIValue <= 18:
-    case monthlyRSIValue <= 20 && quarterlyRSIValue <= 15:
-      return 3; // 3颗星
-    case monthlyRSIValue <= 25 && quarterlyRSIValue <= 25:
-      return 1; // 1颗星
-    default:
-      return null;
-  }
-};
+// 计算RSI6推荐级别(基金) - 仅按月度/季度 RSI6 综合打分
+export const calculateFundRecommendationLevel = (dailyRSIValue?: number, weeklyRSIValue?: number, monthlyRSIValue?: number, quarterlyRSIValue?: number) =>
+  calculateRecommendationLevelByRules(
+    fundRsiRecommendationRules,
+    dailyRSIValue,
+    weeklyRSIValue,
+    monthlyRSIValue,
+    quarterlyRSIValue,
+  );
 
 
 // 计算分位数
@@ -771,7 +801,7 @@ export const computeRSIRecommendations = (params: {
   weeklyRSI: KLineData[];
   monthlyRSI: KLineData[];
   quarterlyRSI: KLineData[];
-}, type: 'stock' | 'index' = 'stock'): (KLineData & { __recommendationLevel__: number })[] => {
+}, type: 'stock' | 'index' | 'fund' = 'stock'): (KLineData & { __recommendationLevel__: number })[] => {
   const { dailyRSI, weeklyRSI, monthlyRSI, quarterlyRSI } = params;
 
   if (!dailyRSI || dailyRSI.length === 0) {
@@ -785,7 +815,11 @@ export const computeRSIRecommendations = (params: {
   // 过滤日K数据并计算推荐级别
   const aaa =  dailyRSI.map(dailyRSIData => {
     const rsiValues = getPeriodRSIValues(dailyRSIData, weeklyRSIMap, monthlyRSIMap, quarterlyRSIMap);
-    const calculateFunc = type === 'stock' ? calculateStockRecommendationLevel : calculateIndexRecommendationLevel;
+    const calculateFunc = type === 'stock'
+      ? calculateStockRecommendationLevel
+      : type === 'fund'
+        ? calculateFundRecommendationLevel
+        : calculateIndexRecommendationLevel;
     const __recommendationLevel__ = calculateFunc(
       rsiValues.dailyRSIValue,
       rsiValues.weeklyRSIValue,

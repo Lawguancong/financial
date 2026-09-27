@@ -4,7 +4,7 @@ import { Tabs, Card, Tag, Row, Col, Spin } from 'antd';
 import { BankOutlined, FundOutlined, InfoCircleOutlined, DollarOutlined, TeamOutlined, SafetyOutlined, BarChartOutlined } from '@ant-design/icons';
 import UnitNav from './UnitNav';
 import CumulativeNav from './CumulativeNav';
-import CumulativeReturn from './CumulativeReturn';
+import FundRsiFilterMark from './FundRsiFilterMark';
 import FundHoldings from './FundHoldings';
 import FundDividend from './FundDividend';
 import FundIndustryAllocation from './FundIndustryAllocation';
@@ -297,7 +297,7 @@ const FundOpenDetail: React.FC = () => {
             type="card"
           >
             <TabPane tab="📈 累计收益率走势" key="累计收益率走势">
-              {useMemo(() => <CumulativeReturn symbol={symbol} />, [symbol])}
+              {useMemo(() => <FundRsiFilterMark symbol={symbol} />, [symbol])}
             </TabPane>
             <TabPane tab="💹 单位净值走势" key="单位净值走势">
               {useMemo(() => <UnitNav symbol={symbol} />, [symbol])}

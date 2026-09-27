@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Table, Typography, Input, Button, Tabs, message, Select } from 'antd';
+import { Table, Typography, Input, Button, Tabs, Select } from 'antd';
 import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { numberSorter, createRangeFilter, createDateRangeFilter } from '@/utils/tableUtils';
 import type { IndexDetailData } from './detail';
 import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations, computeMonthlyQuarterlyPercentileBuyPoints, isRecentDate } from '@/utils/stockUtils';
+import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
 import { convertToMonthlyData } from '@/pages/fund/cn/open/detail/constants';
 import GrowthVsValue from './GrowthVsValue';
 
@@ -63,38 +64,33 @@ const Index: React.FC = () => {
 
   const handleCalculateRecommendation = async () => {
     console.log('11111 selectedRows', selectedRows)
-    if (selectedRows?.length === 0) {
-      message.warning('请选择指数');
-      return;
-    } else {
-      const results = [];
-      for (const item of selectedRows) {
-        message.info(`正在分析【${item['指数简称']}】中...`, 10);
-        const { quantitative, percentile } = await fetchIndexDetailAndCalculate(String(item['指数代码']));
-        results.push({
-          ...item,
-          ['__推荐买点定量__']: quantitative || '',
-          ['__推荐买点百分位__']: percentile || '',
-        });
-      }
-      console.log('1111, 指数计算的推荐买点 ', results);
-      const quantMap = new Map(
-        results.map(r => [r['指数代码'], r['__推荐买点定量__']])
-      );
-      const percentileMap = new Map(
-        results.map(r => [r['指数代码'], r['__推荐买点百分位__']])
-      );
-      console.log('11111 quantMap', quantMap)
-
-      const latestData = [...selectedIndices].map(item => ({
-        ...item,
-        __推荐买点定量__:  quantMap.get(item['指数代码']) || item.__推荐买点定量__,
-        __推荐买点百分位__:  percentileMap.get(item['指数代码']) || item.__推荐买点百分位__,
-      }))
-      setSelectedIndices(latestData);
+    // 仅收集结果，全部计算完成后再一次性更新表格与缓存
+    const resultMap = new Map<string, { quantitative: string; percentile: string }>();
+    await runRecommendationBatchCalculation({
+      targets: selectedRows,
+      getKey: item => String(item['指数代码']),
+      getName: item => item['指数简称'] || String(item['指数代码']),
+      emptyWarn: '请选择指数',
+      fetchBuyPoints: item => fetchIndexDetailAndCalculate(String(item['指数代码'])),
+      onItemDone: (item, result) => {
+        resultMap.set(String(item['指数代码']), result);
+      },
+    });
+    if (resultMap.size === 0) return;
+    setSelectedIndices(prev => {
+      const latestData = prev.map(item => {
+        const result = resultMap.get(String(item['指数代码']));
+        return result
+          ? {
+              ...item,
+              __推荐买点定量__: result.quantitative || item.__推荐买点定量__,
+              __推荐买点百分位__: result.percentile || item.__推荐买点百分位__,
+            }
+          : item;
+      });
       saveSelectedIndices(latestData);
-      message.success('推荐买点计算完成');
-    }
+      return latestData;
+    });
   };
 
   console.log('11111 selectedIndices', selectedIndices)

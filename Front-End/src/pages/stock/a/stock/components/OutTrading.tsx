@@ -4,6 +4,7 @@ import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations, computeMonthlyQuarterlyPercentileBuyPoints, isRecentDate } from '@/utils/stockUtils';
 import type { KLineData } from '@/utils/stockUtils';
+import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
 
 const { Search } = Input;
 
@@ -266,36 +267,29 @@ const OutTrading: React.FC = () => {
   };
 
   const handleCalculateRecommendation = async () => {
-    if (selectedRows?.length === 0) {
-      message.warning('请选择股票');
-      return;
-    } else {
-      const results = [];
-      for (const item of selectedRows) {
-        message.info(`正在分析【${item['名称']}】中...`, 10);
-        const { quantitative, percentile } = await fetchStockDetailAndCalculate(String(item['代码']));
-        results.push({
-          ...item,
-          ['__推荐买点定量__']: quantitative || '',
-          ['__推荐买点百分位__']: percentile || '',
-        });
-      }
-      console.log('1111, results ', results);
-      const quantMap = new Map(
-        results.map(r => [r['代码'], r['__推荐买点定量__']])
-      );
-      const percentileMap = new Map(
-        results.map(r => [r['代码'], r['__推荐买点百分位__']])
-      );
-      const nextStocks = selectedStocksRef.current.map(item => ({
-        ...item,
-        __推荐买点定量__: quantMap.get(item['代码']) ?? item.__推荐买点定量__,
-        __推荐买点百分位__: percentileMap.get(item['代码']) ?? item.__推荐买点百分位__,
-      }));
-      setSelectedStocks(nextStocks);
-      saveSelectedStocks(nextStocks);
-      message.success('推荐买点计算完成');
-    }
+    let working = [...selectedStocksRef.current];
+    await runRecommendationBatchCalculation({
+      targets: selectedRows,
+      getKey: stock => String(stock['代码']),
+      getName: stock => stock['名称'] || String(stock['代码']),
+      emptyWarn: '请选择股票',
+      fetchBuyPoints: stock => fetchStockDetailAndCalculate(String(stock['代码'])),
+      onItemDone: (stock, { quantitative, percentile }) => {
+        working = working.map(s =>
+          s['代码'] === stock['代码']
+            ? {
+                ...s,
+                __推荐买点定量__: quantitative || '',
+                __推荐买点百分位__: percentile || '',
+              }
+            : s,
+        );
+        // 每算完一只即更新表格与本地缓存，结果渐进可见
+        selectedStocksRef.current = working;
+        setSelectedStocks(working);
+        saveSelectedStocks(working);
+      },
+    });
   };
 
   const columns: any[] = [

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Table, Card, Tabs, Space, message } from 'antd';
+import { Button, Table, Card, Tabs, Space } from 'antd';
 import moment from 'moment';
 import { numberSorter } from '@/utils/tableUtils';
 import { fetchFundRecommendationPointsBoth } from '@/utils/fundUtils';
 import { isRecentDate } from '@/utils/stockUtils';
+import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
 import OpenFundPanel from './components/OpenFundPanel';
 import IndexFundPanel from './components/IndexFundPanel';
 import ExchangeFundPanel from './components/ExchangeFundPanel';
@@ -75,28 +76,26 @@ const FundOpen: React.FC = () => {
   const calculateCheckedFunds = async () => {
     // 只计算当前自选列表中仍存在且被勾选的基金
     const targets = selectedFunds.filter(f => checkedFundCodes.includes(String(f['基金代码'])));
-    if (targets.length === 0) {
-      message.warning('请先勾选需要计算的基金');
-      return;
-    }
     setCalculating(true);
+    let working = [...selectedFunds];
     try {
-      let working = [...selectedFunds];
-      for (const fund of targets) {
-        const code = String(fund['基金代码']);
-        const fundName = fund['基金名称'] || fund['基金简称'] || code;
-        message.info(`正在分析【${fundName}】中...`, 10);
-        const { quantitative, percentile } = await fetchFundRecommendationPointsBoth(code);
-        working = working.map(f =>
-          f['基金代码'] === fund['基金代码']
-            ? { ...f, __推荐买点定量__: quantitative, __推荐买点百分位__: percentile }
-            : f,
-        );
-        // 每算完一只即更新表格与本地缓存，结果渐进可见
-        setSelectedFunds(working);
-        saveSelectedFunds(working);
-      }
-      message.success(`推荐买点计算完成（共 ${targets.length} 只）`);
+      await runRecommendationBatchCalculation({
+        targets,
+        getKey: f => String(f['基金代码']),
+        getName: f => String(f['基金名称'] || f['基金简称'] || f['基金代码']),
+        emptyWarn: '请先勾选需要计算的基金',
+        fetchBuyPoints: f => fetchFundRecommendationPointsBoth(String(f['基金代码'])),
+        onItemDone: (fund, { quantitative, percentile }) => {
+          working = working.map(f =>
+            f['基金代码'] === fund['基金代码']
+              ? { ...f, __推荐买点定量__: quantitative, __推荐买点百分位__: percentile }
+              : f,
+          );
+          // 每算完一只即更新表格与本地缓存，结果渐进可见
+          setSelectedFunds(working);
+          saveSelectedFunds(working);
+        },
+      });
     } finally {
       setCalculating(false);
     }

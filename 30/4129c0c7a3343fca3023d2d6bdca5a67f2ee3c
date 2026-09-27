@@ -1,0 +1,36 @@
+Front-End/src/pages/fund/cn/open/index.tsx
+  s_249a40a66d0d32::t_f3ce63f6de3d96 80,82-98
+  s_249a40a66d0d32::t_2974ce8ba6850c 7
+  s_249a40a66d0d32::t_88e1cefca44ad4 2
+Front-End/src/pages/stock/a/index/index.tsx
+  s_249a40a66d0d32::t_69de1a6c24c902 8
+  s_249a40a66d0d32::t_f6b9332672155f 67-68,75-76,78-90,92
+  s_249a40a66d0d32::t_02c4fe0fe5c644 2
+  s_249a40a66d0d32::t_be4b8cbbbda365 69-74,77,93
+Front-End/src/utils/recommendationBatch.ts
+  s_249a40a66d0d32::t_5bab8f314d9eb4 1-55
+Front-End/src/pages/stock/a/stock/components/OutTrading.tsx
+  s_249a40a66d0d32::t_344b308f2bc540 7
+  s_249a40a66d0d32::t_0a46dec902e15a 270-292
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "304129c0c7a3343fca3023d2d6bdca5a67f2ee3c",
+  "prompts": {},
+  "humans": {
+    "h_8d10030941b6f7": {
+      "author": "罗冠聪 <luoguancong@ruqimobility.com>"
+    }
+  },
+  "sessions": {
+    "s_249a40a66d0d32": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6ab7826aa6e8a20210a4684a",
+        "model": "unknown"
+      },
+      "human_author": "罗冠聪 <luoguancong@ruqimobility.com>"
+    }
+  }
+}

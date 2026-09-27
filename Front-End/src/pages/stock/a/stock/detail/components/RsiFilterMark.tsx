@@ -4,8 +4,8 @@ import { Card, Space, Table, Tag } from 'antd';
 import { RightOutlined } from '@ant-design/icons';
 import moment from 'moment';
 import type { KLineData } from '@/utils/stockUtils';
-import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations, calculatePercentile, calculateAnnualizedReturn, stockRsiRecommendationRules, indexRsiRecommendationRules, fundRsiRecommendationRules, rsiPeriodLabelMap } from '@/utils/stockUtils';
-import type { RsiRecommendationRules } from '@/utils/stockUtils';
+import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations, calculatePercentile, calculateAnnualizedReturn, calculateHoldingReturnRate, stockRsiRecommendationRules, indexRsiRecommendationRules, fundRsiRecommendationRules, rsiPeriodLabelMap } from '@/utils/stockUtils';
+import type { RsiRecommendationRules, CloseValueType } from '@/utils/stockUtils';
 import { convertToMonthlyData } from '@/pages/fund/cn/open/detail/constants';
 
 interface RsiFilterMarkProps {
@@ -573,6 +573,9 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
     monthlyQuarterlySellThresholds,
     monthlyQuarterlyChartConfig,
   } = useMemo(() => {
+    // 收盘值语义：基金为累计收益率（%，可为负），股票/指数为价格/指数
+    const closeValueType: CloseValueType = type === 'fund' ? 'cumulativeReturn' : 'price';
+
     const emptyResult = {
       buyPointList: [] as BuyPointRow[],
       mainChartConfig: {} as Record<string, unknown>,
@@ -813,7 +816,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
           continue;
         }
 
-        const returnRate = ((item.收盘 - holding.buyPrice) / holding.buyPrice) * 100;
+        const returnRate = calculateHoldingReturnRate(holding.buyPrice, item.收盘, closeValueType);
         // 仅当周RSI6 突破卖出分位且收益率为正时卖出；超买但未盈利则继续持有等待下一次信号
         if (weeklyRsi > percentileThresholds.weeklySellThreshold && returnRate > 0) {
           const holdingDays = Math.max(
@@ -940,8 +943,10 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
               1,
               Math.round((sellTime - buyTime) / (24 * 60 * 60 * 1000)),
             );
-            const returnRate = Number(
-              (((m.收盘 - holdingFiveStarBuy.收盘) / holdingFiveStarBuy.收盘) * 100).toFixed(2),
+            const returnRate = calculateHoldingReturnRate(
+              holdingFiveStarBuy.收盘,
+              m.收盘,
+              closeValueType,
             );
             holdingFiveStarBuy.sellDate = m.日期;
             holdingFiveStarBuy.sellMonthlyRsi = monthlyRsi;

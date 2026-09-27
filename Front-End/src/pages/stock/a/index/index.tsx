@@ -4,7 +4,7 @@ import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { numberSorter, createRangeFilter, createDateRangeFilter } from '@/utils/tableUtils';
 import type { IndexDetailData } from './detail';
-import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations } from '@/utils/stockUtils';
+import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations, computeMonthlyQuarterlyPercentileBuyPoints, isRecentDate } from '@/utils/stockUtils';
 import { convertToMonthlyData } from '@/pages/fund/cn/open/detail/constants';
 import GrowthVsValue from './GrowthVsValue';
 
@@ -32,7 +32,8 @@ interface IndexData {
   指数合规: string;
   指数热点: string | null;
   指数年化率?: number;
-  __推荐买点__?: string;
+  __推荐买点定量__?: string;
+  __推荐买点百分位__?: string;
 }
 
 const stringSorter = (key: keyof IndexData) => (a: IndexData, b: IndexData) => {
@@ -69,23 +70,26 @@ const Index: React.FC = () => {
       const results = [];
       for (const item of selectedRows) {
         message.info(`正在分析【${item['指数简称']}】中...`, 10);
-        const recommendationDates = await fetchIndexDetailAndCalculate(String(item['指数代码']));
+        const { quantitative, percentile } = await fetchIndexDetailAndCalculate(String(item['指数代码']));
         results.push({
           ...item,
-          ['__推荐买点__']: recommendationDates || '',
+          ['__推荐买点定量__']: quantitative || '',
+          ['__推荐买点百分位__']: percentile || '',
         });
       }
       console.log('1111, 指数计算的推荐买点 ', results);
-      const resultMap = new Map(
-        results.map(r => [r['指数代码'], r['__推荐买点__']])
+      const quantMap = new Map(
+        results.map(r => [r['指数代码'], r['__推荐买点定量__']])
       );
-      console.log('11111 resultMap', resultMap)
-
+      const percentileMap = new Map(
+        results.map(r => [r['指数代码'], r['__推荐买点百分位__']])
+      );
+      console.log('11111 quantMap', quantMap)
 
       const latestData = [...selectedIndices].map(item => ({
         ...item,
-        // __推荐买点__: selectedRows?.find((row: IndexData) => row['指数代码'] === item['指数代码']) ? resultMap.get(item['指数代码']) || `上次计算时间：${moment().format('YYYY/MM/DD HH:mm')}` : item.__推荐买点__,
-        __推荐买点__:  resultMap.get(item['指数代码']) || item.__推荐买点__,
+        __推荐买点定量__:  quantMap.get(item['指数代码']) || item.__推荐买点定量__,
+        __推荐买点百分位__:  percentileMap.get(item['指数代码']) || item.__推荐买点百分位__,
       }))
       setSelectedIndices(latestData);
       saveSelectedIndices(latestData);
@@ -95,8 +99,8 @@ const Index: React.FC = () => {
 
   console.log('11111 selectedIndices', selectedIndices)
 
-  // 计算推荐买点
-  const fetchIndexDetailAndCalculate = async (symbol: string): Promise<string | null> => {
+  // 计算推荐买点（定量 + 百分位）
+  const fetchIndexDetailAndCalculate = async (symbol: string): Promise<{ quantitative: string; percentile: string }> => {
     try {
 
       const startDate = '19800101'; // 默认从1980年1月1日开始查询，并去除第一个日期的空值
@@ -109,29 +113,11 @@ const Index: React.FC = () => {
         收盘: Number(item.收盘),
       })) || [];
 
-
-
       // 1) 计算日/周/月/季 K 线的 RSI6 值
       const periodRSIMap = calculatePeriodRSI(stockHistoryList);
 
       // 2) 合并为带推荐级别的图表数据
       const chartData = computeRSIRecommendations(periodRSIMap, 'index') as any[];
-
-      // // 过滤 每月最晚（最新）的一条记录
-      // const chartMonthlyLatestMap = new Map<string, any>();
-      // chartData.forEach((row: any) => {
-      //   const dateStr = String(row?.日期 ?? '');
-      //   const ym = dateStr.slice(0, 7); // YYYY-MM
-      //   if (!ym) return;
-      //   const existed = chartMonthlyLatestMap.get(ym);
-      //   if (!existed || String(existed.日期) < dateStr) {
-      //     chartMonthlyLatestMap.set(ym, row);
-      //   }
-      // });
-      // const chartDataMonthly: any[] = Array.from(chartMonthlyLatestMap.values()).sort(
-      //   (a, b) => String(a.日期).localeCompare(String(b.日期)),
-      // );
-      // const chartDataMonthly = convertToMonthlyData(chartData);
 
       // 3) 过滤出推荐买点
       const buyPointList = chartData.filter(
@@ -141,17 +127,21 @@ const Index: React.FC = () => {
       // 4) 过滤 每月最晚（最新）的一条记录
       const chartDataMonthly = convertToMonthlyData(buyPointList);
 
-      // console.log('1111 chartMonthlyLatestMap', chartMonthlyLatestMap.values())
-      console.log('1111 chartDataMonthly', chartDataMonthly)
+      // 定量买点日期
+      const quantitative = chartDataMonthly?.reverse()?.map(item => moment(item['日期'])?.format('YYYY-MM-DD'))?.join(',') || '';
 
+      // 5) 百分位策略买点（月&季 RSI6 共振）
+      const percentileBuyPoints = computeMonthlyQuarterlyPercentileBuyPoints({
+        monthlyRSI6Data: periodRSIMap.monthlyRSI,
+        quarterlyRSI6Data: periodRSIMap.quarterlyRSI,
+        closeValueType: 'price',
+      });
+      const percentile = percentileBuyPoints.map(p => moment(p.日期).format('YYYY-MM-DD')).join(',');
 
-
-      // 返回推荐买点日期字符串
-      // return ''
-      return chartDataMonthly?.reverse()?.map(item => moment(item['日期'])?.format('YYYY-MM-DD'))?.join(',');
+      return { quantitative, percentile };
     } catch (error) {
-      console.log('Error fetching fund detail:', error);
-      return '';
+      console.log('Error fetching index detail:', error);
+      return { quantitative: '', percentile: '' };
     }
   };
 
@@ -268,31 +258,89 @@ const Index: React.FC = () => {
       ),
     },
     {
-      title: '推荐买点',
-      dataIndex: '__推荐买点__',
-      key: '__推荐买点__',
-      width: 60,
-      sorter: stringSorter('__推荐买点__'),
+      title: '推荐买点（定量）',
+      dataIndex: '__推荐买点定量__',
+      key: '__推荐买点定量__',
+      width: 90,
+      sorter: stringSorter('__推荐买点定量__'),
       render: (value: string) => {
         if (!value) return <span style={{ color: '#999' }}>-</span>;
-        const dates = value.split(',')?.filter(d => d.trim());
+        const dates = value.split(',').reverse().filter(d => d.trim());
         return (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-            {dates.map((date, index) => (
-              <span
-                key={index}
-                style={{
-                  backgroundColor: '#e6f7ff',
-                  color: '#1890ff',
-                  padding: '2px 8px',
-                  borderRadius: '4px',
-                  fontSize: '12px',
-                  border: '1px solid #91caff',
-                }}
-              >
-                {date}
-              </span>
-            ))}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {dates.map((date, index) => {
+              const recent = isRecentDate(date);
+              return (
+                <span
+                  key={index}
+                  title={recent ? '近期买点（100天内）' : undefined}
+                  style={recent
+                    ? {
+                        backgroundColor: '#fff7e6',
+                        color: '#d46b08',
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontSize: 12,
+                        fontWeight: 'bold',
+                        border: '2px solid #fa8c16',
+                      }
+                    : {
+                        backgroundColor: '#e6f7ff',
+                        color: '#1890ff',
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontSize: 12,
+                        border: '1px solid #91caff',
+                      }}
+                >
+                  {date}
+                </span>
+              );
+            })}
+          </div>
+        );
+      },
+    },
+    {
+      title: '推荐买点（百分位）',
+      dataIndex: '__推荐买点百分位__',
+      key: '__推荐买点百分位__',
+      width: 90,
+      sorter: stringSorter('__推荐买点百分位__'),
+      render: (value: string) => {
+        if (!value) return <span style={{ color: '#999' }}>-</span>;
+        const dates = value.split(',').reverse().filter(d => d.trim());
+        return (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {dates.map((date, index) => {
+              const recent = isRecentDate(date);
+              return (
+                <span
+                  key={index}
+                  title={recent ? '近期买点（100天内）' : undefined}
+                  style={recent
+                    ? {
+                        backgroundColor: '#fff7e6',
+                        color: '#d46b08',
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontSize: 12,
+                        fontWeight: 'bold',
+                        border: '2px solid #fa8c16',
+                      }
+                    : {
+                        backgroundColor: '#f6ffed',
+                        color: '#52c41a',
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontSize: 12,
+                        border: '1px solid #b7eb8f',
+                      }}
+                >
+                  {date}
+                </span>
+              );
+            })}
           </div>
         );
       },
@@ -517,7 +565,7 @@ const Index: React.FC = () => {
             </Button>
           </div>
           <Table
-            columns={columns}
+            columns={columns?.filter(c => c.key !== '__推荐买点定量__' && c.key !== '__推荐买点百分位__') || []}
             dataSource={data}
             loading={loading}
             rowKey="指数代码"

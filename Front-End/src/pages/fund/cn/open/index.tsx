@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Button, Table, Card, Tabs, Space, message } from 'antd';
 import moment from 'moment';
 import { numberSorter } from '@/utils/tableUtils';
-import { fetchFundRecommendationPoints } from '@/utils/fundUtils';
+import { fetchFundRecommendationPointsBoth } from '@/utils/fundUtils';
+import { isRecentDate } from '@/utils/stockUtils';
 import OpenFundPanel from './components/OpenFundPanel';
 import IndexFundPanel from './components/IndexFundPanel';
 import ExchangeFundPanel from './components/ExchangeFundPanel';
@@ -70,7 +71,7 @@ const FundOpen: React.FC = () => {
     saveSelectedFunds(newFunds);
   };
 
-  // 对已勾选的自选基金批量计算推荐买点（逻辑与「开放式基金 - 筛选」一致）
+  // 对已勾选的自选基金批量计算推荐买点（定量 + 百分位）
   const calculateCheckedFunds = async () => {
     // 只计算当前自选列表中仍存在且被勾选的基金
     const targets = selectedFunds.filter(f => checkedFundCodes.includes(String(f['基金代码'])));
@@ -85,10 +86,10 @@ const FundOpen: React.FC = () => {
         const code = String(fund['基金代码']);
         const fundName = fund['基金名称'] || fund['基金简称'] || code;
         message.info(`正在分析【${fundName}】中...`, 10);
-        const recommendationPoints = await fetchFundRecommendationPoints(code);
+        const { quantitative, percentile } = await fetchFundRecommendationPointsBoth(code);
         working = working.map(f =>
           f['基金代码'] === fund['基金代码']
-            ? { ...f, __推荐买点__: recommendationPoints }
+            ? { ...f, __推荐买点定量__: quantitative, __推荐买点百分位__: percentile }
             : f,
         );
         // 每算完一只即更新表格与本地缓存，结果渐进可见
@@ -133,30 +134,87 @@ const FundOpen: React.FC = () => {
       },
     },
       {
-      title: '推荐买点',
-      dataIndex: '__推荐买点__',
-      key: '__推荐买点__',
+      title: '推荐买点（定量）',
+      dataIndex: '__推荐买点定量__',
+      key: '__推荐买点定量__',
       width: 400,
       render: (value: string) => {
         if (!value) return <span style={{ color: '#999' }}>-</span>;
         const dates = value.split(',').reverse().filter(d => d.trim());
         return (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {dates.map((date, index) => (
-              <span
-                key={index}
-                style={{
-                  backgroundColor: '#e6f7ff',
-                  color: '#1890ff',
-                  padding: '2px 8px',
-                  borderRadius: 4,
-                  fontSize: 12,
-                  border: '1px solid #91caff',
-                }}
-              >
-                {date}
-              </span>
-            ))}
+            {dates.map((date, index) => {
+              const recent = isRecentDate(date);
+              return (
+                <span
+                  key={index}
+                  title={recent ? '近期买点（100天内）' : undefined}
+                  style={recent
+                    ? {
+                        backgroundColor: '#fff7e6',
+                        color: '#d46b08',
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontSize: 12,
+                        fontWeight: 'bold',
+                        border: '2px solid #fa8c16',
+                      }
+                    : {
+                        backgroundColor: '#e6f7ff',
+                        color: '#1890ff',
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontSize: 12,
+                        border: '1px solid #91caff',
+                      }}
+                >
+                  {date}
+                </span>
+              );
+            })}
+          </div>
+        );
+      },
+    },
+    {
+      title: '推荐买点（百分位）',
+      dataIndex: '__推荐买点百分位__',
+      key: '__推荐买点百分位__',
+      width: 400,
+      render: (value: string) => {
+        if (!value) return <span style={{ color: '#999' }}>-</span>;
+        const dates = value.split(',').reverse().filter(d => d.trim());
+        return (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {dates.map((date, index) => {
+              const recent = isRecentDate(date);
+              return (
+                <span
+                  key={index}
+                  title={recent ? '近期买点（100天内）' : undefined}
+                  style={recent
+                    ? {
+                        backgroundColor: '#fff7e6',
+                        color: '#d46b08',
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontSize: 12,
+                        fontWeight: 'bold',
+                        border: '2px solid #fa8c16',
+                      }
+                    : {
+                        backgroundColor: '#f6ffed',
+                        color: '#52c41a',
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontSize: 12,
+                        border: '1px solid #b7eb8f',
+                      }}
+                >
+                  {date}
+                </span>
+              );
+            })}
           </div>
         );
       },

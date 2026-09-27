@@ -1035,3 +1035,248 @@ export const createRecommendationAnnotations = <T extends { 日期: string; 收�
     },
   };
 });
+
+// ============================================================
+// 月 & 季 RSI6 百分位策略（抽离自 RsiFilterMark，供基金/指数等场景复用）
+// ============================================================
+
+/**
+ * 收盘价字段的语义类型：
+ * - price：真实价格/指数（如股票收盘价、指数点位），恒为正
+ * - cumulativeReturn：累计收益率（%，基金场景，可为负）
+ * 两者的持有期收益率计算公式不同，必须区分
+ */
+export type CloseValueType = 'price' | 'cumulativeReturn';
+
+/**
+ * 计算持有期收益率（%）
+ * - price 口径：((卖 - 买) / 买) * 100
+ * - cumulativeReturn 口径：(((1 + 卖/100) / (1 + 买/100)) - 1) * 100
+ *   （累计收益率是相对成立日的涨跌幅，需先还原为净值比再计算区间收益）
+ * @param buyClose  买入时收盘值
+ * @param sellClose 卖出时收盘值
+ * @param closeValueType 收盘值语义，默认 price
+ * @returns 收益率（%），保留两位小数；除零时返回 0
+ */
+export const calculateHoldingReturnRate = (
+  buyClose: number,
+  sellClose: number,
+  closeValueType: CloseValueType = 'price',
+): number => {
+  if (closeValueType === 'cumulativeReturn') {
+    const buyRatio = 1 + buyClose / 100;
+    const sellRatio = 1 + sellClose / 100;
+    if (buyRatio === 0) return 0;
+    return Number((((sellRatio / buyRatio) - 1) * 100).toFixed(2));
+  }
+  if (buyClose === 0) return 0;
+  return Number((((sellClose - buyClose) / buyClose) * 100).toFixed(2));
+};
+
+/** RSI 预热点数：calculateRSI 前 rsiWarmup 个点为固定值 50（无统计意义），计算分位时剔除 */
+export const rsiWarmup = 6;
+
+/** 月&季 RSI6 共振买入级别规则：星级 → 历史分位阈值（月/季 RSI6 均需低于此分位） */
+export const MQ_LEVEL_RULES: { level: number; percentile: number }[] = [
+  { level: 5, percentile: 3 },
+  { level: 3, percentile: 5 },
+  { level: 1, percentile: 10 },
+];
+
+/** 月RSI6 卖出分位：月RSI6 突破该历史分位时满足卖出条件之一 */
+export const MONTHLY_RSI_SELL_PERCENTILE = 85;
+/** 季RSI6 卖出分位：季RSI6 突破该历史分位时满足卖出条件之一 */
+export const QUARTERLY_RSI_SELL_PERCENTILE = 85;
+
+/** 月+季 RSI6 共振买点（月/季 RSI6 同时跌破历史分位，带推荐级别） */
+export interface MonthlyQuarterlyPercentileBuyPoint {
+  日期: string;
+  收盘: number;
+  monthlyRsi: number;
+  quarterlyRsi: number;
+  /** 推荐星级 1/3/5 */
+  level: number;
+  /** 卖出日期（★5买点与卖点按时间顺序配对，未配对的为空） */
+  sellDate?: string;
+  /** 卖出时点月RSI6 */
+  sellMonthlyRsi?: number;
+  /** 卖出时点季RSI6 */
+  sellQuarterlyRsi?: number;
+  /** 卖出价（卖出月收盘价） */
+  sellPrice?: number;
+  /** 持有天数（卖出月 - 买入月，至少1天） */
+  holdingDays?: number;
+  /** 收益率（%） */
+  returnRate?: number;
+  /** 年化收益率（%），calculateAnnualizedReturn 可能返回 null */
+  annualizedReturn?: number | null;
+}
+
+/** 带 RSI6 字段的 K 线数据（calculateRSI 在原 K 线上追加 __RSI6__） */
+type RsiKLineData = KLineData & { __RSI6__?: number | null };
+
+/**
+ * 计算指定分位值并保留两位小数（统一分位阈值的精度口径）
+ * @param values 数值序列
+ * @param p 分位数 0~100
+ * @returns 两位小数的分位值
+ */
+export const roundPercentile = (values: number[], p: number): number =>
+  Number(calculatePercentile(values, p).toFixed(2));
+
+/**
+ * 计算「月 & 季 RSI6 百分位策略」的买卖点
+ *
+ * 策略口径：
+ * - 买入：月RSI6 与 季RSI6 同时低于各自历史分位阈值，按分位严度分级（★5=3% / ★3=5% / ★1=10%）
+ * - 卖出：持仓中（★5买点）且 月RSI6 与 季RSI6 同时突破各自卖出分位阈值（默认 85%）
+ * - 仅 ★5 买点参与卖出配对，顺序配对 ★5买点 → 卖点 → ★5买点 → 卖点 ...
+ *
+ * @param params.monthlyRSI6Data  月K线数据（含 __RSI6__ 字段，来自 calculateRSI）
+ * @param params.quarterlyRSI6Data 季K线数据（含 __RSI6__ 字段，来自 calculateRSI）
+ * @param params.warmup RSI 预热点数，默认 6
+ * @returns 买点列表（含配对的卖出信息）
+ */
+export const computeMonthlyQuarterlyPercentileBuyPoints = (params: {
+  monthlyRSI6Data: KLineData[];
+  quarterlyRSI6Data: KLineData[];
+  warmup?: number;
+  /** 收盘值语义，决定收益率计算公式，默认 price */
+  closeValueType?: CloseValueType;
+}): MonthlyQuarterlyPercentileBuyPoint[] => {
+  const { monthlyRSI6Data, quarterlyRSI6Data, warmup = rsiWarmup, closeValueType = 'price' } = params;
+
+  const monthlyArr = (monthlyRSI6Data as RsiKLineData[]).slice(warmup);
+  const quarterlyArr = (quarterlyRSI6Data as RsiKLineData[]).slice(warmup);
+
+  const monthlyValues = monthlyArr
+    .map((item) => item.__RSI6__)
+    .filter((value): value is number => typeof value === 'number');
+  const quarterlyValues = quarterlyArr
+    .map((item) => item.__RSI6__)
+    .filter((value): value is number => typeof value === 'number');
+
+  const result: MonthlyQuarterlyPercentileBuyPoint[] = [];
+
+  if (!monthlyValues.length || !quarterlyValues.length) {
+    return result;
+  }
+
+  // 按级别计算月/季 RSI6 买入分位阈值
+  const thresholds: Record<number, { monthly: number; quarterly: number }> = {};
+  for (const { level, percentile } of MQ_LEVEL_RULES) {
+    thresholds[level] = {
+      monthly: roundPercentile(monthlyValues, percentile),
+      quarterly: roundPercentile(quarterlyValues, percentile),
+    };
+  }
+
+  // 卖出分位阈值
+  const sellThresholds = {
+    monthly: roundPercentile(monthlyValues, MONTHLY_RSI_SELL_PERCENTILE),
+    quarterly: roundPercentile(quarterlyValues, QUARTERLY_RSI_SELL_PERCENTILE),
+  };
+
+  // 持仓状态机：顺序配对 ★5买点 → 卖点 → ★5买点 → 卖点 ...
+  let holdingFiveStarBuy: MonthlyQuarterlyPercentileBuyPoint | null = null;
+
+  let qIdx = 0;
+  for (const m of monthlyArr) {
+    const monthlyRsi = m.__RSI6__;
+    if (typeof monthlyRsi !== 'number') continue;
+
+    // 推进季度指针到最近一个 日期 <= 当前月日期 的季度点
+    while (
+      qIdx + 1 < quarterlyArr.length &&
+      quarterlyArr[qIdx + 1].日期 <= m.日期
+    ) {
+      qIdx += 1;
+    }
+    const quarterlyRsi = quarterlyArr[qIdx]?.__RSI6__;
+    if (typeof quarterlyRsi !== 'number') continue;
+
+    // 从高到低匹配，取命中的最高级别（买点判断）
+    const hitRule = MQ_LEVEL_RULES.find(
+      ({ level }) =>
+        monthlyRsi < thresholds[level].monthly && quarterlyRsi < thresholds[level].quarterly,
+    );
+    if (hitRule) {
+      const buyPoint: MonthlyQuarterlyPercentileBuyPoint = {
+        日期: m.日期,
+        收盘: m.收盘,
+        monthlyRsi,
+        quarterlyRsi,
+        level: hitRule.level,
+      };
+      result.push(buyPoint);
+
+      // 仅★5买点参与卖出配对；持仓中（已有未平仓★5）时不再重复建仓
+      if (hitRule.level === 5 && !holdingFiveStarBuy) {
+        holdingFiveStarBuy = buyPoint;
+      }
+    }
+
+    // 卖出判断：持仓中且月/季 RSI6 同时突破卖出分位阈值时平仓
+    if (
+      holdingFiveStarBuy &&
+      monthlyRsi > sellThresholds.monthly &&
+      quarterlyRsi > sellThresholds.quarterly
+    ) {
+      const buyTime = new Date(holdingFiveStarBuy.日期).getTime();
+      const sellTime = new Date(m.日期).getTime();
+      const holdingDays = Math.max(
+        1,
+        Math.round((sellTime - buyTime) / (24 * 60 * 60 * 1000)),
+      );
+      const returnRate = calculateHoldingReturnRate(
+        holdingFiveStarBuy.收盘,
+        m.收盘,
+        closeValueType,
+      );
+      holdingFiveStarBuy.sellDate = m.日期;
+      holdingFiveStarBuy.sellMonthlyRsi = monthlyRsi;
+      holdingFiveStarBuy.sellQuarterlyRsi = quarterlyRsi;
+      holdingFiveStarBuy.sellPrice = Number(m.收盘.toFixed(2));
+      holdingFiveStarBuy.holdingDays = holdingDays;
+      holdingFiveStarBuy.returnRate = returnRate;
+      // 持有不足1年（365天）不计算年化收益率，展示为 --
+      holdingFiveStarBuy.annualizedReturn =
+        holdingDays >= 365 ? calculateAnnualizedReturn(returnRate, holdingDays) : null;
+      // 平仓后等待下一个★5买点
+      holdingFiveStarBuy = null;
+    }
+  }
+
+  return result;
+};
+
+// ============================================================
+// 推荐买点展示相关配置
+// ============================================================
+
+/**
+ * 近期买点高亮天数：距今天数在该值以内的买点日期会被特殊高亮，便于区分
+ * 可配置，默认 100 天
+ */
+export const RECENT_BUY_POINT_DAYS = 100;
+
+/**
+ * 判断给定日期是否在「近期」（距今天数 <= days）
+ * 按日历天比较（剥离时分秒），避免当天已过小时数导致边界偏差
+ * @param dateStr 日期字符串（YYYY-MM-DD 或可被 Date 解析的格式）
+ * @param days  近几天数，默认取 RECENT_BUY_POINT_DAYS
+ * @returns 是否为近期日期
+ */
+export const isRecentDate = (
+  dateStr: string | number | Date,
+  days: number = RECENT_BUY_POINT_DAYS,
+): boolean => {
+  if (!dateStr) return false;
+  const target = new Date(dateStr);
+  if (Number.isNaN(target.getTime())) return false;
+  target.setHours(0, 0, 0, 0);
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const diffDays = (now.getTime() - target.getTime()) / (24 * 60 * 60 * 1000);
+  return diffDays >= 0 && diffDays <= days;
+};

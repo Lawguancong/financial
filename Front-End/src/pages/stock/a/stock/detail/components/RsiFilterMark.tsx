@@ -131,6 +131,20 @@ interface MonthlyQuarterlyBuyPoint {
   monthlyRsi: number;
   quarterlyRsi: number;
   level: number;
+  /** 卖出日期（★5买点与卖点按时间顺序配对，未配对的为空） */
+  sellDate?: string;
+  /** 卖出时点月RSI6 */
+  sellMonthlyRsi?: number;
+  /** 卖出时点季RSI6 */
+  sellQuarterlyRsi?: number;
+  /** 卖出价（卖出月收盘价） */
+  sellPrice?: number;
+  /** 持有天数（卖出月 - 买入月，至少1天） */
+  holdingDays?: number;
+  /** 收益率（%） */
+  returnRate?: number;
+  /** 年化收益率（%），calculateAnnualizedReturn 可能返回 null */
+  annualizedReturn?: number | null;
 }
 
 // 百分位买卖配对交易记录
@@ -258,6 +272,16 @@ const MQ_LEVEL_RULES: MqLevelRule[] = [
   { level: 3, percentile: 5 },
   { level: 1, percentile: 10 },
 ];
+
+/**
+ * 月&季 RSI6 共振卖出分位（可配置）：
+ * 月RSI6 与 季RSI6 同时突破各自历史分位时，记为可卖出点。
+ * 仅用于与「第一个★5买点」配对计算收益率/年化收益率。
+ */
+/** 月RSI6 卖出分位：月RSI6 突破该历史分位时满足卖出条件之一 */
+const MONTHLY_RSI_SELL_PERCENTILE = 85;
+/** 季RSI6 卖出分位：季RSI6 突破该历史分位时满足卖出条件之一 */
+const QUARTERLY_RSI_SELL_PERCENTILE = 85;
 
 // 周/月/季 RSI6 主题色（与 rsiPeriods 中对应周期颜色一致，用于百分位阈值文本与图表参考线着色）
 const weeklyRsiColor = rsiPeriods.find(({ periodKey }) => periodKey === 'weekly')!.color;
@@ -539,6 +563,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
     percentileChartConfig,
     monthlyQuarterlyBuyList,
     monthlyQuarterlyThresholds,
+    monthlyQuarterlySellThresholds,
     monthlyQuarterlyChartConfig,
   } = useMemo(() => {
     const emptyResult = {
@@ -551,6 +576,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
       percentileChartConfig: {} as Record<string, unknown>,
       monthlyQuarterlyBuyList: [] as MonthlyQuarterlyBuyPoint[],
       monthlyQuarterlyThresholds: null as Record<number, { monthly: number; quarterly: number }> | null,
+      monthlyQuarterlySellThresholds: null as { monthly: number; quarterly: number } | null,
       monthlyQuarterlyChartConfig: {} as Record<string, unknown>,
     };
 
@@ -789,7 +815,9 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
             sellPrice: Number(item.收盘.toFixed(2)),
             holdingDays,
             returnRate: tradeReturnRate,
-            annualizedReturn: calculateAnnualizedReturn(tradeReturnRate, holdingDays),
+            // 持有不足1年（365天）不计算年化收益率，展示为 --
+            annualizedReturn:
+              holdingDays >= 365 ? calculateAnnualizedReturn(tradeReturnRate, holdingDays) : null,
             status: '已平仓',
           });
           holding = null;
@@ -817,6 +845,8 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
     // 按月扫描，季度值取该月时点最近一个已完成季度的 RSI6（季度序列按日期 <= 月日期 取最近）
     const monthlyQuarterlyBuyList: MonthlyQuarterlyBuyPoint[] = [];
     let monthlyQuarterlyThresholds: Record<number, { monthly: number; quarterly: number }> | null = null;
+    // 卖出阈值：月RSI6 > 该值 且 季RSI6 > 该值 时视为可卖出点（与★5买点顺序配对）
+    let monthlyQuarterlySellThresholds: { monthly: number; quarterly: number } | null = null;
     {
       const monthlyRsiArr = getRsiArray(periodRSIMap, 'monthly');
       const quarterlyRsiArr = getRsiArray(periodRSIMap, 'quarterly');
@@ -825,7 +855,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
       const quarterlyRsiValues = getRsiValues(periodRSIMap, 'quarterly');
 
       if (monthlyRsiValues.length && quarterlyRsiValues.length) {
-        // 按级别计算月/季 RSI6 分位阈值
+        // 按级别计算月/季 RSI6 买入分位阈值
         const thresholds: Record<number, { monthly: number; quarterly: number }> = {};
         for (const { level, percentile } of MQ_LEVEL_RULES) {
           thresholds[level] = {
@@ -834,6 +864,16 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
           };
         }
         monthlyQuarterlyThresholds = thresholds;
+
+        // 卖出分位阈值（月/季可分别配置，默认均为95%）
+        monthlyQuarterlySellThresholds = {
+          monthly: roundPercentile(monthlyRsiValues, MONTHLY_RSI_SELL_PERCENTILE),
+          quarterly: roundPercentile(quarterlyRsiValues, QUARTERLY_RSI_SELL_PERCENTILE),
+        };
+
+        // 持仓状态机：顺序配对 ★5买点 → 卖点 → ★5买点 → 卖点 ...
+        // holdingFiveStarBuy 不为 null 表示当前持有一个★5买点，等待卖出信号
+        let holdingFiveStarBuy: MonthlyQuarterlyBuyPoint | null = null;
 
         let qIdx = 0;
         for (const m of monthlyRsiArr) {
@@ -850,19 +890,55 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
           const quarterlyRsi = quarterlyRsiArr[qIdx]?.__RSI6__;
           if (typeof quarterlyRsi !== 'number') continue;
 
-          // 从高到低匹配，取命中的最高级别
+          // 从高到低匹配，取命中的最高级别（买点判断）
           const hitRule = MQ_LEVEL_RULES.find(
             ({ level }) =>
               monthlyRsi < thresholds[level].monthly && quarterlyRsi < thresholds[level].quarterly,
           );
           if (hitRule) {
-            monthlyQuarterlyBuyList.push({
+            const buyPoint: MonthlyQuarterlyBuyPoint = {
               日期: m.日期,
               收盘: m.收盘,
               monthlyRsi,
               quarterlyRsi,
               level: hitRule.level,
-            });
+            };
+            monthlyQuarterlyBuyList.push(buyPoint);
+
+            // 仅★5买点参与卖出配对；持仓中（已有未平仓★5）时不再重复建仓
+            if (hitRule.level === 5 && !holdingFiveStarBuy) {
+              holdingFiveStarBuy = buyPoint;
+            }
+          }
+
+          // 卖出判断：持仓中且月/季 RSI6 同时突破卖出分位阈值时平仓
+          // （买点要求 RSI 低于低分位、卖点要求高于高分位，二者不会在同月同时触发）
+          if (
+            holdingFiveStarBuy &&
+            monthlyQuarterlySellThresholds &&
+            monthlyRsi > monthlyQuarterlySellThresholds.monthly &&
+            quarterlyRsi > monthlyQuarterlySellThresholds.quarterly
+          ) {
+            const buyTime = new Date(holdingFiveStarBuy.日期).getTime();
+            const sellTime = new Date(m.日期).getTime();
+            const holdingDays = Math.max(
+              1,
+              Math.round((sellTime - buyTime) / (24 * 60 * 60 * 1000)),
+            );
+            const returnRate = Number(
+              (((m.收盘 - holdingFiveStarBuy.收盘) / holdingFiveStarBuy.收盘) * 100).toFixed(2),
+            );
+            holdingFiveStarBuy.sellDate = m.日期;
+            holdingFiveStarBuy.sellMonthlyRsi = monthlyRsi;
+            holdingFiveStarBuy.sellQuarterlyRsi = quarterlyRsi;
+            holdingFiveStarBuy.sellPrice = Number(m.收盘.toFixed(2));
+            holdingFiveStarBuy.holdingDays = holdingDays;
+            holdingFiveStarBuy.returnRate = returnRate;
+            // 持有不足1年（365天）不计算年化收益率，展示为 --
+            holdingFiveStarBuy.annualizedReturn =
+              holdingDays >= 365 ? calculateAnnualizedReturn(returnRate, holdingDays) : null;
+            // 平仓后等待下一个★5买点
+            holdingFiveStarBuy = null;
           }
         }
       }
@@ -1007,23 +1083,44 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
       3: { fill: '#3cbc3c', shadow: 'rgba(60, 188, 60, 0.6)' },
       1: { fill: '#7ed957', shadow: 'rgba(126, 217, 87, 0.55)' },
     };
-    const monthlyQuarterlyAnnotations = monthlyQuarterlyBuyList.map((point) => {
+    const monthlyQuarterlyAnnotations = monthlyQuarterlyBuyList.flatMap((point) => {
       const color = mqAnnotationColorMap[point.level] || mqAnnotationColorMap[1];
-      return {
-        type: 'text' as const,
-        data: [new Date(point.日期), point.收盘],
-        style: {
-          text: '●',
-          fontSize: 14,
-          textAlign: 'center',
-          textBaseline: 'middle',
-          fill: color.fill,
-          stroke: '#ffffff',
-          lineWidth: 1.5,
-          shadowColor: color.shadow,
-          shadowBlur: 6,
+      const annos = [
+        {
+          type: 'text' as const,
+          data: [new Date(point.日期), point.收盘],
+          style: {
+            text: '●',
+            fontSize: 14,
+            textAlign: 'center',
+            textBaseline: 'middle',
+            fill: color.fill,
+            stroke: '#ffffff',
+            lineWidth: 1.5,
+            shadowColor: color.shadow,
+            shadowBlur: 6,
+          },
         },
-      };
+      ];
+      // 卖出点标注（蓝色●）：★5买点配对的卖出点
+      if (point.sellDate && point.sellPrice != null) {
+        annos.push({
+          type: 'text' as const,
+          data: [new Date(point.sellDate), point.sellPrice],
+          style: {
+            text: '●',
+            fontSize: 14,
+            textAlign: 'center',
+            textBaseline: 'middle',
+            fill: 'rgba(3, 96, 255, 1)',
+            stroke: '#ffffff',
+            lineWidth: 2.5,
+            shadowColor: 'rgba(3, 96, 255, 0.7)',
+            shadowBlur: 8,
+          },
+        });
+      }
+      return annos;
     });
 
     // 右轴月/季 RSI6 折线数据（仅月末/季末点，不按日填充）
@@ -1137,7 +1234,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
       annotations: monthlyQuarterlyAnnotations,
     };
 
-    return { buyPointList, mainChartConfig, rsiLineConfigs, rsiStats, percentileThresholds, percentileTrades, percentileChartConfig, monthlyQuarterlyBuyList, monthlyQuarterlyThresholds, monthlyQuarterlyChartConfig };
+    return { buyPointList, mainChartConfig, rsiLineConfigs, rsiStats, percentileThresholds, percentileTrades, percentileChartConfig, monthlyQuarterlyBuyList, monthlyQuarterlyThresholds, monthlyQuarterlySellThresholds, monthlyQuarterlyChartConfig };
   }, [data, type, mainName]);
 
   // 买点表格列：收盘列标题随标的类型切换（指数 / 收盘价）
@@ -1262,14 +1359,14 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
         render: renderRecommendationStars,
       },
       {
-        title: '日期',
+        title: '买入日期',
         dataIndex: '日期',
         key: '日期',
         width: 120,
         render: (text: string) => moment(text).format('YYYY-MM-DD'),
       },
       {
-        title: mainName,
+        title: `买入${mainName}`,
         dataIndex: '收盘',
         key: '收盘',
         align: 'right' as const,
@@ -1277,7 +1374,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
         render: (value: number) => value?.toFixed(2),
       },
       {
-        title: '月RSI6',
+        title: '买入月RSI6',
         dataIndex: 'monthlyRsi',
         key: 'monthlyRsi',
         align: 'right' as const,
@@ -1287,7 +1384,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
         ),
       },
       {
-        title: '季RSI6',
+        title: '买入季RSI6',
         dataIndex: 'quarterlyRsi',
         key: 'quarterlyRsi',
         align: 'right' as const,
@@ -1295,6 +1392,71 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
         render: (value: number) => (
           <span style={{ color: quarterlyRsiColor, fontWeight: 600 }}>{value.toFixed(2)}</span>
         ),
+      },
+      {
+        title: '卖出日期',
+        dataIndex: 'sellDate',
+        key: 'sellDate',
+        width: 120,
+        render: (text: string | undefined) => (text ? moment(text).format('YYYY-MM-DD') : '--'),
+      },
+      {
+        title: '卖出月RSI6',
+        dataIndex: 'sellMonthlyRsi',
+        key: 'sellMonthlyRsi',
+        align: 'right' as const,
+        width: 110,
+        render: (value: number | undefined) =>
+          value != null ? (
+            <span style={{ color: monthlyRsiColor, fontWeight: 600 }}>{value.toFixed(2)}</span>
+          ) : (
+            '--'
+          ),
+      },
+      {
+        title: '卖出季RSI6',
+        dataIndex: 'sellQuarterlyRsi',
+        key: 'sellQuarterlyRsi',
+        align: 'right' as const,
+        width: 110,
+        render: (value: number | undefined) =>
+          value != null ? (
+            <span style={{ color: quarterlyRsiColor, fontWeight: 600 }}>{value.toFixed(2)}</span>
+          ) : (
+            '--'
+          ),
+      },
+      {
+        title: `卖出${mainName}`,
+        dataIndex: 'sellPrice',
+        key: 'sellPrice',
+        align: 'right' as const,
+        width: 100,
+        render: (value: number | undefined) => (value != null ? value.toFixed(2) : '--'),
+      },
+      {
+        title: '持有天数',
+        dataIndex: 'holdingDays',
+        key: 'holdingDays',
+        align: 'right' as const,
+        width: 90,
+        render: (value: number | undefined) => (value != null ? value : '--'),
+      },
+      {
+        title: '收益率',
+        dataIndex: 'returnRate',
+        key: 'returnRate',
+        align: 'right' as const,
+        width: 100,
+        render: renderPercent,
+      },
+      {
+        title: '年化收益率',
+        dataIndex: 'annualizedReturn',
+        key: 'annualizedReturn',
+        align: 'right' as const,
+        width: 110,
+        render: renderPercent,
       },
     ],
     [mainName],
@@ -1438,7 +1600,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
           <>
             <span style={sectionAccentStyle('#7014faff')} />
             <span>月&季 RSI6 百分位策略</span>
-            <span style={sectionSubStyle}>月/季 RSI6 共振超卖买点（分级）</span>
+            <span style={sectionSubStyle}>月/季 RSI6 共振买卖策略（分级）</span>
           </>
         }
         cardStyle={sectionGroupStyle('#7014faff')}
@@ -1472,6 +1634,20 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
             <div style={{ color: '#595959' }}>
               按月扫描，季度值取当月时点最近一个已完成季度的 RSI6；同一月份满足多个级别时取最高星级展示。
             </div>
+            <div style={{ marginTop: 4 }}>
+              卖出规则：月RSI6{' '}
+              <span style={{ color: monthlyRsiColor, fontWeight: 600 }}>
+                ＞ {monthlyQuarterlySellThresholds?.monthly.toFixed(2)}
+              </span>
+              （历史{MONTHLY_RSI_SELL_PERCENTILE}%分位）且 季RSI6{' '}
+              <span style={{ color: quarterlyRsiColor, fontWeight: 600 }}>
+                ＞ {monthlyQuarterlySellThresholds?.quarterly.toFixed(2)}
+              </span>
+              （历史{QUARTERLY_RSI_SELL_PERCENTILE}%分位）时视为可卖出点。
+              <span style={{ color: '#595959' }}>
+                ★5买点与卖点按时间顺序配对（★5买→卖→★5买→卖…），配对后计算持有天数、收益率与年化收益率；★1/★3买点及未配对的★5买点卖出列留空。
+              </span>
+            </div>
           </div>
           <Table
             dataSource={monthlyQuarterlyBuyList}
@@ -1480,7 +1656,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
             pagination={false}
             size="middle"
             bordered
-            scroll={{ x: 480 }}
+            scroll={{ x: 1260 }}
           />
         </CollapsibleCard>
         <CollapsibleCard
@@ -1507,6 +1683,9 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type }) => {
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8, fontSize: 12, color: '#595959' }}>
             <span>
               <span style={{ color: '#00a800', fontWeight: 700 }}>●</span> 买点（月+季RSI6 共振超卖）
+            </span>
+            <span>
+              <span style={{ color: 'rgba(3, 96, 255, 1)', fontWeight: 700 }}>●</span> 卖出点（月+季RSI6 共振超买）
             </span>
             <span>
               <span style={{ color: monthlyRsiColor, fontWeight: 700 }}>━</span> 月RSI6

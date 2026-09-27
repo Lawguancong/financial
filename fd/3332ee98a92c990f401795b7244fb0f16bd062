@@ -1,0 +1,43 @@
+Front-End/src/pages/stock/a/stock/detail/components/RsiFilterMark.tsx
+  s_249a40a66d0d32::t_a6aee3da2d448d 1688-1689
+  s_249a40a66d0d32::t_d5cd9f903daf01 1648
+  h_8d10030941b6f7 282,284,1369,1377,1387,1430
+  s_249a40a66d0d32::t_1400118e4031ca 1237
+  s_249a40a66d0d32::t_29dcc59c257ad9 1637-1647,1649-1650,1659
+  s_249a40a66d0d32::t_d2bc4896c6899a 937-939
+  s_249a40a66d0d32::t_23bd2da8758b27 146-147
+  s_249a40a66d0d32::t_577c3465058e38 276-281,283,285
+  s_249a40a66d0d32::t_4092671f2eca67 848,874-877,893,899,905-910,912,914-936,940-941
+  s_249a40a66d0d32::t_95518b50eafdf8 134
+  s_249a40a66d0d32::t_5fa6b7b8237a69 1603
+  s_249a40a66d0d32::t_975d0be867bac7 818-820
+  s_249a40a66d0d32::t_59393e3aeb60a0 566
+  s_249a40a66d0d32::t_98f57ae92e830a 1105
+  s_249a40a66d0d32::t_65f3d155dcf40b 579
+  s_249a40a66d0d32::t_a0b11e905ef761 135-145
+  s_249a40a66d0d32::t_51a8aa9ce73ff3 849,858,868-873,911,913
+  s_249a40a66d0d32::t_67294f4aaf2e5a 1086,1088-1102,1104,1106-1123
+  s_249a40a66d0d32::t_610bdf2e9a2ff4 1362,1396-1429,1431-1460
+  s_249a40a66d0d32::t_7d65a291e7a7c1 1687
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fd3332ee98a92c990f401795b7244fb0f16bd062",
+  "prompts": {},
+  "humans": {
+    "h_8d10030941b6f7": {
+      "author": "罗冠聪 <luoguancong@ruqimobility.com>"
+    }
+  },
+  "sessions": {
+    "s_249a40a66d0d32": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6ab7826aa6e8a20210a4684a",
+        "model": "unknown"
+      },
+      "human_author": "罗冠聪 <luoguancong@ruqimobility.com>"
+    }
+  }
+}

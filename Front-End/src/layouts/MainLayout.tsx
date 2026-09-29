@@ -1,10 +1,62 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, theme } from 'antd';
+import { Layout, Menu, theme, Modal } from 'antd';
+import { ExclamationCircleFilled } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { menuItems, menuPathMap } from '@/config/menuConfig';
 import type { MenuProps } from 'antd';
 
 const { Header, Content, Sider } = Layout;
+
+/** localStorage 中记录“投资风险提示”最近展示日期的键名 */
+const RISK_NOTICE_DATE_KEY = 'risk_disclaimer_shown_date';
+
+/** 本地日期字符串 YYYY-MM-DD（按本地时区） */
+const getTodayStr = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+};
+
+/** 投资风险温馨提示：每天最多弹出一次（按本地日期去重） */
+const RiskDisclaimerModal: React.FC = () => {
+  // 惰性初始化：今天尚未展示过则默认打开
+  const [open, setOpen] = useState<boolean>(
+    () => localStorage.getItem(RISK_NOTICE_DATE_KEY) !== getTodayStr(),
+  );
+
+  const handleClose = () => {
+    localStorage.setItem(RISK_NOTICE_DATE_KEY, getTodayStr());
+    setOpen(false);
+  };
+
+  return (
+    <Modal
+      open={open}
+      title={
+        <span style={{ fontSize: 16, fontWeight: 600 }}>
+          <ExclamationCircleFilled style={{ color: '#faad14', marginRight: 8 }} />
+          温馨提示
+        </span>
+      }
+      closable={false}
+      maskClosable={false}
+      keyboard={false}
+      okText="我已知晓，继续使用"
+      onOk={handleClose}
+      cancelButtonProps={{ style: { display: 'none' } }}
+      centered
+    >
+      <div style={{ fontSize: 14, lineHeight: 1.9, color: '#333' }}>
+        <p style={{ margin: '8px 0' }}>
+          ⚠️ 本平台仅用于数据展示与学习研究，所有数据与策略信号
+          <strong style={{ color: '#cf1322' }}>不构成任何投资建议</strong>，据此操作风险自担。
+        </p>
+        <p style={{ margin: '8px 0', color: '#888', fontSize: 12 }}>
+          市场有风险，投资需谨慎。
+        </p>
+      </div>
+    </Modal>
+  );
+};
 
 const MainLayout: React.FC = () => {
   // 初始状态：默认折叠
@@ -89,6 +141,7 @@ const MainLayout: React.FC = () => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
+      <RiskDisclaimerModal />
       <Sider 
         collapsible 
         collapsed={collapsed} 

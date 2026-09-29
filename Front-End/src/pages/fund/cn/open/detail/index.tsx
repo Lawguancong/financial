@@ -308,10 +308,10 @@ const FundOpenDetail: React.FC = () => {
             <TabPane tab="📋 基金持仓" key="基金持仓">
               {useMemo(() => <FundHoldings symbol={symbol} />, [symbol])}
             </TabPane>
-            <TabPane tab="💰 分红信息" key="分红信息">
-              暂无合适的接口-todo
+            {/* <TabPane tab="💰 分红信息" key="分红信息"> */}
+              {/* 暂无合适的接口-todo */}
               {/* {useMemo(() => <FundDividend symbol={symbol} />, [symbol])} */}
-            </TabPane>
+            {/* </TabPane> */}
             <TabPane tab="🏭 行业配置" key="行业配置">
               {useMemo(() => <FundIndustryAllocation symbol={symbol} />, [symbol])}
             </TabPane>

@@ -278,10 +278,10 @@ const OutTrading: React.FC = () => {
         working = working.map(s =>
           s['代码'] === stock['代码']
             ? {
-                ...s,
-                __推荐买点定量__: quantitative || '',
-                __推荐买点百分位__: percentile || '',
-              }
+              ...s,
+              __推荐买点定量__: quantitative || '',
+              __推荐买点百分位__: percentile || '',
+            }
             : s,
         );
         // 每算完一只即更新表格与本地缓存，结果渐进可见
@@ -398,50 +398,7 @@ const OutTrading: React.FC = () => {
         </span>
       ),
     },
-        {
-      title: '推荐买点（定量）',
-      dataIndex: '__推荐买点定量__',
-      key: '__推荐买点定量__',
-      width: 240,
-      sorter: stringSorter('__推荐买点定量__'),
-      render: (value: string) => {
-        if (!value) return <span style={{ color: '#999' }}>-</span>;
-        const dates = value.split(',')?.reverse()?.filter(d => d.trim());
-        return (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {dates.map((date, index) => {
-              const recent = isRecentDate(date);
-              return (
-                <span
-                  key={index}
-                  title={recent ? '近期买点（100天内）' : undefined}
-                  style={recent
-                    ? {
-                        backgroundColor: '#fff7e6',
-                        color: '#d46b08',
-                        padding: '2px 8px',
-                        borderRadius: 4,
-                        fontSize: 12,
-                        fontWeight: 'bold',
-                        border: '2px solid #fa8c16',
-                      }
-                    : {
-                        backgroundColor: '#e6f7ff',
-                        color: '#1890ff',
-                        padding: '2px 8px',
-                        borderRadius: 4,
-                        fontSize: 12,
-                        border: '1px solid #91caff',
-                      }}
-                >
-                  {date}
-                </span>
-              );
-            })}
-          </div>
-        );
-      },
-    },
+
     {
       title: '推荐买点（百分位）',
       dataIndex: '__推荐买点百分位__',
@@ -461,22 +418,66 @@ const OutTrading: React.FC = () => {
                   title={recent ? '近期买点（100天内）' : undefined}
                   style={recent
                     ? {
-                        backgroundColor: '#fff7e6',
-                        color: '#d46b08',
-                        padding: '2px 8px',
-                        borderRadius: 4,
-                        fontSize: 12,
-                        fontWeight: 'bold',
-                        border: '2px solid #fa8c16',
-                      }
+                      backgroundColor: '#fff7e6',
+                      color: '#d46b08',
+                      padding: '2px 8px',
+                      borderRadius: 4,
+                      fontSize: 12,
+                      fontWeight: 'bold',
+                      border: '2px solid #fa8c16',
+                    }
                     : {
-                        backgroundColor: '#f6ffed',
-                        color: '#52c41a',
-                        padding: '2px 8px',
-                        borderRadius: 4,
-                        fontSize: 12,
-                        border: '1px solid #b7eb8f',
-                      }}
+                      backgroundColor: '#f6ffed',
+                      color: '#52c41a',
+                      padding: '2px 8px',
+                      borderRadius: 4,
+                      fontSize: 12,
+                      border: '1px solid #b7eb8f',
+                    }}
+                >
+                  {date}
+                </span>
+              );
+            })}
+          </div>
+        );
+      },
+    },
+    {
+      title: '推荐买点（定量）',
+      dataIndex: '__推荐买点定量__',
+      key: '__推荐买点定量__',
+      width: 240,
+      sorter: stringSorter('__推荐买点定量__'),
+      render: (value: string) => {
+        if (!value) return <span style={{ color: '#999' }}>-</span>;
+        const dates = value.split(',')?.filter(d => d.trim());
+        return (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {dates.map((date, index) => {
+              const recent = isRecentDate(date);
+              return (
+                <span
+                  key={index}
+                  title={recent ? '近期买点（100天内）' : undefined}
+                  style={recent
+                    ? {
+                      backgroundColor: '#fff7e6',
+                      color: '#d46b08',
+                      padding: '2px 8px',
+                      borderRadius: 4,
+                      fontSize: 12,
+                      fontWeight: 'bold',
+                      border: '2px solid #fa8c16',
+                    }
+                    : {
+                      backgroundColor: '#e6f7ff',
+                      color: '#1890ff',
+                      padding: '2px 8px',
+                      borderRadius: 4,
+                      fontSize: 12,
+                      border: '1px solid #91caff',
+                    }}
                 >
                   {date}
                 </span>

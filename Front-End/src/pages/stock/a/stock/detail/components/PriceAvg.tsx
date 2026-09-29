@@ -270,8 +270,6 @@ const PriceLineAvgMark: React.FC<RsiFilterMarkProps> = ({ data }) => {
         }
         return { 
             ...mergeData,
-            //  __recommendationLevel__   todo 准确性
-        // __recommendationLevel__: (mergeData.收盘 <= mergeData.__MA5__ && mergeData.收盘 <= mergeData.__MA10__ && mergeData.收盘 <= mergeData.__MA20__ && mergeData.收盘 <= mergeData.__MA30__ && mergeData.收盘 >= mergeData.__MA60__ && mergeData.收盘 >= mergeData.__MA90__ && mergeData.收盘 >= mergeData.__MA250__ && mergeData.收盘 >= mergeData.__MA500__ && mergeData.收盘 >= mergeData.__MA750__) ? 1 : null,
         __recommendationLevel__: isNumber(mergeData.__MA1250__) && mergeData.收盘 >= mergeData.__MA1250__ ? 1 : null,
 
     }

@@ -70,3 +70,5 @@
   // 接口ok的 /api/public/index_global_hist_em?symbol=上证指数
 
   // 港股指数
+
+  // RSI6 百分比 可能需要优化， 百分比取得是 目前所有的。

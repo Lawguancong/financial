@@ -20,9 +20,9 @@ const Stock: React.FC = () => {
         <TabPane tab="非交易时间" key="OutTrading">
           <OutTrading />
         </TabPane>
-        <TabPane tab="交易时间（todo）" key="InTrading">
+        {/* <TabPane tab="交易时间（todo）" key="InTrading">
           <InTrading />
-        </TabPane>
+        </TabPane> */}
       </Tabs>
     </div>
   );

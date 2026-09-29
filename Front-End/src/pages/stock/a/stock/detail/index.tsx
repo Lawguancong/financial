@@ -167,26 +167,26 @@ const StockDetail: React.FC = () => {
           </Card>
       ),
     },
-    {
-      key: 'price-line-avg',
-      label: '均线 技术指标(todo 待实验)',
-      children: (
-          <Card style={cardStyle}>
-            <Title level={5}>均线 技术指标</Title>
-            {priceAvgComponent}
-          </Card>
-      ),
-    },
-    {
-      key: 'peer-comparison',
-      label: '同行比较（todo 待完善）',
-      children: (
-        <Card style={cardStyle}>
-          <Title level={5}>同行比较</Title>
-          {peerComparisonComponent}
-        </Card>
-      ),
-    },
+    // {
+    //   key: 'price-line-avg',
+    //   label: '均线 技术指标(todo 待实验)',
+    //   children: (
+    //       <Card style={cardStyle}>
+    //         <Title level={5}>均线 技术指标</Title>
+    //         {priceAvgComponent}
+    //       </Card>
+    //   ),
+    // },
+    // {
+    //   key: 'peer-comparison',
+    //   label: '同行比较（todo 待完善）',
+    //   children: (
+    //     <Card style={cardStyle}>
+    //       <Title level={5}>同行比较</Title>
+    //       {peerComparisonComponent}
+    //     </Card>
+    //   ),
+    // },
     // {
     //   key: 'three-rises',
     //   label: '低换手三连阳',

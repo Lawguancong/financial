@@ -1,0 +1,26 @@
+Front-End/src/pages/stock/a/stock/components/OutTrading.tsx
+  h_8d10030941b6f7 401,403-405,407,430-431,435,447-449,451,454,474-475,479
+  h_8d10030941b6f7 281-284,402,421-428,432-434,436,465-472,476-478,480
+Front-End/src/pages/stock/a/stock/index.tsx
+  h_8d10030941b6f7 23,25
+package.json
+  h_8d10030941b6f7 3
+Front-End/src/pages/stock/a/stock/detail/index.tsx
+  h_8d10030941b6f7 170-189
+TODO.md
+  h_8d10030941b6f7 73-74
+  h_8d10030941b6f7 72
+Front-End/src/pages/fund/cn/open/detail/index.tsx
+  h_8d10030941b6f7 311-312,314
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4bf003fd9cb7f70c7fc64b95896c2cac0a75e630",
+  "prompts": {},
+  "humans": {
+    "h_8d10030941b6f7": {
+      "author": "罗冠聪 <luoguancong@ruqimobility.com>"
+    }
+  }
+}

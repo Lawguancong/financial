@@ -1,0 +1,36 @@
+Front-End/src/pages/Home.tsx
+  s_249a40a66d0d32::t_05ab910f1ab1c6 316
+  s_249a40a66d0d32::t_7c5d3c4a10b2ca 385-408
+  h_8d10030941b6f7 364,379,430,456-457
+  s_249a40a66d0d32::t_c27f8635888f4e 1-181,184-185,187-191,193-196,198-201,204-313,315,317-363,365-378,380-384,409-429,431-455
+  s_249a40a66d0d32::t_6716f0789b7aa8 314
+TODO.md
+  h_8d10030941b6f7 1-72
+Front-End/src/layouts/MainLayout.tsx
+  s_249a40a66d0d32::t_75e36a6a8f33f0 2-3,10-12,19-20,25-26,28-53,55-59
+  s_249a40a66d0d32::t_33a01b3f1866ca 13-18,21-24,27
+  s_249a40a66d0d32::t_1801e0db357e18 144
+  h_8d10030941b6f7 54
+  s_249a40a66d0d32::t_4649c160fc7f75 60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "010b649b733d38bd0c558e2cd00f4853fda726d4",
+  "prompts": {},
+  "humans": {
+    "h_8d10030941b6f7": {
+      "author": "罗冠聪 <luoguancong@ruqimobility.com>"
+    }
+  },
+  "sessions": {
+    "s_249a40a66d0d32": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6ab7826aa6e8a20210a4684a",
+        "model": "unknown"
+      },
+      "human_author": "罗冠聪 <luoguancong@ruqimobility.com>"
+    }
+  }
+}

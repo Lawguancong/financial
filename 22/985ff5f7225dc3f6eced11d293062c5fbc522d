@@ -1,0 +1,272 @@
+.gitignore
+  h_8d10030941b6f7 1-3
+.trae/skills/financial-feature/SKILL.md
+  h_8d10030941b6f7 1-393
+.trae/skills/g2-crossfreq-tooltip/SKILL.md
+  h_8d10030941b6f7 1-101
+Back-End/ak/akshare/app.py
+  h_8d10030941b6f7 1-192
+Back-End/ak/akshare/below_net_asset.py
+  h_8d10030941b6f7 1-117
+Back-End/ak/akshare/index.py
+  h_8d10030941b6f7 1-8
+Back-End/ak/akshare/readme.md
+  h_8d10030941b6f7 1-13
+Back-End/ak/akshare/test.py
+  h_8d10030941b6f7 1-62
+Back-End/ak/akshare/test1.py
+  h_8d10030941b6f7 1-26
+Back-End/ak/akshare/test2.py
+  h_8d10030941b6f7 1-12
+Back-End/ak/aktools/readme.md
+  h_8d10030941b6f7 1-24
+Back-End/cachedData/index_global_spot_em.json
+  h_8d10030941b6f7 1-786
+Front-End/.env.akshare
+  h_8d10030941b6f7 1-3
+Front-End/.env.aktools
+  h_8d10030941b6f7 1-3
+Front-End/README.md
+  h_8d10030941b6f7 1-80
+Front-End/eslint.config.js
+  h_8d10030941b6f7 1-23
+Front-End/index.html
+  h_8d10030941b6f7 1-13
+Front-End/package-lock.json
+  h_8d10030941b6f7 1-6275
+Front-End/package.json
+  h_8d10030941b6f7 1-45
+Front-End/public/vite.svg
+  h_8d10030941b6f7 1
+Front-End/src/assets/react.svg
+  h_8d10030941b6f7 1
+Front-End/src/components/RsiFilterMark.tsx
+  h_8d10030941b6f7 1-1875
+Front-End/src/config/appConfig.ts
+  h_8d10030941b6f7 1-5
+Front-End/src/config/menuConfig.tsx
+  h_8d10030941b6f7 1-434
+Front-End/src/layouts/MainLayout.tsx
+  h_8d10030941b6f7 1-196
+Front-End/src/main.css
+  h_8d10030941b6f7 1-68
+Front-End/src/main.tsx
+  h_8d10030941b6f7 1-22
+Front-End/src/pages/AkshareTest.tsx
+  h_8d10030941b6f7 1-83
+Front-End/src/pages/Bond.tsx
+  h_8d10030941b6f7 1-7
+Front-End/src/pages/Commodity.tsx
+  h_8d10030941b6f7 1-7
+Front-End/src/pages/Fund.tsx
+  h_8d10030941b6f7 1-7
+Front-End/src/pages/Futures.tsx
+  h_8d10030941b6f7 1-7
+Front-End/src/pages/Home.tsx
+  h_8d10030941b6f7 1-461
+Front-End/src/pages/Options.tsx
+  h_8d10030941b6f7 1-7
+Front-End/src/pages/OtherLevel3.tsx
+  h_8d10030941b6f7 1-7
+Front-End/src/pages/StockA.tsx
+  h_8d10030941b6f7 1-7
+Front-End/src/pages/StockHK.tsx
+  h_8d10030941b6f7 1-7
+Front-End/src/pages/StockOther.tsx
+  h_8d10030941b6f7 1-7
+Front-End/src/pages/StockUS.tsx
+  h_8d10030941b6f7 1-7
+Front-End/src/pages/bond/cn/zh-us-rate/index.tsx
+  h_8d10030941b6f7 1-113
+Front-End/src/pages/commodity/cn/index.tsx
+  h_8d10030941b6f7 1-113
+Front-End/src/pages/commodity/cn/index/detail/index.tsx
+  h_8d10030941b6f7 1-537
+Front-End/src/pages/commodity/cn/oil/index.tsx
+  h_8d10030941b6f7 1-96
+Front-End/src/pages/fund/cn/company/index.tsx
+  h_8d10030941b6f7 1-346
+Front-End/src/pages/fund/cn/dividend/components/DividendHistoryPanel.tsx
+  h_8d10030941b6f7 1-234
+Front-End/src/pages/fund/cn/dividend/components/DividendRankPanel.tsx
+  h_8d10030941b6f7 1-370
+Front-End/src/pages/fund/cn/dividend/index.tsx
+  h_8d10030941b6f7 1-32
+Front-End/src/pages/fund/cn/fund-asset-allocation/index.tsx
+  h_8d10030941b6f7 1-142
+Front-End/src/pages/fund/cn/fund-scale-change/index.tsx
+  h_8d10030941b6f7 1-143
+Front-End/src/pages/fund/cn/index-fund/index.tsx
+  h_8d10030941b6f7 1-223
+Front-End/src/pages/fund/cn/manager/index.tsx
+  h_8d10030941b6f7 1-24
+Front-End/src/pages/fund/cn/market-temp/index.tsx
+  h_8d10030941b6f7 1-234
+Front-End/src/pages/fund/cn/new-fund/index.tsx
+  h_8d10030941b6f7 1-374
+Front-End/src/pages/fund/cn/open/components/ExchangeFundPanel.tsx
+  h_8d10030941b6f7 1-302
+Front-End/src/pages/fund/cn/open/components/FundFilterPanel.tsx
+  h_8d10030941b6f7 1-702
+Front-End/src/pages/fund/cn/open/components/FundManagerTable.tsx
+  h_8d10030941b6f7 1-470
+Front-End/src/pages/fund/cn/open/components/IndexFundPanel.tsx
+  h_8d10030941b6f7 1-623
+Front-End/src/pages/fund/cn/open/components/OpenFundPanel.tsx
+  h_8d10030941b6f7 1-276
+Front-End/src/pages/fund/cn/open/detail/CumulativeNav.tsx
+  h_8d10030941b6f7 1-192
+Front-End/src/pages/fund/cn/open/detail/CumulativeReturn.tsx
+  h_8d10030941b6f7 1-2805
+Front-End/src/pages/fund/cn/open/detail/FundAchievement.tsx
+  h_8d10030941b6f7 1-121
+Front-End/src/pages/fund/cn/open/detail/FundAnalysis.tsx
+  h_8d10030941b6f7 1-251
+Front-End/src/pages/fund/cn/open/detail/FundAssetAllocation.tsx
+  h_8d10030941b6f7 1-204
+Front-End/src/pages/fund/cn/open/detail/FundDividend.tsx
+  h_8d10030941b6f7 1-219
+Front-End/src/pages/fund/cn/open/detail/FundHoldings.tsx
+  h_8d10030941b6f7 1-258
+Front-End/src/pages/fund/cn/open/detail/FundIndustryAllocation.tsx
+  h_8d10030941b6f7 1-234
+Front-End/src/pages/fund/cn/open/detail/FundManager.tsx
+  h_8d10030941b6f7 1-199
+Front-End/src/pages/fund/cn/open/detail/FundManagerFunds.tsx
+  h_8d10030941b6f7 1-19
+Front-End/src/pages/fund/cn/open/detail/FundOverview.tsx
+  h_8d10030941b6f7 1-388
+Front-End/src/pages/fund/cn/open/detail/FundPortfolioChange.tsx
+  h_8d10030941b6f7 1-149
+Front-End/src/pages/fund/cn/open/detail/FundProfitProbability.tsx
+  h_8d10030941b6f7 1-221
+Front-End/src/pages/fund/cn/open/detail/FundRsiFilterMark.tsx
+  h_8d10030941b6f7 1-63
+Front-End/src/pages/fund/cn/open/detail/UnitNav.tsx
+  h_8d10030941b6f7 1-197
+Front-End/src/pages/fund/cn/open/detail/constants.ts
+  h_8d10030941b6f7 1-99
+Front-End/src/pages/fund/cn/open/detail/index.tsx
+  h_8d10030941b6f7 1-340
+Front-End/src/pages/fund/cn/open/index.tsx
+  h_8d10030941b6f7 1-332
+Front-End/src/pages/fund/cn/position/index.tsx
+  h_8d10030941b6f7 1-190
+Front-End/src/pages/global/index/detail/index.tsx
+  h_8d10030941b6f7 1-64
+Front-End/src/pages/global/index/index.tsx
+  h_8d10030941b6f7 1-184
+Front-End/src/pages/knowledge/rsi/index.tsx
+  h_8d10030941b6f7 1-641
+Front-End/src/pages/realestate/cn/macro/index.tsx
+  h_8d10030941b6f7 1-300
+Front-End/src/pages/realestate/cn/reits/index.tsx
+  h_8d10030941b6f7 1-256
+Front-End/src/pages/stock/a/index/GrowthVsValue.tsx
+  h_8d10030941b6f7 1-143
+Front-End/src/pages/stock/a/index/detail/index.tsx
+  h_8d10030941b6f7 1-262
+Front-End/src/pages/stock/a/index/index.tsx
+  h_8d10030941b6f7 1-652
+Front-End/src/pages/stock/a/macro/components.tsx
+  h_8d10030941b6f7 1-433
+Front-End/src/pages/stock/a/macro/index.tsx
+  h_8d10030941b6f7 1-2370
+Front-End/src/pages/stock/a/macro/yjbb/index.tsx
+  h_8d10030941b6f7 1-669
+Front-End/src/pages/stock/a/market-temp/StockBelowNetAssetLg.tsx
+  h_8d10030941b6f7 1-112
+Front-End/src/pages/stock/a/market-temp/index.tsx
+  h_8d10030941b6f7 1-766
+Front-End/src/pages/stock/a/option-volatility/index.tsx
+  h_8d10030941b6f7 1-156
+Front-End/src/pages/stock/a/repurchase/index.tsx
+  h_8d10030941b6f7 1-312
+Front-End/src/pages/stock/a/stock/StockHistoryDividend.tsx
+  h_8d10030941b6f7 1-224
+Front-End/src/pages/stock/a/stock/components/InTrading.tsx
+  h_8d10030941b6f7 1-514
+Front-End/src/pages/stock/a/stock/components/OutTrading.tsx
+  h_8d10030941b6f7 1-677
+Front-End/src/pages/stock/a/stock/detail/components/PeerComparison.tsx
+  h_8d10030941b6f7 1-40
+Front-End/src/pages/stock/a/stock/detail/components/PriceAndTurnover.tsx
+  h_8d10030941b6f7 1-152
+Front-End/src/pages/stock/a/stock/detail/components/PriceAvg.tsx
+  h_8d10030941b6f7 1-391
+Front-End/src/pages/stock/a/stock/detail/components/RsiPeriods.tsx
+  h_8d10030941b6f7 1-112
+Front-End/src/pages/stock/a/stock/detail/components/ThreeConsecutiveRises.tsx
+  h_8d10030941b6f7 1-273
+Front-End/src/pages/stock/a/stock/detail/components/TurnoverTrend.tsx
+  h_8d10030941b6f7 1-102
+Front-End/src/pages/stock/a/stock/detail/components/Valuation.tsx
+  h_8d10030941b6f7 1-159
+Front-End/src/pages/stock/a/stock/detail/components/ValuationComparison.tsx
+  h_8d10030941b6f7 1-24
+Front-End/src/pages/stock/a/stock/detail/data.json
+  h_8d10030941b6f7 1-45508
+Front-End/src/pages/stock/a/stock/detail/index.tsx
+  h_8d10030941b6f7 1-219
+Front-End/src/pages/stock/a/stock/index.tsx
+  h_8d10030941b6f7 1-31
+Front-End/src/pages/stock/a/upward-breakthrough/index.tsx
+  h_8d10030941b6f7 1-254
+Front-End/src/pages/stock/a/valuation/index.tsx
+  h_8d10030941b6f7 1-1105
+Front-End/src/pages/stock/hk/hsi-dividend-yield/index.tsx
+  h_8d10030941b6f7 1-86
+Front-End/src/pages/stock/us/index/IndexMetrics.tsx
+  h_8d10030941b6f7 1-127
+Front-End/src/pages/stock/us/index/index.tsx
+  h_8d10030941b6f7 1-153
+Front-End/src/routers/index.tsx
+  h_8d10030941b6f7 1-37
+Front-End/src/utils/akshareApi.ts
+  h_8d10030941b6f7 1-61
+Front-End/src/utils/axios.ts
+  h_8d10030941b6f7 1-56
+Front-End/src/utils/fundUtils.ts
+  h_8d10030941b6f7 1-194
+Front-End/src/utils/index.ts
+  h_8d10030941b6f7 1
+Front-End/src/utils/recommendationBatch.ts
+  h_8d10030941b6f7 1-55
+Front-End/src/utils/stockUtils.ts
+  h_8d10030941b6f7 1-1282
+Front-End/src/utils/tableUtils.tsx
+  h_8d10030941b6f7 1-278
+Front-End/test-annualized-rate.cjs
+  h_8d10030941b6f7 1-77
+Front-End/test-annualized-rate.ts
+  h_8d10030941b6f7 1-77
+Front-End/tsconfig.app.json
+  h_8d10030941b6f7 1-34
+Front-End/tsconfig.json
+  h_8d10030941b6f7 1-7
+Front-End/tsconfig.node.json
+  h_8d10030941b6f7 1-26
+Front-End/vite.config.ts
+  h_8d10030941b6f7 1-80
+Front-End/yarn.lock
+  h_8d10030941b6f7 1-3244
+README.md
+  h_8d10030941b6f7 1-355
+TODO.md
+  h_8d10030941b6f7 1-72
+package.json
+  h_8d10030941b6f7 1-18
+yarn.lock
+  h_8d10030941b6f7 1-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "22985ff5f7225dc3f6eced11d293062c5fbc522d",
+  "prompts": {},
+  "humans": {
+    "h_8d10030941b6f7": {
+      "author": "罗冠聪 <luoguancong@ruqimobility.com>"
+    }
+  }
+}

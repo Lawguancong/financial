@@ -1,0 +1,28 @@
+README.md
+  h_8d10030941b6f7 147,283
+.trae/skills/g2-crossfreq-tooltip/SKILL.md
+  h_8d10030941b6f7 10
+Front-End/src/pages/stock/us/index/index.tsx
+  h_8d10030941b6f7 8
+Front-End/src/pages/fund/cn/open/detail/FundRsiFilterMark.tsx
+  h_8d10030941b6f7 3
+Front-End/src/pages/global/index/detail/index.tsx
+  h_8d10030941b6f7 7
+Front-End/src/pages/stock/a/stock/detail/index.tsx
+  h_8d10030941b6f7 10
+Front-End/src/pages/stock/a/index/detail/index.tsx
+  h_8d10030941b6f7 11
+Front-End/src/components/RsiFilterMark.tsx
+  h_8d10030941b6f7 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "72fcd898dcb17db1bba1c170f42e6752e3ce9553",
+  "prompts": {},
+  "humans": {
+    "h_8d10030941b6f7": {
+      "author": "罗冠聪 <luoguancong@ruqimobility.com>"
+    }
+  }
+}

@@ -1,0 +1,652 @@
+import React, { useEffect, useState, useMemo } from 'react';
+import { Table, Typography, Input, Button, Tabs, Select } from 'antd';
+import apiClient from '@/utils/axios';
+import moment from 'moment';
+import { numberSorter, createRangeFilter, createDateRangeFilter } from '@/utils/tableUtils';
+import type { IndexDetailData } from './detail';
+import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations, computeMonthlyQuarterlyPercentileBuyPoints, isRecentDate } from '@/utils/stockUtils';
+import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
+import { convertToMonthlyData } from '@/pages/fund/cn/open/detail/constants';
+import GrowthVsValue from './GrowthVsValue';
+
+
+
+const { Link } = Typography;
+const { TabPane } = Tabs;
+
+interface IndexData {
+  指数代码: string;
+  指数简称: string;
+  指数全称: string;
+  发布时间: string;
+  基日: string;
+  基点: number;
+  指数类别: string;
+  指数系列: string;
+  资产类别: string;
+  指数币种: string;
+  样本数量: number;
+  最新收盘: number;
+  近一个月收益率: number;
+  合作指数: string;
+  跟踪产品: string;
+  指数合规: string;
+  指数热点: string | null;
+  指数年化率?: number;
+  __推荐买点定量__?: string;
+  __推荐买点百分位__?: string;
+}
+
+const stringSorter = (key: keyof IndexData) => (a: IndexData, b: IndexData) => {
+  const aValue = String(a[key] || '');
+  const bValue = String(b[key] || '');
+  return aValue.localeCompare(bValue, 'zh-CN');
+};
+
+const Index: React.FC = () => {
+  const [data, setData] = useState<IndexData[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 100,
+  });
+  const [activeTab, setActiveTab] = useState<string>('all');
+  const [selectedIndices, setSelectedIndices] = useState<IndexData[]>([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [selectedRows, setSelectedRows] = useState<IndexData[]>([]);
+  const [excludedNames, setExcludedNames] = useState<string[]>(["债", "CS", "韩", "年", "-", "+", "对冲", "目标", "海外", "ESG", "内地", "SHS", "易方达", "AA", "交银", "太保", "智选", "SSH", "ABS", "海外", "期权", "城镇"]);
+
+
+  const onSelectChange = (newSelectedRowKeys: React.Key[], newSelectedRows: IndexData[]) => {
+    setSelectedRowKeys(newSelectedRowKeys);
+    setSelectedRows(newSelectedRows);
+  };
+
+  const handleCalculateRecommendation = async () => {
+    console.log('11111 selectedRows', selectedRows)
+    // 仅收集结果，全部计算完成后再一次性更新表格与缓存
+    const resultMap = new Map<string, { quantitative: string; percentile: string }>();
+    await runRecommendationBatchCalculation({
+      targets: selectedRows,
+      getKey: item => String(item['指数代码']),
+      getName: item => item['指数简称'] || String(item['指数代码']),
+      emptyWarn: '请选择指数',
+      fetchBuyPoints: item => fetchIndexDetailAndCalculate(String(item['指数代码'])),
+      onItemDone: (item, result) => {
+        resultMap.set(String(item['指数代码']), result);
+      },
+    });
+    if (resultMap.size === 0) return;
+    setSelectedIndices(prev => {
+      const latestData = prev.map(item => {
+        const result = resultMap.get(String(item['指数代码']));
+        return result
+          ? {
+              ...item,
+              __推荐买点定量__: result.quantitative || item.__推荐买点定量__,
+              __推荐买点百分位__: result.percentile || item.__推荐买点百分位__,
+            }
+          : item;
+      });
+      saveSelectedIndices(latestData);
+      return latestData;
+    });
+  };
+
+  console.log('11111 selectedIndices', selectedIndices)
+
+  // 计算推荐买点（定量 + 百分位）
+  const fetchIndexDetailAndCalculate = async (symbol: string): Promise<{ quantitative: string; percentile: string }> => {
+    try {
+
+      const startDate = '19800101'; // 默认从1980年1月1日开始查询，并去除第一个日期的空值
+      const response = await apiClient.get(`/api/public/stock_zh_index_hist_csindex?symbol=${symbol}&start_date=${startDate}&end_date=${moment().format('YYYYMMDD')}`);
+      const data = response?.data || [];
+      const firstNonMultipleIndex = data.findIndex((item: IndexDetailData) => Number(item.收盘) % 100 !== 0);
+      const formatData = (0 < firstNonMultipleIndex && firstNonMultipleIndex < 10) ? data.slice(firstNonMultipleIndex - 1) : data;
+      const stockHistoryList = formatData?.map((item: IndexDetailData) => ({
+        日期: item.日期,
+        收盘: Number(item.收盘),
+      })) || [];
+
+      // 1) 计算日/周/月/季 K 线的 RSI6 值
+      const periodRSIMap = calculatePeriodRSI(stockHistoryList);
+
+      // 2) 合并为带推荐级别的图表数据
+      const chartData = computeRSIRecommendations(periodRSIMap, 'index') as any[];
+
+      // 3) 过滤出推荐买点
+      const buyPointList = chartData.filter(
+        (row): row is any => row.__recommendationLevel__ != null,
+      );
+
+      // 4) 过滤 每月最晚（最新）的一条记录
+      const chartDataMonthly = convertToMonthlyData(buyPointList);
+
+      // 定量买点日期
+      const quantitative = chartDataMonthly?.reverse()?.map(item => moment(item['日期'])?.format('YYYY-MM-DD'))?.join(',') || '';
+
+      // 5) 百分位策略买点（月&季 RSI6 共振）
+      const percentileBuyPoints = computeMonthlyQuarterlyPercentileBuyPoints({
+        monthlyRSI6Data: periodRSIMap.monthlyRSI,
+        quarterlyRSI6Data: periodRSIMap.quarterlyRSI,
+        closeValueType: 'price',
+      });
+      const percentile = percentileBuyPoints.map(p => moment(p.日期).format('YYYY-MM-DD')).join(',');
+
+      return { quantitative, percentile };
+    } catch (error) {
+      console.log('Error fetching index detail:', error);
+      return { quantitative: '', percentile: '' };
+    }
+  };
+
+
+
+  const getUniqueValues = (data: IndexData[], key: keyof IndexData): string[] => {
+    return Array.from(new Set(data.map(item => String(item[key] || ''))))
+      .filter(value => value !== 'null' && value !== 'undefined')
+      .sort();
+  };
+
+  const columns = useMemo(() => [
+    {
+      title: '指数代码',
+      dataIndex: '指数代码',
+      key: '指数代码',
+      width: 60,
+      // fixed: 'left' as const,
+      sorter: stringSorter('指数代码'),
+      filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }: { setSelectedKeys: (keys: React.Key[]) => void; selectedKeys: React.Key[]; confirm: () => void; clearFilters: () => void }) => (
+        <div style={{ padding: 8 }}>
+          <Input
+            placeholder="输入指数代码"
+            value={selectedKeys[0] as string}
+            onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+            onPressEnter={confirm}
+            style={{ width: 188, marginBottom: 8, display: 'block' }}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button
+              type="primary"
+              onClick={confirm}
+              size="small"
+              style={{ width: 90 }}
+            >
+              搜索
+            </Button>
+            <Button
+              onClick={() => {
+                clearFilters();
+                confirm();
+              }}
+              size="small"
+              style={{ width: 90 }}
+            >
+              重置
+            </Button>
+          </div>
+        </div>
+      ),
+      filterIcon: (filtered: boolean) => (
+        <span style={{ color: filtered ? '#1890ff' : undefined }}>🔍</span>
+      ),
+      onFilter: (value: string | number | boolean, record: IndexData) => {
+        const searchValue = String(value).toLowerCase();
+        const codeValue = String(record['指数代码'] || '').toLowerCase();
+        return codeValue.includes(searchValue);
+      },
+    },
+    {
+      title: '指数简称',
+      dataIndex: '指数简称',
+      key: '指数简称',
+      width: 60,
+      // fixed: 'left' as const,
+      sorter: stringSorter('指数简称'),
+      filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }: { setSelectedKeys: (keys: React.Key[]) => void; selectedKeys: React.Key[]; confirm: () => void; clearFilters: () => void }) => (
+        <div style={{ padding: 8 }}>
+          <Input
+            placeholder="输入指数简称"
+            value={selectedKeys[0] as string}
+            onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+            onPressEnter={confirm}
+            style={{ width: 188, marginBottom: 8, display: 'block' }}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+
+            <Button
+              type="primary"
+              onClick={confirm}
+              size="small"
+              style={{ width: 90 }}
+            >
+              搜索
+            </Button>
+            <Button
+              onClick={() => {
+                clearFilters();
+                confirm();
+              }}
+              size="small"
+              style={{ width: 90 }}
+            >
+              重置
+            </Button>
+          </div>
+        </div>
+      ),
+      filterIcon: (filtered: boolean) => (
+        <span style={{ color: filtered ? '#1890ff' : undefined }}>🔍</span>
+      ),
+      onFilter: (value: string | number | boolean, record: IndexData) => {
+        const searchValue = String(value).toLowerCase();
+        const nameValue = String(record['指数简称'] || '').toLowerCase();
+        return nameValue.includes(searchValue);
+      },
+      render: (name: string, record: IndexData) => (
+        <Link
+          onClick={() => window.open(`/stock/a/index/detail?code=${record['指数代码']}`)}
+          style={{ cursor: 'pointer', color: '#1890ff' }}
+        >
+          {name}
+        </Link>
+      ),
+    },
+    {
+      title: '推荐买点（定量）',
+      dataIndex: '__推荐买点定量__',
+      key: '__推荐买点定量__',
+      width: 90,
+      sorter: stringSorter('__推荐买点定量__'),
+      render: (value: string) => {
+        if (!value) return <span style={{ color: '#999' }}>-</span>;
+        const dates = value.split(',').reverse().filter(d => d.trim());
+        return (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {dates.map((date, index) => {
+              const recent = isRecentDate(date);
+              return (
+                <span
+                  key={index}
+                  title={recent ? '近期买点（100天内）' : undefined}
+                  style={recent
+                    ? {
+                        backgroundColor: '#fff7e6',
+                        color: '#d46b08',
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontSize: 12,
+                        fontWeight: 'bold',
+                        border: '2px solid #fa8c16',
+                      }
+                    : {
+                        backgroundColor: '#e6f7ff',
+                        color: '#1890ff',
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontSize: 12,
+                        border: '1px solid #91caff',
+                      }}
+                >
+                  {date}
+                </span>
+              );
+            })}
+          </div>
+        );
+      },
+    },
+    {
+      title: '推荐买点（百分位）',
+      dataIndex: '__推荐买点百分位__',
+      key: '__推荐买点百分位__',
+      width: 90,
+      sorter: stringSorter('__推荐买点百分位__'),
+      render: (value: string) => {
+        if (!value) return <span style={{ color: '#999' }}>-</span>;
+        const dates = value.split(',').reverse().filter(d => d.trim());
+        return (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {dates.map((date, index) => {
+              const recent = isRecentDate(date);
+              return (
+                <span
+                  key={index}
+                  title={recent ? '近期买点（100天内）' : undefined}
+                  style={recent
+                    ? {
+                        backgroundColor: '#fff7e6',
+                        color: '#d46b08',
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontSize: 12,
+                        fontWeight: 'bold',
+                        border: '2px solid #fa8c16',
+                      }
+                    : {
+                        backgroundColor: '#f6ffed',
+                        color: '#52c41a',
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontSize: 12,
+                        border: '1px solid #b7eb8f',
+                      }}
+                >
+                  {date}
+                </span>
+              );
+            })}
+          </div>
+        );
+      },
+    },
+    // {
+    //   title: '发布时间',
+    //   dataIndex: '发布时间',
+    //   key: '发布时间',
+    //   width: 60,
+    //   ...createDateRangeFilter('发布时间'),
+    //   sorter: stringSorter('发布时间'),
+    //   render: (text: string) => text ? moment(text).format('YYYY-MM-DD') : '',
+    // },
+    {
+      title: '指数类别',
+      dataIndex: '指数类别',
+      key: '指数类别',
+      width: 60,
+      sorter: stringSorter('指数类别'),
+      filters: getUniqueValues(data, '指数类别').map(value => ({ text: value, value })),
+      onFilter: (value: React.Key, record: IndexData) => record['指数类别']?.includes(value as string),
+    } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    {
+      title: '基点',
+      dataIndex: '基点',
+      key: '基点',
+      width: 60,
+      sorter: stringSorter('基点'),
+    },
+    {
+      title: '样本数量',
+      dataIndex: '样本数量',
+      key: '样本数量',
+      width: 60,
+      sorter: stringSorter('样本数量'),
+    },
+    {
+      title: '最新收盘',
+      dataIndex: '最新收盘',
+      key: '最新收盘',
+      width: 60,
+      sorter: stringSorter('最新收盘'),
+    },
+    // {
+    //   title: '指数年化率',
+    //   key: '指数年化率',
+    //   width: 80,
+    //   sorter: stringSorter('指数年化率'),
+    //   ...createRangeFilter('指数年化率'),
+    //   render: (_, record: IndexData) => `${(record['指数年化率'])?.toFixed(2)}%`,
+    // },
+
+    {
+      title: '操作',
+      key: 'action',
+      width: 40,
+      fixed: 'right' as const,
+      render: (_, record: IndexData) => {
+        const isSelected = isIndexSelected(record['指数代码']);
+
+        return (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button
+              type={isSelected ? 'default' : 'primary'}
+              size="small"
+              onClick={() => isSelected ? removeFromSelected(record) : addToSelected(record)}
+            >
+              {isSelected ? '取消自选' : '添加到自选'}
+            </Button>
+            {isSelected && activeTab === 'selected' && (
+              <>
+                <Button
+                  type="link"
+                  size="small"
+                  onClick={() => moveToTop(record)}
+                >
+                  置顶
+                </Button>
+                <Button
+                  type="link"
+                  size="small"
+                  onClick={() => moveToBottom(record)}
+                >
+                  置底
+                </Button>
+              </>
+            )}
+          </div>
+        );
+      },
+    },
+  ], [data, selectedIndices, activeTab]);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const response = await apiClient.get('/api/public/index_csindex_all');
+      console.log('指数列表 -> response', response);
+      let newData = (response?.data || []).map((item: IndexData) => {
+        if (!item['发布时间'] || !item['最新收盘'] || !item['基点'] || item['基点'] === 0) {
+          return { ...item, '指数年化率': undefined };
+        }
+        const years = moment().diff(moment(item['发布时间']), 'years', true);
+        if (years < 1) {
+          return { ...item, '指数年化率': undefined };
+        }
+        const annualReturn = Math.pow(item['最新收盘'] / item['基点'], 1 / years) - 1;
+        return { ...item, '指数年化率': annualReturn * 100 };
+      });
+
+      if (excludedNames.length > 0) {
+        newData = newData.filter((item: any) => {
+          const indexNameShortName = String(item['指数简称'] || '').toLowerCase();
+          return !excludedNames.some(excludedName =>
+            indexNameShortName.includes(excludedName.toLowerCase())
+          );
+        });
+      }
+
+      setData(newData);
+
+      // 更新自选指数数据（除指数代码外）
+      if (selectedIndices.length > 0) {
+        const updatedSelectedIndices = selectedIndices.map(selectedIndex => {
+          const matchedIndex = newData.find(index => index['指数代码'] === selectedIndex['指数代码']);
+          if (matchedIndex) {
+            // 保留原指数代码，其他字段用新数据更新
+            return { ...matchedIndex, '指数代码': selectedIndex['指数代码'] };
+          }
+          return selectedIndex;
+        });
+        setSelectedIndices(updatedSelectedIndices);
+        saveSelectedIndices(updatedSelectedIndices);
+      }
+    } catch (error) {
+      console.log('error', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSelectedIndices();
+  }, []);
+
+  // 从localStorage加载自选指数
+  const loadSelectedIndices = () => {
+    try {
+      const savedIndices = localStorage.getItem('selectedIndices');
+      if (savedIndices) {
+        setSelectedIndices(JSON.parse(savedIndices));
+      }
+    } catch (error) {
+      console.log('加载自选指数失败:', error);
+    }
+  };
+
+  // 保存自选指数到localStorage
+  const saveSelectedIndices = (indices: IndexData[]) => {
+    try {
+      localStorage.setItem('selectedIndices', JSON.stringify(indices));
+    } catch (error) {
+      console.log('保存自选指数失败:', error);
+    }
+  };
+
+  // 添加到自选
+  const addToSelected = (index: IndexData) => {
+    const isAlreadySelected = selectedIndices.some(i => i['指数代码'] === index['指数代码']);
+    if (!isAlreadySelected) {
+      const newSelectedIndices = [...selectedIndices, index];
+      setSelectedIndices(newSelectedIndices);
+      saveSelectedIndices(newSelectedIndices);
+    }
+  };
+
+  // 从自选中移除
+  const removeFromSelected = (index: IndexData) => {
+    const newSelectedIndices = selectedIndices.filter(i => i['指数代码'] !== index['指数代码']);
+    setSelectedIndices(newSelectedIndices);
+    saveSelectedIndices(newSelectedIndices);
+  };
+
+  // 检查指数是否已在自选中
+  const isIndexSelected = (indexCode: string) => {
+    return selectedIndices.some(i => i['指数代码'] === indexCode);
+  };
+
+  // 置顶功能
+  const moveToTop = (index: IndexData) => {
+    const newSelectedIndices = [index, ...selectedIndices.filter(i => i['指数代码'] !== index['指数代码'])];
+    setSelectedIndices(newSelectedIndices);
+    saveSelectedIndices(newSelectedIndices);
+  };
+
+  // 置底功能
+  const moveToBottom = (index: IndexData) => {
+    const newSelectedIndices = [...selectedIndices.filter(i => i['指数代码'] !== index['指数代码']), index];
+    setSelectedIndices(newSelectedIndices);
+    saveSelectedIndices(newSelectedIndices);
+  };
+
+
+
+  return (
+    <div style={{ padding: '0 24px', height: 'calc(100vh - 64px - 32px)', display: 'flex', flexDirection: 'column' }}>
+      <Tabs activeKey={activeTab} onChange={setActiveTab}>
+        <TabPane tab="全部" key="all">
+          <div style={{ marginBottom: '16px', textAlign: 'right' }}>
+            不包含指数简称：
+            <Select
+              mode="tags"
+              style={{ width: 500 }}
+              placeholder="不包含指数简称"
+              value={excludedNames}
+              onChange={setExcludedNames}
+            />
+
+
+            <Button type="primary" onClick={fetchData} loading={loading}>
+              搜索
+            </Button>
+          </div>
+          <Table
+            columns={columns?.filter(c => c.key !== '__推荐买点定量__' && c.key !== '__推荐买点百分位__') || []}
+            dataSource={data}
+            loading={loading}
+            rowKey="指数代码"
+            scroll={{ x: 2000, y: 'calc(100vh - 350px)' }}
+            pagination={{
+              ...pagination,
+              showSizeChanger: true,
+              showTotal: (total) => `共 ${total} 条`,
+              onChange: (page, pageSize) => {
+                setPagination({ current: page, pageSize });
+              },
+              onShowSizeChange: (current, size) => {
+                setPagination({ current: 1, pageSize: size });
+              },
+            }}
+          />
+        </TabPane>
+        <TabPane tab="自选" key="selected">
+          <div
+            onClick={handleCalculateRecommendation}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '8px 20px',
+              background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+              borderRadius: '25px',
+              transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+              boxShadow: '0 8px 25px rgba(56, 239, 125, 0.5), 0 0 0 3px rgba(56, 239, 125, 0.2)',
+              cursor: 'pointer',
+              transform: 'scale(1.02)',
+              border: '2px solid transparent',
+              overflow: 'hidden',
+              position: 'relative'
+            }}
+          >
+            <div
+              style={{
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                background: 'rgba(255,255,255,0.9)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.3s ease',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+              }}
+            >
+              <span style={{ fontSize: '14px', fontWeight: 'bold' }}>
+                ✓
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{
+                fontWeight: 'bold', color: '#fff', fontSize: '14px',
+                textShadow: '0 1px 2px rgba(0,0,0,0.2)'
+              }}>
+                计算推荐买点
+              </span>
+              <span style={{
+                color: 'rgba(255,255,255,0.85)', fontSize: '11px', marginTop: '2px'
+              }}>
+                启用后将计算RSI指标
+              </span>
+            </div>
+          </div>
+          <Table
+            rowSelection={{
+              selectedRowKeys,
+              onChange: onSelectChange,
+            }}
+            columns={columns}
+            dataSource={selectedIndices}
+            rowKey="指数代码"
+            scroll={{ x: 2000, y: 'calc(100vh - 350px)' }}
+            pagination={false}
+          />
+        </TabPane>
+        <TabPane tab="300成长vs300价值" key="growthVsValue">
+          <GrowthVsValue />
+        </TabPane>
+      </Tabs>
+    </div>
+  );
+};
+
+export default Index;

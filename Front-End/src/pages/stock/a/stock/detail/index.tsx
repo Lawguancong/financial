@@ -1,0 +1,219 @@
+import React, { useEffect, useState, useMemo, useCallback, Suspense, memo } from 'react';
+import { Spin, Typography, Card, Tabs } from 'antd';
+import type { RadioChangeEvent } from 'antd/es/radio';
+import apiClient from '@/utils/axios';
+import { useSearchParams } from 'react-router-dom';
+import moment from 'moment';
+
+// 懒加载组件，按需加载
+const PriceAndTurnover = React.lazy(() => import('./components/PriceAndTurnover'));
+const RsiFilterMark = React.lazy(() => import('../../../../../components/RsiFilterMark'));
+const PriceAvg = React.lazy(() => import('./components/PriceAvg'));
+const ThreeConsecutiveRisesComponent = React.lazy(() => import('./components/ThreeConsecutiveRises'));
+const RsiPeriods = React.lazy(() => import('./components/RsiPeriods'));
+const Valuation = React.lazy(() => import('./components/Valuation'));
+const PeerComparison = React.lazy(() => import('./components/PeerComparison'));
+
+const { Title } = Typography;
+
+interface StockDetailData {
+  日期: string;
+  股票代码: string;
+  开盘: number;
+  收盘: number;
+  最高: number;
+  最低: number;
+  成交量: number;
+  成交额: number;
+  振幅: number;
+  涨跌幅: number;
+  涨跌额: number;
+  换手率: number;
+}
+
+// 组件加载时的 fallback - 使用 memo 避免重复渲染
+const ComponentFallback = memo(() => (
+  <div style={fallbackStyle}>
+    <Spin size="small" />
+  </div>
+));
+
+const fallbackStyle: React.CSSProperties = {
+  height: 400,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center'
+};
+
+// 静态样式配置，避免每次渲染创建新对象
+const headerCardStyle: React.CSSProperties = { marginBottom: '16px' };
+const cardStyle: React.CSSProperties = { marginTop: '16px' };
+const pageStyle: React.CSSProperties = { padding: '24px' };
+const titleStyle: React.CSSProperties = { margin: 0 };
+
+const StockDetail: React.FC = () => {
+  // const [symbolInfo, setSymbolInfo] = useState<Record<string, string>>({});
+  const [rawData, setRawData] = useState<StockDetailData[]>([]);
+  const [activeTab, setActiveTab] = useState<string>('rsi-filter');
+
+  const [searchParams] = useSearchParams();
+  const symbol = searchParams.get('symbol') || '';
+  const name = decodeURIComponent(searchParams.get('name') || '') || '';
+
+
+  // 事件处理函数 - 使用 useCallback 缓存
+  const handleTabChange = useCallback((key: string) => setActiveTab(key), []);
+
+
+  useEffect(() => {
+    if (!symbol) return;
+    const fetchData = async () => {
+      try {
+        // 9 开头 bj, 6 开头 sh, 0 开头 sz
+        const prefix = symbol.startsWith('9')
+          ? 'bj'
+          : symbol.startsWith('6')
+          ? 'sh'
+          : symbol.startsWith('0')
+          ? 'sz'
+          : '';
+        const params: Record<string, string> = {
+          symbol: prefix ? `${prefix}${symbol}` : symbol,
+          adjust: 'hfq',
+          // start_date: '20210101' // todo
+        };
+        const response = await apiClient.get('/api/public/stock_zh_a_hist_tx', { params });
+        setRawData(response?.data?.map((item: Record<string, unknown>) => ({
+          日期: item.date,
+          收盘: Number(item.close),
+        })) || []);
+      } catch (error) {
+        console.error('Error fetching stock_zh_a_hist_tx data:', error);
+      } finally {
+        // do nothing
+      }
+    };
+    fetchData();
+  }, []);
+
+
+  // 缓存子组件渲染 - 避免每次渲染重新创建
+  const priceAndTurnoverComponent = useMemo(() => (
+    <Suspense fallback={<ComponentFallback />}>
+      <PriceAndTurnover />
+    </Suspense>
+  ), []);
+
+  const valuationComponent = useMemo(() => (
+    <Suspense fallback={<ComponentFallback />}>
+      <Valuation />
+    </Suspense>
+  ), []);
+
+
+  const rsiFilterMarkComponent = useMemo(() => (
+    <Suspense fallback={<ComponentFallback />}>
+      <RsiFilterMark data={rawData} type="stock" />
+    </Suspense>
+  ), [rawData]);
+
+  const priceAvgComponent = useMemo(() => (
+    <Suspense fallback={<ComponentFallback />}>
+      <PriceAvg data={rawData} />
+    </Suspense>
+  ), [rawData]);
+
+  const peerComparisonComponent = useMemo(() => (
+    <Suspense fallback={<ComponentFallback />}>
+      <PeerComparison />
+    </Suspense>
+  ), []);
+
+
+  // const threeConsecutiveRisesComponent = useMemo(() => (
+  //   <Suspense fallback={<ComponentFallback />}>
+  //     <ThreeConsecutiveRisesComponent data={rawData} />
+  //   </Suspense>
+  // ), [rawData]);
+
+  // 缓存 Tabs 配置
+  const tabItems = useMemo(() => [
+    {
+      key: 'valuation',
+      label: '估值',
+      children: (
+        <Card style={cardStyle}>
+          <Title level={5}>估值指标</Title>
+          {valuationComponent}
+        </Card>
+      ),
+    },
+    {
+      key: 'price-turnover',
+      label: '价格&回撤率&年化收益率',
+      children: (
+        <Card style={cardStyle}>
+          {priceAndTurnoverComponent}
+        </Card>
+      ),
+    },
+    {
+      key: 'rsi-filter',
+      label: 'RSI6 技术指标',
+      children: (
+          <Card style={cardStyle}>
+            <Title level={5}>RSI6 技术指标</Title>
+            {rsiFilterMarkComponent}
+          </Card>
+      ),
+    },
+    {
+      key: 'price-line-avg',
+      label: '均线 技术指标(todo 待实验)',
+      children: (
+          <Card style={cardStyle}>
+            <Title level={5}>均线 技术指标</Title>
+            {priceAvgComponent}
+          </Card>
+      ),
+    },
+    {
+      key: 'peer-comparison',
+      label: '同行比较（todo 待完善）',
+      children: (
+        <Card style={cardStyle}>
+          <Title level={5}>同行比较</Title>
+          {peerComparisonComponent}
+        </Card>
+      ),
+    },
+    // {
+    //   key: 'three-rises',
+    //   label: '低换手三连阳',
+    //   children: (
+    //     <Card style={cardStyle}>
+    //       <Title level={5}>低换手三连阳</Title>
+    //       {threeConsecutiveRisesComponent}
+    //     </Card>
+    //   ),
+    // },
+  ], [priceAndTurnoverComponent, rsiFilterMarkComponent, priceAvgComponent, valuationComponent, peerComparisonComponent]);
+
+  return (
+    <div style={pageStyle}>
+      <Card style={headerCardStyle}>
+        <Title level={4} style={titleStyle}>
+          {name}({symbol})
+        </Title>
+      </Card>
+      <Tabs
+        activeKey={activeTab}
+        onChange={handleTabChange}
+        items={tabItems}
+        destroyInactiveTabPane={false}
+      />
+    </div>
+  );
+};
+
+export default memo(StockDetail);

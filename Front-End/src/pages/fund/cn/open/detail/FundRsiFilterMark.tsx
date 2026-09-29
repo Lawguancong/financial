@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Spin } from 'antd';
-import RsiFilterMark from '@/pages/stock/a/stock/detail/components/RsiFilterMark';
+import RsiFilterMark from '@/components/RsiFilterMark';
 import type { KLineData } from '@/utils/stockUtils';
 import apiClient from '@/utils/axios';
 

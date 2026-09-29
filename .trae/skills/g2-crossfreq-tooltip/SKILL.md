@@ -7,7 +7,7 @@ description: 用 G2 v5（@ant-design/plots 2.6.x 内置 @antv/g2 5.4.x）DualAxe
 
 在 financial 项目的金融图表中，常见形态是「日频主线（指数/收盘价）+ 周/月/季低频指标（如 RSI6）」的 DualAxes。低频指标在普通交易日没有数据点，直接用 shared tooltip 会漏值，把低频值前向填充到每日又会产生台阶式直线。本 skill 给出经过浏览器实测的标准做法。
 
-参考实现：`Front-End/src/pages/stock/a/stock/detail/components/RsiFilterMark.tsx`（主图「指数 · 买点标注」）。
+参考实现：`Front-End/src/component/RsiFilterMark.tsx`（主图「指数 · 买点标注」）。
 
 ## 版本前提（先核对，勿凭记忆写 API）
 

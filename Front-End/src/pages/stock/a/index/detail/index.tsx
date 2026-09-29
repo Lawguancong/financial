@@ -8,7 +8,7 @@ import { calculateMaxDrawdown, calculateStartDate, calculatePercentiles } from '
 import dayjs from 'dayjs';
 
 // RSI·推荐级别：与 /stock/us/index 统一复用同一组件（路由层提供 Suspense 边界）
-const RsiFilterMark = React.lazy(() => import('@/pages/stock/a/stock/detail/components/RsiFilterMark'));
+const RsiFilterMark = React.lazy(() => import('@/components/RsiFilterMark'));
 export interface IndexDetailData {
   日期: string;
   指数代码: string;

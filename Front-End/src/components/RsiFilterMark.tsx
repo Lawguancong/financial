@@ -3,9 +3,8 @@ import { Line, DualAxes } from '@ant-design/plots';
 import { Card, Space, Table, Tag } from 'antd';
 import { RightOutlined } from '@ant-design/icons';
 import moment from 'moment';
-import type { KLineData } from '@/utils/stockUtils';
+import type { KLineData, RsiRecommendationRules, CloseValueType } from '@/utils/stockUtils';
 import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations, calculatePercentile, calculateAnnualizedReturn, calculateHoldingReturnRate, stockRsiRecommendationRules, indexRsiRecommendationRules, fundRsiRecommendationRules, rsiPeriodLabelMap } from '@/utils/stockUtils';
-import type { RsiRecommendationRules, CloseValueType } from '@/utils/stockUtils';
 import { convertToMonthlyData } from '@/pages/fund/cn/open/detail/constants';
 
 interface RsiFilterMarkProps {

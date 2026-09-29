@@ -144,7 +144,7 @@ python3.14 -m pip install --user --break-system-packages --upgrade akshare flask
 
 ```bash
 cd Front-End
-yarn
+yarn install
 ```
 
 ---
@@ -280,15 +280,8 @@ financial/
 - **自选池管理**：在「全部」列表勾选加入自选，行情刷新时已计算的买点不丢失。
 - **推荐买点（定量）**：基于日 / 周 / 月 / 季 K 线 RSI6 的共振分级策略（★5 / ★3 / ★1）。
 - **推荐买点（百分位）**：月 RSI6 与季 RSI6 同时处于历史低分位（3% / 5% / 10%）时买入；★5 买点持仓且双双突破 85% 分位时卖出配对。
-- **近期买点高亮**：距今 **100 天** 内的买点日期以橙色加粗标签高亮，阈值在公共方法中可配置（`RECENT_BUY_POINT_DAYS`）。
-- **批量渐进/批量提交计算**：逐只串行请求并显示 `(i/N)` 进度；页面可选择逐行刷新或全部完成后统一写入。
+- **近期买点高亮**：距今 **100 天** 内的买点日期以橙色加粗标签高亮。
 - **基金收益率口径修正**：基金使用「累计收益率」序列，持有期收益按净值比折算，避免买入值为负时收益率符号翻转。
-
-核心算法沉淀于：
-
-- [stockUtils.ts](./Front-End/src/utils/stockUtils.ts)：RSI 计算、定量/百分位策略、分位工具
-- [fundUtils.ts](./Front-End/src/utils/fundUtils.ts)：基金月/季 RSI6 与买点计算
-- [recommendationBatch.ts](./Front-End/src/utils/recommendationBatch.ts)：批量计算编排（进度 / 增量更新 / 持久化）
 
 ---
 

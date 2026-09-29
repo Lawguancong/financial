@@ -7,7 +7,7 @@ import moment from 'moment';
 
 // 懒加载组件，按需加载
 const PriceAndTurnover = React.lazy(() => import('./components/PriceAndTurnover'));
-const RsiFilterMark = React.lazy(() => import('./components/RsiFilterMark'));
+const RsiFilterMark = React.lazy(() => import('../../../../../components/RsiFilterMark'));
 const PriceAvg = React.lazy(() => import('./components/PriceAvg'));
 const ThreeConsecutiveRisesComponent = React.lazy(() => import('./components/ThreeConsecutiveRises'));
 const RsiPeriods = React.lazy(() => import('./components/RsiPeriods'));

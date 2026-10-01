@@ -1,0 +1,41 @@
+Front-End/src/pages/stock/a/index/index.tsx
+  h_8d10030941b6f7 402,417
+Front-End/src/pages/fund/cn/open/components/FundFilterPanel.tsx
+  h_8d10030941b6f7 341
+Front-End/src/components/RsiFilterMark.tsx
+  s_206a7cc0635559::t_2bddd62dd473a7 664,667,674-675
+  s_206a7cc0635559::t_d16fea6a96dc12 1732
+  s_206a7cc0635559::t_d0892ed5bb5702 802,804-818,821,823-826,831-844
+  s_206a7cc0635559::t_90ede87be301b9 7
+Front-End/src/pages/fund/cn/open/index.tsx
+  h_8d10030941b6f7 139,182,226
+Front-End/src/pages/fund/cn/open/components/IndexFundPanel.tsx
+  h_8d10030941b6f7 393
+Front-End/src/utils/stockUtils.ts
+  s_206a7cc0635559::t_4cef5065f8e219 1128-1129,1135-1156,1170
+  s_206a7cc0635559::t_9d1d154c43cbbd 1304-1305,1307,1309-1315,1321-1349,1363,1381-1393,1397,1403-1417,1435,1474,1477-1486
+  s_206a7cc0635559::t_8f07c1d9c85f3b 1254,1257-1265
+  s_206a7cc0635559::t_1f1ca7043f5ad9 1266
+  s_206a7cc0635559::t_97fdfc85511c39 1487
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3f984dbf9a88915d3da5ec912e91c22b64eff8ff",
+  "prompts": {},
+  "humans": {
+    "h_8d10030941b6f7": {
+      "author": "罗冠聪 <luoguancong@ruqimobility.com>"
+    }
+  },
+  "sessions": {
+    "s_206a7cc0635559": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6abdd073a6e8a20210a48038",
+        "model": "unknown"
+      },
+      "human_author": "罗冠聪 <luoguancong@ruqimobility.com>"
+    }
+  }
+}

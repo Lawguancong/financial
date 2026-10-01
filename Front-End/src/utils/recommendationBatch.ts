@@ -8,7 +8,7 @@ export interface RecommendationPoints {
   percentile: string;
 }
 
-export interface RecommendationBatchOptions<T> {
+export interface RecommendationBatchOptions<T, R = RecommendationPoints> {
   /** 待计算的目标列表（调用方已按勾选过滤） */
   targets: T[];
   /** 唯一标识（异常日志用，可选） */
@@ -18,9 +18,9 @@ export interface RecommendationBatchOptions<T> {
   /** 未选择任何标的时的提示文案 */
   emptyWarn: string;
   /** 单个标的的买点计算（由各页面提供，负责取数及各自口径） */
-  fetchBuyPoints: (item: T) => Promise<RecommendationPoints>;
+  fetchBuyPoints: (item: T) => Promise<R>;
   /** 单只计算完成后的增量回调（更新该行表格数据并持久化） */
-  onItemDone: (item: T, result: RecommendationPoints) => void;
+  onItemDone: (item: T, result: R) => void;
 }
 
 /**
@@ -28,8 +28,8 @@ export interface RecommendationBatchOptions<T> {
  * 校验选择 -> 逐个串行计算 -> 每完成一只即回调增量更新 -> 进度提示 -> 完成提示。
  * 单个标的失败不中断后续计算。
  */
-export const runRecommendationBatchCalculation = async <T>(
-  options: RecommendationBatchOptions<T>,
+export const runRecommendationBatchCalculation = async <T, R = RecommendationPoints>(
+  options: RecommendationBatchOptions<T, R>,
 ): Promise<void> => {
   const { targets, getKey, getName, emptyWarn, fetchBuyPoints, onItemDone } = options;
 

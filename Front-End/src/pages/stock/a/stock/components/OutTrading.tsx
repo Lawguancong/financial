@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Table, Typography, InputNumber, Space, Button, Input, Tabs, message } from 'antd';
 import apiClient from '@/utils/axios';
 import moment from 'moment';
-import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations, computeMonthlyQuarterlyPercentileBuyPoints, isRecentDate } from '@/utils/stockUtils';
+import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations, computeMonthlyQuarterlyPercentileBuyPoints, computeSinglePeriodPercentileTrades, WEEKLY_RSI_BUY_PERCENTILE, WEEKLY_RSI_SELL_PERCENTILE, MONTHLY_RSI_PCT_BUY_PERCENTILE, MONTHLY_RSI_PCT_SELL_PERCENTILE, isRecentDate } from '@/utils/stockUtils';
 import type { KLineData } from '@/utils/stockUtils';
 import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
 
@@ -29,6 +29,10 @@ interface StockData {
   时间戳: unknown;
   __推荐买点定量__?: string;
   __推荐买点百分位__?: string;
+  /** 月 RSI6 百分位策略建仓日期（逗号分隔，取每笔配对的第一次买入） */
+  __月RSI6百分位__?: string;
+  /** 周 RSI6 百分位策略建仓日期（逗号分隔，取每笔配对的第一次买入） */
+  __周RSI6百分位__?: string;
 }
 
 // 周期 RSI 字段名（与 stockUtils 中返回的字段保持一致）
@@ -61,6 +65,39 @@ const stringSorter = (key: keyof StockData) => (a: StockData, b: StockData) => {
     return aValue.localeCompare(bValue, 'zh-CN');
   }
   return 0;
+};
+
+/** 近 100 天买点的高亮样式（橙色加粗描边，与其他买点列保持一致） */
+const recentBuyTagStyle: React.CSSProperties = {
+  backgroundColor: '#fff7e6',
+  color: '#d46b08',
+  padding: '2px 8px',
+  borderRadius: 4,
+  fontSize: 12,
+  fontWeight: 'bold',
+  border: '2px solid #fa8c16',
+};
+
+/**
+ * 构造买点日期标签渲染器：逗号分隔日期 → 标签组（最新日期在前）；
+ * 近 100 天的买点用橙色高亮，其余用该列传入的常规配色
+ */
+const renderBuyPointTags = (normalStyle: React.CSSProperties) => (value: string) => {
+  if (!value) return <span style={{ color: '#999' }}>-</span>;
+  const dates = value.split(',').map(d => d.trim()).filter(Boolean).reverse();
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+      {dates.map((date, index) => (
+        <span
+          key={index}
+          title={isRecentDate(date) ? '近期买点（100天内）' : undefined}
+          style={isRecentDate(date) ? recentBuyTagStyle : normalStyle}
+        >
+          {date}
+        </span>
+      ))}
+    </div>
+  );
 };
 
 const handleNavigateToDetail = (record: StockData) => {
@@ -125,6 +162,8 @@ const OutTrading: React.FC = () => {
                 '代码': selectedStock['代码'],
                 __推荐买点定量__: selectedStock.__推荐买点定量__,
                 __推荐买点百分位__: selectedStock.__推荐买点百分位__,
+                __月RSI6百分位__: selectedStock.__月RSI6百分位__,
+                __周RSI6百分位__: selectedStock.__周RSI6百分位__,
               };
             }
             return selectedStock;
@@ -165,6 +204,8 @@ const OutTrading: React.FC = () => {
               '代码': selectedStock['代码'],
               __推荐买点定量__: selectedStock.__推荐买点定量__,
               __推荐买点百分位__: selectedStock.__推荐买点百分位__,
+              __月RSI6百分位__: selectedStock.__月RSI6百分位__,
+              __周RSI6百分位__: selectedStock.__周RSI6百分位__,
             };
           }
           return selectedStock;
@@ -216,8 +257,13 @@ const OutTrading: React.FC = () => {
     saveSelectedStocks(nextStocks);
   };
 
-  // 计算推荐买点（定量 + 百分位）
-  const fetchStockDetailAndCalculate = async (symbol: string): Promise<{ quantitative: string; percentile: string }> => {
+  // 计算推荐买点（定量 + 月&季百分位 + 月RSI6百分位 + 周RSI6百分位）
+  const fetchStockDetailAndCalculate = async (symbol: string): Promise<{
+    quantitative: string;
+    percentile: string;
+    monthlyPercentile: string;
+    weeklyPercentile: string;
+  }> => {
     try {
       // 9 开头 bj, 6 开头 sh, 0 开头 sz
       const prefix = symbol.startsWith('9')
@@ -259,10 +305,26 @@ const OutTrading: React.FC = () => {
       });
       const percentile = percentileBuyPoints.map(p => moment(p.日期).format('YYYY-MM-DD')).join(',');
 
-      return { quantitative, percentile };
+      // 5) 月 RSI6 百分位策略：取每笔配对交易的第一次买入（建仓）日期
+      const monthlyPercentile = computeSinglePeriodPercentileTrades({
+        rsiData: periodRSIMap.monthlyRSI,
+        buyPercentile: MONTHLY_RSI_PCT_BUY_PERCENTILE,
+        sellPercentile: MONTHLY_RSI_PCT_SELL_PERCENTILE,
+        closeValueType: 'price',
+      }).map(t => moment(t.buyDate).format('YYYY-MM-DD')).join(',');
+
+      // 6) 周 RSI6 百分位策略：取每笔配对交易的第一次买入（建仓）日期
+      const weeklyPercentile = computeSinglePeriodPercentileTrades({
+        rsiData: periodRSIMap.weeklyRSI,
+        buyPercentile: WEEKLY_RSI_BUY_PERCENTILE,
+        sellPercentile: WEEKLY_RSI_SELL_PERCENTILE,
+        closeValueType: 'price',
+      }).map(t => moment(t.buyDate).format('YYYY-MM-DD')).join(',');
+
+      return { quantitative, percentile, monthlyPercentile, weeklyPercentile };
     } catch (error) {
       console.log('Error fetching stock detail:', error);
-      return { quantitative: '', percentile: '' };
+      return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '' };
     }
   };
 
@@ -274,13 +336,15 @@ const OutTrading: React.FC = () => {
       getName: stock => stock['名称'] || String(stock['代码']),
       emptyWarn: '请选择股票',
       fetchBuyPoints: stock => fetchStockDetailAndCalculate(String(stock['代码'])),
-      onItemDone: (stock, { quantitative, percentile }) => {
+      onItemDone: (stock, { quantitative, percentile, monthlyPercentile, weeklyPercentile }) => {
         working = working.map(s =>
           s['代码'] === stock['代码']
             ? {
               ...s,
               __推荐买点定量__: quantitative || '',
               __推荐买点百分位__: percentile || '',
+              __月RSI6百分位__: monthlyPercentile || '',
+              __周RSI6百分位__: weeklyPercentile || '',
             }
             : s,
         );
@@ -488,6 +552,36 @@ const OutTrading: React.FC = () => {
       },
     },
     {
+      title: '月RSI6百分位策略',
+      dataIndex: '__月RSI6百分位__',
+      key: '__月RSI6百分位__',
+      width: 240,
+      sorter: stringSorter('__月RSI6百分位__'),
+      render: renderBuyPointTags({
+        backgroundColor: '#f9f0ff',
+        color: '#722ed1',
+        padding: '2px 8px',
+        borderRadius: 4,
+        fontSize: 12,
+        border: '1px solid #d3adf7',
+      }),
+    },
+    {
+      title: '周RSI6百分位策略',
+      dataIndex: '__周RSI6百分位__',
+      key: '__周RSI6百分位__',
+      width: 240,
+      sorter: stringSorter('__周RSI6百分位__'),
+      render: renderBuyPointTags({
+        backgroundColor: '#e6fffb',
+        color: '#08979c',
+        padding: '2px 8px',
+        borderRadius: 4,
+        fontSize: 12,
+        border: '1px solid #87e8de',
+      }),
+    },
+    {
       title: '买入',
       dataIndex: '买入',
       key: '买入',
@@ -595,7 +689,7 @@ const OutTrading: React.FC = () => {
             </Button>
           </div>
           <Table
-            columns={columns?.filter(c => c.key !== '__推荐买点定量__' && c.key !== '__推荐买点百分位__') || []}
+            columns={columns?.filter(c => c.key !== '__推荐买点定量__' && c.key !== '__推荐买点百分位__' && c.key !== '__月RSI6百分位__' && c.key !== '__周RSI6百分位__') || []}
             dataSource={data}
             loading={loading}
             rowKey="代码"

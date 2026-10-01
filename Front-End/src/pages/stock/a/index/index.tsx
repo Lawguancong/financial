@@ -399,7 +399,7 @@ const Index: React.FC = () => {
       title: '月RSI6百分位策略',
       dataIndex: '__月RSI6百分位__',
       key: '__月RSI6百分位__',
-      width: 200,
+      width: 90,
       sorter: stringSorter('__月RSI6百分位__'),
       render: renderBuyPointTags({
         backgroundColor: '#f9f0ff',
@@ -414,7 +414,7 @@ const Index: React.FC = () => {
       title: '周RSI6百分位策略',
       dataIndex: '__周RSI6百分位__',
       key: '__周RSI6百分位__',
-      width: 200,
+      width: 90,
       sorter: stringSorter('__周RSI6百分位__'),
       render: renderBuyPointTags({
         backgroundColor: '#e6fffb',

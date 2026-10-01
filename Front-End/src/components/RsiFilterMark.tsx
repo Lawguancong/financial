@@ -4,7 +4,7 @@ import { Card, Space, Table, Tag } from 'antd';
 import { RightOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import moment from 'moment';
 import type { KLineData, RsiRecommendationRules, CloseValueType, MonthlyQuarterlyPercentileBuyPoint, SinglePeriodPercentileTrade } from '@/utils/stockUtils';
-import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations, computeSinglePeriodPercentileTrades, computeMonthlyQuarterlyPercentileBuyPoints, roundPercentile, rsiWarmup, MQ_LEVEL_RULES, MONTHLY_RSI_SELL_PERCENTILE, QUARTERLY_RSI_SELL_PERCENTILE, WEEKLY_RSI_BUY_PERCENTILE, WEEKLY_RSI_SELL_PERCENTILE, MONTHLY_RSI_PCT_BUY_PERCENTILE, MONTHLY_RSI_PCT_SELL_PERCENTILE, stockRsiRecommendationRules, indexRsiRecommendationRules, fundRsiRecommendationRules, rsiPeriodLabelMap } from '@/utils/stockUtils';
+import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations, analyzeSinglePeriodPercentile, analyzeMonthlyQuarterlyPercentile, getQuarterKey, roundPercentile, rsiWarmup, MQ_LEVEL_RULES, MONTHLY_RSI_SELL_PERCENTILE, QUARTERLY_RSI_SELL_PERCENTILE, WEEKLY_RSI_BUY_PERCENTILE, WEEKLY_RSI_SELL_PERCENTILE, MONTHLY_RSI_PCT_BUY_PERCENTILE, MONTHLY_RSI_PCT_SELL_PERCENTILE, stockRsiRecommendationRules, indexRsiRecommendationRules, fundRsiRecommendationRules, rsiPeriodLabelMap } from '@/utils/stockUtils';
 import { convertToMonthlyData } from '@/pages/fund/cn/open/detail/constants';
 
 interface RsiFilterMarkProps {
@@ -661,23 +661,18 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
     );
     // 季RSI6 tooltip 按「自然季度」对齐：hover 日期在 1～3 月取当年 3 月最晚的季末RSI6，
     // 4～6 月取 6 月最晚、7～9 月取 9 月最晚、10～12 月取 12 月最晚；
-    // 与右轴季RSI6 折线的 vh（step-before）阶梯归属保持一致。
+    // 与右轴季RSI6 折线的 vh（step-before）阶梯归属、月&季策略表格对齐三方一致（getQuarterKey）
     const quarterlyTooltipMap = new Map<string, RsiKLineData>();
     for (const point of periodRSIMap.quarterlyRSI as RsiKLineData[]) {
-      const date = moment(point.日期);
-      // moment.month() 为 0-based：0～2 月→Q1，3～5 月→Q2，6～8 月→Q3，9～11 月→Q4
-      const key = `${date.year()}-Q${Math.floor(date.month() / 3) + 1}`;
+      const key = getQuarterKey(point.日期);
       const existed = quarterlyTooltipMap.get(key);
       // 同一季度理论上只有一个季末点，若存在多条则保留日期最晚的一条
       if (!existed || point.日期 > existed.日期) {
         quarterlyTooltipMap.set(key, point);
       }
     }
-    const getQuarterlyRsi = (dateStr: string): number | null | undefined => {
-      const date = moment(dateStr);
-      const key = `${date.year()}-Q${Math.floor(date.month() / 3) + 1}`;
-      return quarterlyTooltipMap.get(key)?.__RSI6__;
-    };
+    const getQuarterlyRsi = (dateStr: string): number | null | undefined =>
+      quarterlyTooltipMap.get(getQuarterKey(dateStr))?.__RSI6__;
     const formatTooltipValue = (value: number | null | undefined) =>
       typeof value === 'number' && !Number.isNaN(value) ? value.toFixed(2) : '--';
 
@@ -804,88 +799,49 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
     });
 
     // 8) 百分位买卖配对：周RSI6 / 月RSI6 各自独立配对
+    // analyzer 一次计算同时产出买卖阈值与交易配对，阈值直接供参考线/规则文案复用，不重复算分位
     // 口径一致：触及（≤）买入分位建仓/加仓，触及（≥）卖出分位且相对第一次买入盈利时卖出
-    const weeklyRsiValues = getRsiValues(periodRSIMap, 'weekly');
-    const monthlyRsiValues = getRsiValues(periodRSIMap, 'monthly');
+    const weeklyAnalysis = analyzeSinglePeriodPercentile({
+      rsiData: periodRSIMap.weeklyRSI,
+      buyPercentile: WEEKLY_RSI_BUY_PERCENTILE,
+      sellPercentile: WEEKLY_RSI_SELL_PERCENTILE,
+      closeValueType,
+    });
+    const monthlyAnalysis = analyzeSinglePeriodPercentile({
+      rsiData: periodRSIMap.monthlyRSI,
+      buyPercentile: MONTHLY_RSI_PCT_BUY_PERCENTILE,
+      sellPercentile: MONTHLY_RSI_PCT_SELL_PERCENTILE,
+      closeValueType,
+    });
+
+    const percentileTrades: SinglePeriodPercentileTrade[] = weeklyAnalysis.trades;
+    const monthlyPercentileTrades: SinglePeriodPercentileTrade[] = monthlyAnalysis.trades;
 
     const percentileThresholds: PercentileThresholds | null =
-      weeklyRsiValues.length || monthlyRsiValues.length
+      weeklyAnalysis.threshold || monthlyAnalysis.threshold
         ? {
-          weeklyBuyThreshold: weeklyRsiValues.length
-            ? roundPercentile(weeklyRsiValues, WEEKLY_RSI_BUY_PERCENTILE)
-            : Number.NaN,
-          weeklySellThreshold: weeklyRsiValues.length
-            ? roundPercentile(weeklyRsiValues, WEEKLY_RSI_SELL_PERCENTILE)
-            : Number.NaN,
-          monthlyBuyThreshold: monthlyRsiValues.length
-            ? roundPercentile(monthlyRsiValues, MONTHLY_RSI_PCT_BUY_PERCENTILE)
-            : Number.NaN,
-          monthlySellThreshold: monthlyRsiValues.length
-            ? roundPercentile(monthlyRsiValues, MONTHLY_RSI_PCT_SELL_PERCENTILE)
-            : Number.NaN,
+          weeklyBuyThreshold: weeklyAnalysis.threshold?.buy ?? Number.NaN,
+          weeklySellThreshold: weeklyAnalysis.threshold?.sell ?? Number.NaN,
+          monthlyBuyThreshold: monthlyAnalysis.threshold?.buy ?? Number.NaN,
+          monthlySellThreshold: monthlyAnalysis.threshold?.sell ?? Number.NaN,
         }
         : null;
 
-    // 周RSI6 百分位策略：逐周扫描买卖配对（扫描器在内部剔除预热并计算分位阈值）
-    const percentileTrades: SinglePeriodPercentileTrade[] =
-      weeklyRsiValues.length
-        ? computeSinglePeriodPercentileTrades({
-          rsiData: periodRSIMap.weeklyRSI,
-          buyPercentile: WEEKLY_RSI_BUY_PERCENTILE,
-          sellPercentile: WEEKLY_RSI_SELL_PERCENTILE,
-          closeValueType,
-        })
-        : [];
-
-    // 月RSI6 百分位策略：逐月扫描买卖配对（口径与周策略一致，仅周期与分位常量不同）
-    const monthlyPercentileTrades: SinglePeriodPercentileTrade[] =
-      monthlyRsiValues.length
-        ? computeSinglePeriodPercentileTrades({
-          rsiData: periodRSIMap.monthlyRSI,
-          buyPercentile: MONTHLY_RSI_PCT_BUY_PERCENTILE,
-          sellPercentile: MONTHLY_RSI_PCT_SELL_PERCENTILE,
-          closeValueType,
-        })
-        : [];
-
     // 9) 月+季 RSI6 共振买点：月RSI6 与 季RSI6 同时跌破历史分位，按分位严度分级（★5/★3/★1）
-    // 按月扫描，季度值取该月时点最近一个已完成季度的 RSI6（季度序列按日期 <= 月日期 取最近）
-    const monthlyQuarterlyBuyList: MonthlyQuarterlyPercentileBuyPoint[] = [];
-    let monthlyQuarterlyThresholds: Record<number, { monthly: number; quarterly: number }> | null = null;
-    // 卖出阈值：月RSI6 > 该值 且 季RSI6 > 该值 时视为可卖出点（与★5买点顺序配对）
-    let monthlyQuarterlySellThresholds: { monthly: number; quarterly: number } | null = null;
-    {
-      // monthlyRsiValues 复用步骤 8 的计算结果，避免重复
-      const quarterlyRsiValues = getRsiValues(periodRSIMap, 'quarterly');
-
-      if (monthlyRsiValues.length && quarterlyRsiValues.length) {
-        // 按级别计算月/季 RSI6 买入分位阈值（图表参考线与阈值文案展示用）
-        const thresholds: Record<number, { monthly: number; quarterly: number }> = {};
-        for (const { level, percentile } of MQ_LEVEL_RULES) {
-          thresholds[level] = {
-            monthly: roundPercentile(monthlyRsiValues, percentile),
-            quarterly: roundPercentile(quarterlyRsiValues, percentile),
-          };
-        }
-        monthlyQuarterlyThresholds = thresholds;
-
-        // 卖出分位阈值（月/季可分别配置，默认均为85%，图表参考线展示用）
-        monthlyQuarterlySellThresholds = {
-          monthly: roundPercentile(monthlyRsiValues, MONTHLY_RSI_SELL_PERCENTILE),
-          quarterly: roundPercentile(quarterlyRsiValues, QUARTERLY_RSI_SELL_PERCENTILE),
-        };
-
-        // 共振买点扫描与 ★5 买卖配对复用公共实现
-        // （内含预热剔除、月/季日期对齐守卫、只与第一个★5配对、持有满1年才算年化）
-        monthlyQuarterlyBuyList.push(
-          ...computeMonthlyQuarterlyPercentileBuyPoints({
-            monthlyRSI6Data: periodRSIMap.monthlyRSI,
-            quarterlyRSI6Data: periodRSIMap.quarterlyRSI,
-            closeValueType,
-          }),
-        );
-      }
-    }
+    // analyzer 内部按「所在自然季度」对齐季末 RSI6（1～3 月取 3 月最晚…），
+    // 与季RSI6 vh 阶梯折线、tooltip 查表同口径；阈值/卖点/买点一次全部产出
+    const mqAnalysis = analyzeMonthlyQuarterlyPercentile({
+      monthlyRSI6Data: periodRSIMap.monthlyRSI,
+      quarterlyRSI6Data: periodRSIMap.quarterlyRSI,
+      closeValueType,
+    });
+    const monthlyQuarterlyBuyList: MonthlyQuarterlyPercentileBuyPoint[] =
+      mqAnalysis?.buyPoints ?? [];
+    const monthlyQuarterlyThresholds: Record<number, { monthly: number; quarterly: number }> | null =
+      mqAnalysis?.thresholds ?? null;
+    // 卖出阈值：月RSI6 ≥ 该值 且 季RSI6 ≥ 该值 时视为可卖出点（与★5买点顺序配对）
+    const monthlyQuarterlySellThresholds: { monthly: number; quarterly: number } | null =
+      mqAnalysis?.sellThresholds ?? null;
 
     // 10) 百分位买卖标注图：左轴收盘价/指数折线 + 右轴周RSI6阈值参考线，叠加买点/卖点标注
     // 与主图一致：周RSI6 不单独绘制折线，仅通过左轴 tooltip 展示数值
@@ -1773,7 +1729,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
               </div>
             ))}
             <div style={{ color: '#595959' }}>
-              按月扫描，季度值取当月时点最近一个已完成季度的 RSI6；同一月份满足多个级别时取最高星级展示。
+              按月扫描，季度值取当月「所在自然季度」的季末 RSI6：1～3 月取 3 月最晚、4～6 月取 6 月最晚、7～9 月取 9 月最晚、10～12 月取 12 月最晚，与图中季RSI6 阶梯线一致；同一月份满足多个级别时取最高星级展示。
             </div>
             <div style={{ marginTop: 4 }}>
               卖出规则：月RSI6{' '}

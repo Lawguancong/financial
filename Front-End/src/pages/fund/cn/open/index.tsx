@@ -136,7 +136,7 @@ const FundOpen: React.FC = () => {
       title: '推荐买点（百分位）',
       dataIndex: '__推荐买点百分位__',
       key: '__推荐买点百分位__',
-      width: 400,
+      width: 120,
       render: (value: string) => {
         if (!value) return <span style={{ color: '#999' }}>-</span>;
         const dates = value.split(',').reverse().filter(d => d.trim());
@@ -179,7 +179,7 @@ const FundOpen: React.FC = () => {
       title: '推荐买点（定量）',
       dataIndex: '__推荐买点定量__',
       key: '__推荐买点定量__',
-      width: 400,
+      width: 120,
       render: (value: string) => {
         if (!value) return <span style={{ color: '#999' }}>-</span>;
         const dates = value.split(',').reverse().filter(d => d.trim());
@@ -223,7 +223,7 @@ const FundOpen: React.FC = () => {
       title: '月RSI6百分位策略',
       dataIndex: '__月RSI6百分位__',
       key: '__月RSI6百分位__',
-      width: 400,
+      width: 120,
       render: (value: string) => {
         if (!value) return <span style={{ color: '#999' }}>-</span>;
         const dates = value.split(',').reverse().filter(d => d.trim());

@@ -1,0 +1,45 @@
+Front-End/src/pages/stock/a/market-temp/index.tsx
+  s_206a7cc0635559::t_8fe09563ec636a 445
+  s_206a7cc0635559::t_4cf1ecde6afa53 456-457,459-469
+  s_206a7cc0635559::t_5a0b5b5258c283 458
+Front-End/src/utils/stockUtils.ts
+  s_59061bf31aa6f7::t_85b947e7b4a60d 4-30
+Front-End/src/pages/stock/a/valuation/index.tsx
+  h_8d10030941b6f7 42,155,170,295,403,515,538,661,676,800,815,943,958
+  s_59061bf31aa6f7::t_58877b081c5699 57,166,308,414,672,811,954
+  s_59061bf31aa6f7::t_30d8c62ee4ba90 18-19
+  s_59061bf31aa6f7::t_3506b6be30f131 534
+  s_59061bf31aa6f7::t_b33dd7aea23e7d 9
+  s_59061bf31aa6f7::t_4041f63e285073 526-533
+  s_59061bf31aa6f7::t_6ced3590395d6f 12-17
+  h_8d10030941b6f7 142,502,648,787,930
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5a48d24920f322f44ecc502d980850da30cd6f27",
+  "prompts": {},
+  "humans": {
+    "h_8d10030941b6f7": {
+      "author": "罗冠聪 <luoguancong@ruqimobility.com>"
+    }
+  },
+  "sessions": {
+    "s_206a7cc0635559": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6abdd073a6e8a20210a48038",
+        "model": "unknown"
+      },
+      "human_author": "罗冠聪 <luoguancong@ruqimobility.com>"
+    },
+    "s_59061bf31aa6f7": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6abf8f3ca6e8a20210a48901",
+        "model": "unknown"
+      },
+      "human_author": "罗冠聪 <luoguancong@ruqimobility.com>"
+    }
+  }
+}

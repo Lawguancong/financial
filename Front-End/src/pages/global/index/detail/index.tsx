@@ -55,6 +55,8 @@ const GlobalIndexDetail: React.FC = () => {
     <Card>
       <Title level={4} style={{ marginTop: 0 }}>{symbol || '全球指数详情'}</Title>
       <Spin spinning={loading}>
+        {/* todo  */}
+        {/* {useMemo(() => <IndexMetrics data={data} />, [data])} */}
         {useMemo(() => <RsiFilterMark data={data} type="index" />, [data])}
       </Spin>
     </Card>

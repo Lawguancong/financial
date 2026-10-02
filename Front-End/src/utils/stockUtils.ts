@@ -7,12 +7,18 @@ export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
     leftKey?: string;
     dateKey?: string;
     percentKey?: string;
+    /** 收盘值语义：cumulativeReturn=累计收益率(可为负、起点通常为0)；默认按 leftKey 是否为「累计收益率」推断 */
+    closeValueType?: CloseValueType;
   }
 ): (T & { __最大回撤率__: number; __年化收益率__: number | null })[] => {
-  const { data, leftKey = '', dateKey = '', percentKey } = params;
+  const { data, leftKey = '', dateKey = '', percentKey, closeValueType } = params;
   if (!data || data.length === 0) {
     return [];
   }
+
+  // 是否按「累计收益率」口径计算（显式参数优先，未传时沿用字段名推断，兼容旧调用方）
+  const isCumulativeReturn =
+    closeValueType === 'cumulativeReturn' || (closeValueType == null && leftKey === '累计收益率');
 
   let maxClose = 0;
   const firstClose = data[0][leftKey] as number;
@@ -37,7 +43,7 @@ export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
     }
 
     let drawdown: number | null = null;
-    if (leftKey === '累计收益率') {
+    if (isCumulativeReturn) {
       drawdown = ((maxClose + 100) - (closePrice + 100)) / (maxClose + 100);
     } else {
       drawdown = (maxClose - closePrice) / maxClose;
@@ -47,7 +53,7 @@ export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
     const days = moment(currentDate, 'YYYYMMDD').diff(moment(firstDate, 'YYYYMMDD'), 'days');
     let annualizedRate: number | null = null;
     if (days > 365) {
-      if (leftKey === '累计收益率') {
+      if (isCumulativeReturn) {
         // 总收益：上市以来，2009年12月～2026年2月，累计收益率：177.36%
         // 前段收益：2009年12月～2023年2月，累计收益率：118.46%
         // 后段收益：最近3年，2023年2月～2026年2月，累计收益率：26.97%
@@ -668,6 +674,36 @@ export const fundRsiRecommendationRules: RsiRecommendationRules = {
   ],
 };
 
+// 大商品 RSI6 推荐级别规则
+export const commodityRsiRecommendationRules: RsiRecommendationRules = {
+  5: [
+    [
+      { period: 'daily', threshold: 14 },
+      { period: 'weekly', threshold: 18 },
+      { period: 'monthly', threshold: 22 },
+      { period: 'quarterly', threshold: 25 },
+    ],
+  ],
+  3: [
+    [
+      { period: 'daily', threshold: 9 },
+      { period: 'weekly', threshold: 12 },
+      { period: 'monthly', threshold: 15 },
+    ],
+  ],
+  1: [
+    [
+      { period: 'daily', threshold: 15 },
+      { period: 'weekly', threshold: 17 },
+      { period: 'monthly', threshold: 19 },
+    ],
+    [
+      { period: 'daily', threshold: 9 },
+      { period: 'weekly', threshold: 12 },
+    ],
+  ],
+};
+
 // 根据规则表计算 RSI6 推荐级别
 const calculateRecommendationLevelByRules = (
   rules: RsiRecommendationRules,
@@ -709,6 +745,16 @@ const calculateStockRecommendationLevel = (dailyRSIValue?: number, weeklyRSIValu
     quarterlyRSIValue,
   );
 
+// 计算RSI6推荐级别(大宗商品) - 口径与个股一致
+const calculateCommodityRecommendationLevel = (dailyRSIValue?: number, weeklyRSIValue?: number, monthlyRSIValue?: number, quarterlyRSIValue?: number) =>
+  calculateRecommendationLevelByRules(
+    commodityRsiRecommendationRules,
+    dailyRSIValue,
+    weeklyRSIValue,
+    monthlyRSIValue,
+    quarterlyRSIValue,
+  );
+
 // 计算RSI6推荐级别(指数)
 export const calculateIndexRecommendationLevel = (dailyRSIValue?: number, weeklyRSIValue?: number, monthlyRSIValue?: number, quarterlyRSIValue?: number) =>
   calculateRecommendationLevelByRules(
@@ -728,6 +774,17 @@ export const calculateFundRecommendationLevel = (dailyRSIValue?: number, weeklyR
     monthlyRSIValue,
     quarterlyRSIValue,
   );
+
+// 标的类型 -> RSI6 推荐级别计算方法 的映射（新增类型在此登记即可）
+const recommendationLevelCalculatorMap: Record<
+  'stock' | 'index' | 'fund' | 'commodity',
+  typeof calculateStockRecommendationLevel
+> = {
+  stock: calculateStockRecommendationLevel,
+  index: calculateIndexRecommendationLevel,
+  fund: calculateFundRecommendationLevel,
+  commodity: calculateCommodityRecommendationLevel,
+};
 
 
 // 计算分位数
@@ -801,7 +858,7 @@ export const computeRSIRecommendations = (params: {
   weeklyRSI: KLineData[];
   monthlyRSI: KLineData[];
   quarterlyRSI: KLineData[];
-}, type: 'stock' | 'index' | 'fund' = 'stock'): (KLineData & { __recommendationLevel__: number })[] => {
+}, type: 'stock' | 'index' | 'fund' | 'commodity' = 'stock'): (KLineData & { __recommendationLevel__: number })[] => {
   const { dailyRSI, weeklyRSI, monthlyRSI, quarterlyRSI } = params;
 
   if (!dailyRSI || dailyRSI.length === 0) {
@@ -815,11 +872,7 @@ export const computeRSIRecommendations = (params: {
   // 过滤日K数据并计算推荐级别
   const aaa =  dailyRSI.map(dailyRSIData => {
     const rsiValues = getPeriodRSIValues(dailyRSIData, weeklyRSIMap, monthlyRSIMap, quarterlyRSIMap);
-    const calculateFunc = type === 'stock'
-      ? calculateStockRecommendationLevel
-      : type === 'fund'
-        ? calculateFundRecommendationLevel
-        : calculateIndexRecommendationLevel;
+    const calculateFunc = recommendationLevelCalculatorMap[type];
     const __recommendationLevel__ = calculateFunc(
       rsiValues.dailyRSIValue,
       rsiValues.weeklyRSIValue,

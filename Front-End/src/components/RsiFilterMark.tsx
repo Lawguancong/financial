@@ -9,8 +9,8 @@ import { convertToMonthlyData } from '@/pages/fund/cn/open/detail/constants';
 
 interface RsiFilterMarkProps {
   data: KLineData[]; // data数据格式参考KLineData
-  /** 标的类型：股票 / 指数 / 基金，决定推荐级别的计算口径 */
-  type: 'stock' | 'index' | 'fund';
+  /** 标的类型：股票 / 指数 / 基金 / 大宗商品，决定推荐级别的计算口径 */
+  type: 'stock' | 'index' | 'fund' | 'commodity';
   /**
    * 可见的 RSI6 周期，默认展示全部四周期（日/周/月/季）。
    * 基金等场景仅有月/季 RSI6 数据时，可传 ['monthly', 'quarterly'] 隐藏日/周相关内容。
@@ -462,9 +462,9 @@ const ruleLevelStyle: React.CSSProperties = {
  * 与 calculateStockRecommendationLevel / calculateIndexRecommendationLevel 共用同一份规则表，
  * 避免文案与实际计算逻辑不一致。
  */
-const QuantRuleNote: React.FC<{ type: 'stock' | 'index' | 'fund' }> = ({ type }) => {
+const QuantRuleNote: React.FC<{ type: 'stock' | 'index' | 'fund' | 'commodity' }> = ({ type }) => {
   const rules: RsiRecommendationRules =
-    type === 'stock'
+    type === 'stock' || type === 'commodity'
       ? stockRsiRecommendationRules
       : type === 'fund'
         ? fundRsiRecommendationRules
@@ -474,7 +474,8 @@ const QuantRuleNote: React.FC<{ type: 'stock' | 'index' | 'fund' }> = ({ type })
     .map(Number)
     .sort((a, b) => b - a);
 
-  const periodText = type === 'stock' ? '日/周/月/季' : '月度/季度';
+  const periodText =
+    type === 'stock' || type === 'commodity' ? '日/周/月/季' : '月度/季度';
   const extraNote = type === 'index' ? '；指数按月取每月最晚的一条信号展示' : '';
 
   return (

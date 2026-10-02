@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Spin } from 'antd';
+import IndexMetrics from '@/components/IndexMetrics';
 import RsiFilterMark from '@/components/RsiFilterMark';
 import type { KLineData } from '@/utils/stockUtils';
 import apiClient from '@/utils/axios';
@@ -51,11 +52,12 @@ const FundRsiFilterMark: React.FC<FundRsiFilterMarkProps> = ({ symbol }) => {
 
   return (
     <Spin spinning={loading}>
-      <RsiFilterMark
+      {useMemo(() => <IndexMetrics data={data} closeValueType="cumulativeReturn" />, [data])}
+      {useMemo(() => <RsiFilterMark
         data={data}
         type="fund"
         visiblePeriods={['monthly', 'quarterly']}
-      />
+      />, [data])}
     </Spin>
   );
 };

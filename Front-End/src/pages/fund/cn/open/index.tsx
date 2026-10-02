@@ -384,6 +384,7 @@ const FundOpen: React.FC = () => {
               columns={selectedColumns}
               dataSource={selectedFunds}
               rowKey="基金代码"
+              sticky
               scroll={{ x: 2800 }}
               pagination={{
                 ...pagination,

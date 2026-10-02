@@ -6,6 +6,7 @@ import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { calculateMaxDrawdown, calculateStartDate, calculatePercentiles } from '@/utils';
 import dayjs from 'dayjs';
+import IndexMetrics from '@/components/IndexMetrics';
 
 // RSI·推荐级别：与 /stock/us/index 统一复用同一组件（路由层提供 Suspense 边界）
 const RsiFilterMark = React.lazy(() => import('@/components/RsiFilterMark'));
@@ -179,7 +180,7 @@ const IndexDetail: React.FC = () => {
         </Radio.Group>
       </div>
 
-      <Collapse defaultActiveKey={["1"]} style={{ marginTop: 16 }}>
+      {/* <Collapse defaultActiveKey={["1"]} style={{ marginTop: 16 }}>
         <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>基础信息</span>} key="1">
           <Card style={{ marginTop: '16px' }}>
             {dataWithDrawdown.length > 0 ? (
@@ -230,8 +231,6 @@ const IndexDetail: React.FC = () => {
                           <span>滚动市盈率(15%分位数)：<span style={{ fontWeight: '600' }}>{percentile15}</span></span>
                           <span>滚动市盈率(85%分位数)：<span style={{ fontWeight: '600' }}>{percentile85}</span></span>
                           <span>动态回撤率：<span style={{ fontWeight: '600' }}>{latestData['__最大回撤率__']}</span>%</span>
-                          {/* <span>月RSI6：<span style={{ fontWeight: '600' }}>{latestData['__monthlyRSI6__']}</span>%</span> */}
-                          {/* <span>季RSI6：<span style={{ fontWeight: '600' }}>{latestData['__quarterlyRSI6__']}</span>%</span> */}
                         </div>
                       </div>
                     );
@@ -248,10 +247,16 @@ const IndexDetail: React.FC = () => {
             )}
           </Card>
         </Collapse.Panel>
+      </Collapse> */}
+
+      <Collapse defaultActiveKey={["2"]} style={{ marginTop: 16 }}>
+        <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>指数/年化收益率/回撤率/波动率</span>} key="2">
+          {useMemo(() => <IndexMetrics data={dailyData} />, [dailyData])}
+        </Collapse.Panel>
       </Collapse>
 
-      <Collapse defaultActiveKey={["1"]} style={{ marginTop: 16 }}>
-        <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📈📊📉 RSI·推荐级别</span>} key="1">
+      <Collapse defaultActiveKey={["3"]} style={{ marginTop: 16 }}>
+        <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📈📊📉 RSI·推荐级别</span>} key="3">
           <RsiFilterMark data={dailyData} type="index" />
         </Collapse.Panel>
       </Collapse>

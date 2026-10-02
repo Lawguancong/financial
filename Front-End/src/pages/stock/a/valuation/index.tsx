@@ -6,7 +6,16 @@ import { Tabs, Button, } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import apiClient from '@/utils/axios';
 import akshareApi from '@/utils/akshareApi';
+import { filterByFrequency } from '@/utils';
 import moment from 'moment';
+
+// 接口数据按 key 展开后的统一结构
+type FormattedDataItem = {
+  date: string;
+  key: string;
+  label: string;
+  value: number;
+};
 
 const Stock_zh_index_hist_csindex = () => {
   const chartName = '中证全指-滚动市盈率'; // 图表名称
@@ -17,7 +26,6 @@ const Stock_zh_index_hist_csindex = () => {
   const rightKeys = { // 右y轴键名: 右y轴名称
     滚动市盈率: '滚动市盈率',
   }
-  const sampleRate = 10; // 抽样率
   type DataRes = {
     [dateKey]: string;
     [leftKey]: number;
@@ -31,7 +39,7 @@ const Stock_zh_index_hist_csindex = () => {
     ...rightKeys
   }
   const [data, setData] = useState<{
-    leftData: DataRes[];
+    leftData: FormattedDataItem[];
     rightData: {
       date: string;
       key: string;
@@ -46,7 +54,7 @@ const Stock_zh_index_hist_csindex = () => {
       // end_date	str	end_date = "20240604"
       const response = await apiClient.get(`/api/public/stock_zh_index_hist_csindex?symbol=000985&start_date=20050101&end_date=${moment().format('YYYYMMDD')}`)
       console.log(`${chartName} -> response`, response)
-      const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
+      const dataFormat = filterByFrequency(response?.data as DataRes[], dateKey, 'monthly')?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
         date: item[dateKey],
         key,
         label: labelMap[key as keyof typeof labelMap],
@@ -131,8 +139,7 @@ const Stock_a_gxl_lg = () => {
     const rightKeys = { // 右y轴键名: 右y轴名称
 
     }
-    const sampleRate = 1; // 抽样率
-    type DataRes = {
+      type DataRes = {
       [dateKey]: string;
       [leftKey]: number;
     } & {
@@ -145,7 +152,7 @@ const Stock_a_gxl_lg = () => {
       ...rightKeys
     }
     const [data, setData] = useState<{
-      leftData: DataRes[];
+      leftData: FormattedDataItem[];
       rightData: {
         date: string;
         key: string;
@@ -156,11 +163,11 @@ const Stock_a_gxl_lg = () => {
       try {
         const response = await apiClient.get(`/api/public/stock_a_gxl_lg?symbol=${symbol}`)
         console.log(`${chartName} -> response`, response)
-        const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
+        const dataFormat = filterByFrequency(response?.data as DataRes[], dateKey, 'monthly')?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
           date: item[dateKey],
           key,
           label: labelMap[key as keyof typeof labelMap],
-          value: item[key as keyof DataRes],
+          value: item[key as keyof DataRes] as number,
         }))).flat()
         setData({
           leftData: dataFormat?.filter((item: { key: string }) => item.key === leftKey),
@@ -272,7 +279,6 @@ const Stock_a_ttm_lyr = () => {
     quantileInAllHistoryAveragePeLyr: '当前"LYR(静态市盈率)等权平均"在历史数据上的分位数',
     quantileInRecent10YearsAveragePeLyr: '当前"LYR(静态市盈率)等权平均"在最近10年数据上的分位数',
   }
-  const sampleRate = 10; // 抽样率
   type DataRes = {
     [dateKey]: string;
     [leftKey]: number;
@@ -286,7 +292,7 @@ const Stock_a_ttm_lyr = () => {
     ...rightKeys
   }
   const [data, setData] = useState<{
-    leftData: DataRes[];
+    leftData: FormattedDataItem[];
     rightData: {
       date: string;
       key: string;
@@ -299,7 +305,7 @@ const Stock_a_ttm_lyr = () => {
       //  const response = await akshareApi.getStockATTMLYR({});
       // const response = await akshareApi.getStockAGxl({});
       console.log(`${chartName} -> response`, response)
-      const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
+      const dataFormat = filterByFrequency(response?.data as DataRes[], dateKey, 'monthly')?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
         date: item[dateKey],
         key,
         label: labelMap[key as keyof typeof labelMap],
@@ -381,7 +387,6 @@ const Stock_a_all_pb = () => {
     quantileInAllHistoryEqualWeightAveragePB: '当前市净率等权平均在历史数据上的分位数',
     quantileInRecent10YearsEqualWeightAveragePB: '当前市净率等权平均在最近10年数据上的分位数',
   }
-  const sampleRate = 10; // 抽样率
   type DataRes = {
     [dateKey]: string;
     [leftKey]: number;
@@ -395,7 +400,7 @@ const Stock_a_all_pb = () => {
     ...rightKeys
   }
   const [data, setData] = useState<{
-    leftData: DataRes[];
+    leftData: FormattedDataItem[];
     rightData: {
       date: string;
       key: string;
@@ -406,7 +411,7 @@ const Stock_a_all_pb = () => {
     try {
       const response = await apiClient.get('/api/public/stock_a_all_pb')
       console.log(`${chartName} -> response`, response)
-      const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
+      const dataFormat = filterByFrequency(response?.data as DataRes[], dateKey, 'monthly')?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
         date: item[dateKey],
         key,
         label: labelMap[key as keyof typeof labelMap],
@@ -494,8 +499,7 @@ const Stock_market_pe_lg = () => {
       // 市盈率: '市盈率',
       // 总市值: '总市值',
     }
-    const sampleRate = 1; // 抽样率
-    type DataRes = {
+      type DataRes = {
       [dateKey]: string;
       [leftKey]: number;
     } & {
@@ -508,7 +512,7 @@ const Stock_market_pe_lg = () => {
       ...rightKeys
     }
     const [data, setData] = useState<{
-      leftData: DataRes[];
+      leftData: FormattedDataItem[];
       rightData: {
         date: string;
         key: string;
@@ -519,15 +523,19 @@ const Stock_market_pe_lg = () => {
       try {
         const response = await apiClient.get(`/api/public/stock_market_pe_lg?symbol=${symbol}`)
         console.log(`${chartName} -> response`, response)
-        const dataFormat = response?.data?.map((item: DataRes) => ({
-          ...item,
-          平均市盈率: item.平均市盈率 || item.市盈率,
-          指数: item.指数 || item.总市值, // 科创板：只有总市值、没有指数
-        }))?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
+        const transformedData = response?.data?.map((item: DataRes) => {
+          const rawItem = item as DataRes & { 市盈率?: number; 总市值?: number };
+          return {
+            ...rawItem,
+            平均市盈率: rawItem.平均市盈率 || rawItem.市盈率,
+            指数: rawItem.指数 || rawItem.总市值, // 科创板：只有总市值、没有指数
+          };
+        });
+        const dataFormat = filterByFrequency(transformedData as DataRes[], dateKey, 'monthly')?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
           date: item[dateKey],
           key,
           label: labelMap[key as keyof typeof labelMap],
-          value: item[key as keyof DataRes],
+          value: item[key as keyof DataRes] as number,
         }))).flat()
         setData({
           leftData: dataFormat?.filter((item: { key: string }) => item.key === leftKey),
@@ -637,8 +645,7 @@ const Stock_market_pb_lg = () => {
       等权市净率: '等权市净率',
       市净率中位数: '市净率中位数',
     }
-    const sampleRate = 10; // 抽样率
-    type DataRes = {
+      type DataRes = {
       [dateKey]: string;
       [leftKey]: number;
     } & {
@@ -651,7 +658,7 @@ const Stock_market_pb_lg = () => {
       ...rightKeys
     }
     const [data, setData] = useState<{
-      leftData: DataRes[];
+      leftData: FormattedDataItem[];
       rightData: {
         date: string;
         key: string;
@@ -662,11 +669,11 @@ const Stock_market_pb_lg = () => {
       try {
         const response = await apiClient.get(`/api/public/stock_market_pb_lg?symbol=${symbol}`)
         console.log(`${chartName} -> response`, response)
-        const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
+        const dataFormat = filterByFrequency(response?.data as DataRes[], dateKey, 'monthly')?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
           date: item[dateKey],
           key,
           label: labelMap[key as keyof typeof labelMap],
-          value: item[key as keyof DataRes],
+          value: item[key as keyof DataRes] as number,
         }))).flat()
         setData({
           leftData: dataFormat?.filter((item: { key: string }) => item.key === leftKey),
@@ -777,8 +784,7 @@ const Stock_index_pb_lg = () => {
       等权市净率: '等权市净率',
       市净率中位数: '市净率中位数',
     }
-    const sampleRate = 10; // 抽样率
-    type DataRes = {
+      type DataRes = {
       [dateKey]: string;
       [leftKey]: number;
     } & {
@@ -791,7 +797,7 @@ const Stock_index_pb_lg = () => {
       ...rightKeys
     }
     const [data, setData] = useState<{
-      leftData: DataRes[];
+      leftData: FormattedDataItem[];
       rightData: {
         date: string;
         key: string;
@@ -802,11 +808,11 @@ const Stock_index_pb_lg = () => {
       try {
         const response = await apiClient.get(`/api/public/stock_index_pb_lg?symbol=${symbol}`)
         console.log(`${chartName} -> response`, response)
-        const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
+        const dataFormat = filterByFrequency(response?.data as DataRes[], dateKey, 'monthly')?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
           date: item[dateKey],
           key,
           label: labelMap[key as keyof typeof labelMap],
-          value: item[key as keyof DataRes],
+          value: item[key as keyof DataRes] as number,
         }))).flat()
         setData({
           leftData: dataFormat?.filter((item: { key: string }) => item.key === leftKey),
@@ -921,8 +927,7 @@ const Stock_index_pe_lg = () => {
       滚动市盈率: '滚动市盈率',
       滚动市盈率中位数: '滚动市盈率中位数',
     }
-    const sampleRate = 10; // 抽样率
-    type DataRes = {
+      type DataRes = {
       [dateKey]: string;
       [leftKey]: number;
     } & {
@@ -935,7 +940,7 @@ const Stock_index_pe_lg = () => {
       ...rightKeys
     }
     const [data, setData] = useState<{
-      leftData: DataRes[];
+      leftData: FormattedDataItem[];
       rightData: {
         date: string;
         key: string;
@@ -946,11 +951,11 @@ const Stock_index_pe_lg = () => {
       try {
         const response = await apiClient.get(`/api/public/stock_index_pe_lg?symbol=${symbol}`)
         console.log(`${chartName} -> response`, response)
-        const dataFormat = response?.data?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
+        const dataFormat = filterByFrequency(response?.data as DataRes[], dateKey, 'monthly')?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
           date: item[dateKey],
           key,
           label: labelMap[key as keyof typeof labelMap],
-          value: item[key as keyof DataRes],
+          value: item[key as keyof DataRes] as number,
         }))).flat()
         setData({
           leftData: dataFormat?.filter((item: { key: string }) => item.key === leftKey),

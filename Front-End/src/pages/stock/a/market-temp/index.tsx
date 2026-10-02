@@ -442,7 +442,7 @@ const Stock_margin_account_info = ({ key }: { key: number }) => {
       });
 
       // 合并 mergedMarginBuffettData 和 csindexData
-      const finalMergedData = [];
+      const finalMergedData: DataRes[] = [];
       mergedMarginBuffettData.forEach(mergedItem => {
         const csindexItem = csindexDataMap.get(mergedItem.日期);
         if (csindexItem) {
@@ -453,7 +453,20 @@ const Stock_margin_account_info = ({ key }: { key: number }) => {
         }
       })
       console.log(`1111111 中证全指 finalMergedData`, finalMergedData);
-      const dataFormat = finalMergedData?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
+      // 按月分组，仅保留每月最晚一条记录（三源已按当日对齐，所有字段/比率同取该日值）
+      const monthlyDataMap = new Map<string, DataRes>();
+      finalMergedData.forEach((item) => {
+        const monthKey = String(item[dateKey]).slice(0, 7);
+        const existed = monthlyDataMap.get(monthKey);
+        if (!existed || String(existed[dateKey]) < String(item[dateKey])) {
+          monthlyDataMap.set(monthKey, item);
+        }
+      });
+      const monthlyData = [...monthlyDataMap.values()].sort((a, b) =>
+        String(a[dateKey]).localeCompare(String(b[dateKey]))
+      );
+      console.log(`1111111 按月取最晚 monthlyData`, monthlyData);
+      const dataFormat = monthlyData?.filter((_, index: number) => index % sampleRate === 0)?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
         date: item[dateKey],
         key,
         label: labelMap[key as keyof typeof labelMap],

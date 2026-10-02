@@ -1,6 +1,33 @@
 import moment from 'moment';
 import { isNumber } from 'lodash-es'
 
+// 数据频率：daily = 保留全部日频数据；monthly = 每月只取最后一条数据
+export type DataFrequency = 'daily' | 'monthly';
+
+/**
+ * 按频率过滤数据
+ * - daily：返回全部数据
+ * - monthly（默认）：按 YYYY-MM 归组，取每月最晚的一条
+ */
+export const filterByFrequency = <T>(
+  list: T[] | undefined,
+  dateKey: string,
+  frequency: DataFrequency = 'monthly',
+): T[] => {
+  if (!Array.isArray(list)) return [];
+  if (frequency === 'daily') return list;
+  const monthLastMap = new Map<string, T>();
+  list.forEach((item) => {
+    const date = moment(item[dateKey as keyof T] as unknown as string);
+    const month = date.format('YYYY-MM');
+    const existing = monthLastMap.get(month);
+    if (!existing || date.isAfter(moment(existing[dateKey as keyof T] as unknown as string))) {
+      monthLastMap.set(month, item);
+    }
+  });
+  return Array.from(monthLastMap.values());
+};
+
 export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
   params: {
     data: T[];

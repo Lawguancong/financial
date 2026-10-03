@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Table, Card, Tabs, Space } from 'antd';
+import { Button, Table, Card, Tabs, Space, Alert } from 'antd';
 import moment from 'moment';
 import { numberSorter } from '@/utils/tableUtils';
 import { fetchFundRecommendationPointsBoth } from '@/utils/fundUtils';
@@ -357,6 +357,20 @@ const FundOpen: React.FC = () => {
         </TabPane>
         <TabPane tab="自选基金" key="selected">
           <Card>
+            <Alert
+              style={{ marginBottom: 16 }}
+              type="warning"
+              showIcon
+              title="关于「周RSI6策略」缺失的说明"
+              description={
+                <span style={{ lineHeight: 1.8 }}>
+                  基金行情接口<strong>累计收益率 未返回每日净值数据</strong>，无法聚合出日K线/周K线，
+                  因此本页<strong style={{ color: '#d46b08' }}>不提供「周RSI6百分位策略」</strong>买点。
+                  当前支持的买点为：推荐买点（定量）、推荐买点（百分位）、月RSI6百分位策略；
+                  单只基金的月 / 季 RSI6 详情可进入基金详情页查看。
+                </span>
+              }
+            />
             <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Space>
                 <Button

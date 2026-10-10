@@ -9,6 +9,9 @@ import {
   calculateAnnualizedVolatility,
 } from '@/utils/stockUtils';
 
+
+
+
 interface IndexMetricsProps {
   data: KLineData[]; // 数据格式：{ 日期, 收盘 }
   /** 收盘值语义：基金等累计收益率场景需传 cumulativeReturn，避免起点为0时年化收益率被算成 Infinity；默认 price */

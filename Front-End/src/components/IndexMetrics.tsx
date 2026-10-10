@@ -15,7 +15,6 @@ interface IndexMetricsProps {
   closeValueType?: CloseValueType;
 }
 
-const chartName = '指数 · 年化收益率 · 回撤率 · 波动率';
 const dailySampleRate = 10; // 日频数据抽样率（先计算指标后抽样，仅影响展示，保证各线日期一致）
 
 // 日频判定阈值：相邻日期间隔中位数 ≤ 10 天视为交易日日频数据
@@ -71,6 +70,11 @@ const hasPeField = (data: KLineData[]) =>
   );
 
 const IndexMetrics: React.FC<IndexMetricsProps> = ({ data, closeValueType = 'price' }) => {
+  // 累计收益率口径（基金等）主图为累计收益率，其余口径为指数
+  const chartName = closeValueType === 'cumulativeReturn'
+    ? '累计收益率 · 年化收益率 · 回撤率 · 波动率'
+    : '指数 · 年化收益率 · 回撤率 · 波动率';
+
   const { indexData, metricData, colorDomain, colorRange } = useMemo(() => {
     if (!data?.length) {
       return { indexData: [], metricData: [], colorDomain: ['指数'], colorRange: [indexColor] };
@@ -112,6 +116,7 @@ const IndexMetrics: React.FC<IndexMetricsProps> = ({ data, closeValueType = 'pri
     const indexData = sampled.map((item) => ({
       date: item.日期,
       key: 'index',
+      // label: closeValueType === 'cumulativeReturn' ? '累计收益率' : '指数',
       label: '指数',
       value: item.收盘,
     }));
@@ -165,7 +170,7 @@ const IndexMetrics: React.FC<IndexMetricsProps> = ({ data, closeValueType = 'pri
         },
       ],
     }),
-    [indexData, metricData, colorDomain, colorRange],
+    [indexData, metricData, colorDomain, colorRange, chartName],
   );
 
   if (!data?.length) {

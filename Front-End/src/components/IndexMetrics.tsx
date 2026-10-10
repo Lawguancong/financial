@@ -9,9 +9,6 @@ import {
   calculateAnnualizedVolatility,
 } from '@/utils/stockUtils';
 
-
-
-
 interface IndexMetricsProps {
   data: KLineData[]; // 至少包含「日期」「收盘」字段的 K 线数据
   /**

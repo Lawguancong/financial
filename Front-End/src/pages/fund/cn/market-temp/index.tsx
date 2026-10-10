@@ -1,6 +1,6 @@
 import { Line } from '@ant-design/plots';
 import { DualAxes } from '@ant-design/plots';
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { Tabs, Button } from 'antd';

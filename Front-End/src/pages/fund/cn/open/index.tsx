@@ -111,7 +111,7 @@ const FundOpen: React.FC = () => {
       dataIndex: '基金代码',
       key: '基金代码',
       width: 120,
-      render: (code: string, record: FundData) => (
+      render: (code: string) => (
         <a onClick={() => window.open(`/fund/cn/open/detail?symbol=${code}`, '_blank')}>
           {code}
         </a>

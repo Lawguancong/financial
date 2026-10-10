@@ -1,4 +1,4 @@
-import { HomeOutlined, BankOutlined, StockOutlined, ShoppingOutlined, ApartmentOutlined, FundOutlined, ThunderboltOutlined, ExperimentOutlined, CodeOutlined, ReadOutlined, GlobalOutlined } from '@ant-design/icons';
+import { HomeOutlined, BankOutlined, StockOutlined, ShoppingOutlined, ApartmentOutlined, FundOutlined, CodeOutlined, ReadOutlined, GlobalOutlined } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { lazy } from 'react';
 

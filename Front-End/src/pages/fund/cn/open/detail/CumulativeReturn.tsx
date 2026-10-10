@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Select, Button, Card, Spin, Table, Collapse } from 'antd';
-import { DualAxes, Line } from '@ant-design/plots';
+import { DualAxes } from '@ant-design/plots';
 import { pick, isNumber } from 'lodash-es';
 import { calculateMaxDrawdown, calculateRSI, calculateMACD, calculatePercentile } from '@/utils';
 import moment from 'moment';
 import apiClient from '@/utils/axios';
-import { timeRangeOptions, periodOptions, keyMap, rightKeys, getLevelStyle } from './constants';
+import { periodOptions, rightKeys, getLevelStyle } from './constants';
 import { calculateFundRecommendationLevel } from '@/utils/stockUtils';
 
 interface CumulativeReturnProps {

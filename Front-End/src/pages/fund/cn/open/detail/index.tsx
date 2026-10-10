@@ -6,7 +6,6 @@ import UnitNav from './UnitNav';
 import CumulativeNav from './CumulativeNav';
 import FundRsiFilterMark from './FundRsiFilterMark';
 import FundHoldings from './FundHoldings';
-import FundDividend from './FundDividend';
 import FundIndustryAllocation from './FundIndustryAllocation';
 import FundAssetAllocation from './FundAssetAllocation';
 import FundAnalysis from './FundAnalysis';

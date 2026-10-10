@@ -53,6 +53,10 @@ const DividendRankPanel: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
     const filtered = data.filter(
       item =>
         item.基金简称.toLowerCase().includes(searchText.toLowerCase()) ||

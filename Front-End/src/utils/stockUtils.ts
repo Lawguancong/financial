@@ -1,5 +1,4 @@
 import moment from 'moment';
-import { isNumber } from 'lodash-es'
 
 // 数据频率：daily = 保留全部日频数据；monthly = 每月只取最后一条数据
 export type DataFrequency = 'daily' | 'monthly';

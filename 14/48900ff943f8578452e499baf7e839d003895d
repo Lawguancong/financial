@@ -1,0 +1,13 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "1448900ff943f8578452e499baf7e839d003895d",
+  "prompts": {},
+  "humans": {
+    "h_8d10030941b6f7": {
+      "author": "罗冠聪 <luoguancong@ruqimobility.com>"
+    }
+  },
+  "landed_session_count": 0
+}

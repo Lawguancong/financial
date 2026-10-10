@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Table, Typography, InputNumber, Space, Button, Input, Tabs, message, Dropdown, Modal, Popconfirm } from 'antd';
+import { Table, Typography, Space, Button, Input, Tabs, message, Dropdown, Modal, Popconfirm } from 'antd';
 import type { MenuProps } from 'antd';
 import { PlusOutlined, EditOutlined, CloseOutlined, CheckOutlined, FieldTimeOutlined } from '@ant-design/icons';
 import apiClient from '@/utils/axios';
 import moment from 'moment';
-import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations, computeMonthlyQuarterlyPercentileBuyPoints, computeSinglePeriodPercentileTrades, WEEKLY_RSI_BUY_PERCENTILE, WEEKLY_RSI_SELL_PERCENTILE, MONTHLY_RSI_PCT_BUY_PERCENTILE, MONTHLY_RSI_PCT_SELL_PERCENTILE, isRecentDate } from '@/utils/stockUtils';
+import { computeRSIRecommendations, calculatePeriodRSI, computeMonthlyQuarterlyPercentileBuyPoints, computeSinglePeriodPercentileTrades, WEEKLY_RSI_BUY_PERCENTILE, WEEKLY_RSI_SELL_PERCENTILE, MONTHLY_RSI_PCT_BUY_PERCENTILE, MONTHLY_RSI_PCT_SELL_PERCENTILE, isRecentDate } from '@/utils/stockUtils';
 import type { KLineData } from '@/utils/stockUtils';
 import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
 

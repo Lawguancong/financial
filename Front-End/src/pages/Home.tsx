@@ -116,7 +116,7 @@ const MODULES: ModuleItem[] = [
   },
   {
     title: '知识课堂',
-    desc: 'RSI 指标原理与策略科普',
+    desc: '知识科普',
     path: '/knowledge/rsi',
     icon: <ReadOutlined />,
     gradient: 'linear-gradient(135deg, #ffd666 0%, #d48806 100%)',
@@ -124,7 +124,7 @@ const MODULES: ModuleItem[] = [
   },
   {
     title: 'API 测试',
-    desc: 'AKShare 接口在线调试',
+    desc: '接口在线调试',
     path: '/api/test',
     icon: <CodeOutlined />,
     gradient: 'linear-gradient(135deg, #8c8c8c 0%, #262626 100%)',

@@ -60,8 +60,6 @@
   // A股财务指标: stock_financial_analysis_indicator
   // A股个股估值: stock_value_em (仅最近10年数据)
 
-  // RSI卖出 - RSI买入 年化收益率计算 (评估是否有意义)
-
 
   
   // 全球指数
@@ -71,4 +69,21 @@
 
   // 港股指数
 
-  // RSI6 百分比 可能需要优化， 百分比取得是 目前所有的。
+  最好10个 20个 30个 交易日 收益率/正态分布
+
+  // 自研 逃顶策略 
+
+  // 优化 计算rsi6 买点，  新增worker js 线程计算？
+  
+  // 原油RSI
+
+  中证指数 接口：stock_zh_index_hist_csindex
+
+  指数估值-中证 接口：stock_zh_index_value_csindex
+
+    港股股票指数 实时行情数据-新浪 接口：stock_hk_index_spot_sina
+
+    拥挤度  上证指数->中证指数。
+
+    指数/个股/基金  计算完推荐后 表格好像没更新？
+    RSI 买点 报告数据、报表（如最大回撤率 等等数据）

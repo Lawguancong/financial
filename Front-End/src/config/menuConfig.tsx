@@ -141,6 +141,34 @@ export const menuConfigs: MenuItemConfig[] = [
             path: 'stock/hk/hsi-dividend-yield',
             component: lazy(() => import('@/pages/stock/hk/hsi-dividend-yield')),
           },
+          {
+            key: 'stock/hk/index',
+            label: '指数',
+            path: 'stock/hk/index',
+            component: lazy(() => import('@/pages/stock/hk/index')),
+            children: [
+              {
+                key: 'stock/hk/index/detail',
+                label: '指数详情',
+                path: 'stock/hk/index/detail',
+                component: lazy(() => import('@/pages/stock/hk/index/detail')),
+              },
+            ],
+          },
+          {
+            key: 'stock/hk/stock',
+            label: '个股',
+            path: 'stock/hk/stock',
+            component: lazy(() => import('@/pages/stock/hk/stock')),
+            children: [
+              {
+                key: 'stock/hk/stock/detail',
+                label: '个股详情',
+                path: 'stock/hk/stock/detail',
+                component: lazy(() => import('@/pages/stock/hk/stock/detail')),
+              },
+            ],
+          },
         ],
       },
       {

@@ -4,6 +4,7 @@ import { ExclamationCircleFilled } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { menuItems, menuPathMap } from '@/config/menuConfig';
 import type { MenuProps } from 'antd';
+import UserManual from '@/components/UserManual';
 
 const { Header, Content, Sider } = Layout;
 
@@ -167,12 +168,17 @@ const MainLayout: React.FC = () => {
       </Sider>
       <Layout style={{ marginLeft: collapsed ? 80 : 200 }}>
         <Header style={{ padding: 0, background: colorBgContainer }}>
-          <div style={{ padding: '0 24px' }}>
-            <h1 style={{ margin: 0, lineHeight: '48px', fontSize: '36px' }}>
-              数据分析平台
-            </h1>
-            <div style={{ lineHeight: '32px', fontSize: '14px', color: '#666' }}>
-              {currentMenuPath}
+          <div style={{ padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h1 style={{ margin: 0, lineHeight: '48px', fontSize: '36px' }}>
+                数据分析平台
+              </h1>
+              <div style={{ lineHeight: '32px', fontSize: '14px', color: '#666' }}>
+                {currentMenuPath}
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <UserManual />
             </div>
           </div>
         </Header>

@@ -1,5 +1,7 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { Table, Typography, Input, Button, Tabs, Select } from 'antd';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { Table, Typography, Input, Button, Tabs, Select, message, Dropdown, Modal, Popconfirm } from 'antd';
+import type { MenuProps } from 'antd';
+import { PlusOutlined, EditOutlined, CloseOutlined, CheckOutlined } from '@ant-design/icons';
 import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { numberSorter, createRangeFilter, createDateRangeFilter } from '@/utils/tableUtils';
@@ -7,12 +9,25 @@ import type { IndexDetailData } from './detail';
 import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations, computeMonthlyQuarterlyPercentileBuyPoints, computeSinglePeriodPercentileTrades, WEEKLY_RSI_BUY_PERCENTILE, WEEKLY_RSI_SELL_PERCENTILE, MONTHLY_RSI_PCT_BUY_PERCENTILE, MONTHLY_RSI_PCT_SELL_PERCENTILE, isRecentDate } from '@/utils/stockUtils';
 import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
 import { convertToMonthlyData } from '@/pages/fund/cn/open/detail/constants';
-import GrowthVsValue from './GrowthVsValue';
 
 
 
 const { Link } = Typography;
 const { TabPane } = Tabs;
+
+/** 固定 tab：全部指数列表、自选（不可删除/重命名） */
+const ALL_TAB_KEY = 'all';
+const SELECTED_TAB_KEY = 'selected';
+const SELECTED_TAB_LABEL = '自选';
+
+/** 自定义分组：key 唯一且不变，label 可编辑 */
+interface CustomTab {
+  key: string;
+  label: string;
+}
+
+const CUSTOM_TABS_STORAGE_KEY = 'IndexPage-customTabs';
+const CUSTOM_INDICES_STORAGE_KEY = 'IndexPage-customIndices';
 
 interface IndexData {
   指数代码: string;
@@ -85,12 +100,28 @@ const Index: React.FC = () => {
     current: 1,
     pageSize: 100,
   });
-  const [activeTab, setActiveTab] = useState<string>('all');
+  const [activeTab, setActiveTab] = useState<string>(ALL_TAB_KEY);
   const [selectedIndices, setSelectedIndices] = useState<IndexData[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [selectedRows, setSelectedRows] = useState<IndexData[]>([]);
   const [excludedNames, setExcludedNames] = useState<string[]>(["债", "CS", "韩", "年", "-", "+", "对冲", "目标", "海外", "ESG", "内地", "SHS", "易方达", "AA", "交银", "太保", "智选", "SSH", "ABS", "海外", "期权", "城镇"]);
 
+  // 自定义分组
+  const [customTabs, setCustomTabs] = useState<CustomTab[]>([]);
+  const [customIndicesMap, setCustomIndicesMap] = useState<Record<string, IndexData[]>>({});
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newTabName, setNewTabName] = useState('');
+  const [renaming, setRenaming] = useState<{ key: string; value: string } | null>(null);
+  const renameCancelRef = useRef(false);
+  const selectedIndicesRef = useRef<IndexData[]>([]);
+  const customIndicesMapRef = useRef<Record<string, IndexData[]>>({});
+
+  useEffect(() => {
+    selectedIndicesRef.current = selectedIndices;
+  }, [selectedIndices]);
+  useEffect(() => {
+    customIndicesMapRef.current = customIndicesMap;
+  }, [customIndicesMap]);
 
   const onSelectChange = (newSelectedRowKeys: React.Key[], newSelectedRows: IndexData[]) => {
     setSelectedRowKeys(newSelectedRowKeys);
@@ -98,7 +129,6 @@ const Index: React.FC = () => {
   };
 
   const handleCalculateRecommendation = async () => {
-    console.log('11111 selectedRows', selectedRows)
     // 仅收集结果，全部计算完成后再一次性更新表格与缓存
     const resultMap = new Map<string, { quantitative: string; percentile: string; monthlyPercentile: string; weeklyPercentile: string }>();
     await runRecommendationBatchCalculation({
@@ -112,8 +142,10 @@ const Index: React.FC = () => {
       },
     });
     if (resultMap.size === 0) return;
-    setSelectedIndices(prev => {
-      const latestData = prev.map(item => {
+
+    // 将买点结果写回当前活动分组（自选或自定义分组）
+    const applyResults = (list: IndexData[]): IndexData[] =>
+      list.map(item => {
         const result = resultMap.get(String(item['指数代码']));
         return result
           ? {
@@ -125,9 +157,19 @@ const Index: React.FC = () => {
           }
           : item;
       });
-      saveSelectedIndices(latestData);
-      return latestData;
-    });
+
+    if (activeTab === SELECTED_TAB_KEY) {
+      const latest = applyResults(selectedIndicesRef.current);
+      setSelectedIndices(latest);
+      saveSelectedIndices(latest);
+      return;
+    }
+
+    // 自定义分组
+    const isCustomTab = customTabs.some(t => t.key === activeTab);
+    if (isCustomTab) {
+      saveGroupIndices(activeTab, prev => applyResults(prev));
+    }
   };
 
   console.log('11111 selectedIndices', selectedIndices)
@@ -476,43 +518,97 @@ const Index: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 40,
+      width: 100,
       fixed: 'right' as const,
       render: (_, record: IndexData) => {
         const isSelected = isIndexSelected(record['指数代码']);
 
+        // 「全部」Tab：添加到自选 + 加入分组
+        if (activeTab === ALL_TAB_KEY) {
+          const joinGroupItems: MenuProps['items'] = [
+            {
+              key: SELECTED_TAB_KEY,
+              label: (
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minWidth: 120 }}>
+                  <span>{SELECTED_TAB_LABEL}</span>
+                  {isSelected && <CheckOutlined style={{ color: '#52c41a' }} />}
+                </span>
+              ),
+              onClick: () => toggleGroupMembership(record, SELECTED_TAB_KEY),
+            },
+            ...customTabs.map(tab => {
+              const inGroup = isInGroup(tab.key, record['指数代码']);
+              return {
+                key: tab.key,
+                label: (
+                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minWidth: 120 }}>
+                    <span>{tab.label}</span>
+                    {inGroup && <CheckOutlined style={{ color: '#52c41a' }} />}
+                  </span>
+                ),
+                onClick: () => toggleGroupMembership(record, tab.key),
+              };
+            }),
+          ];
+
+          return (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button
+                type={isSelected ? 'default' : 'primary'}
+                size="small"
+                onClick={() => isSelected ? removeFromSelected(record) : addToSelected(record)}
+              >
+                {isSelected ? '取消自选' : '添加到自选'}
+              </Button>
+              <Dropdown menu={{ items: joinGroupItems }} placement="bottomRight">
+                <Button type="default" size="small">
+                  加入分组
+                </Button>
+              </Dropdown>
+            </div>
+          );
+        }
+
+        // 自选或自定义分组 Tab：移出 + 加入到 + 置顶置底
+        const groupKey = activeTab;
+        const crossMenuItems = buildCrossGroupMenuItems(record, groupKey);
+
         return (
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <Button
-              type={isSelected ? 'default' : 'primary'}
+              type="default"
+              danger
               size="small"
-              onClick={() => isSelected ? removeFromSelected(record) : addToSelected(record)}
+              onClick={() => removeFromGroup(groupKey, record)}
             >
-              {isSelected ? '取消自选' : '添加到自选'}
+              移出{groupKey === SELECTED_TAB_KEY ? '自选' : '分组'}
             </Button>
-            {isSelected && activeTab === 'selected' && (
-              <>
-                <Button
-                  type="link"
-                  size="small"
-                  onClick={() => moveToTop(record)}
-                >
-                  置顶
+            {crossMenuItems && crossMenuItems.length > 0 && (
+              <Dropdown menu={{ items: crossMenuItems }} placement="bottomRight">
+                <Button type="default" size="small">
+                  加入到
                 </Button>
-                <Button
-                  type="link"
-                  size="small"
-                  onClick={() => moveToBottom(record)}
-                >
-                  置底
-                </Button>
-              </>
+              </Dropdown>
             )}
+            <Button
+              type="link"
+              size="small"
+              onClick={() => moveInGroup(groupKey, record, 'top')}
+            >
+              置顶
+            </Button>
+            <Button
+              type="link"
+              size="small"
+              onClick={() => moveInGroup(groupKey, record, 'bottom')}
+            >
+              置底
+            </Button>
           </div>
         );
       },
     },
-  ], [data, selectedIndices, activeTab]);
+  ], [data, selectedIndices, activeTab, customTabs, customIndicesMap, renaming]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -542,25 +638,38 @@ const Index: React.FC = () => {
 
       setData(newData);
 
-      // 更新自选指数数据（除指数代码外）
-      if (selectedIndices.length > 0) {
-        const updatedSelectedIndices = selectedIndices.map(selectedIndex => {
-          const matchedIndex = newData.find(index => index['指数代码'] === selectedIndex['指数代码']);
-          if (matchedIndex) {
-            // 保留原指数代码，其他字段用新数据更新；买点列为本地计算结果，接口列表不含，需保留防止被覆盖
-            return {
-              ...matchedIndex,
-              '指数代码': selectedIndex['指数代码'],
-              __推荐买点定量__: selectedIndex.__推荐买点定量__,
-              __推荐买点百分位__: selectedIndex.__推荐买点百分位__,
-              __月RSI6百分位__: selectedIndex.__月RSI6百分位__,
-              __周RSI6百分位__: selectedIndex.__周RSI6百分位__,
-            };
-          }
-          return selectedIndex;
+      // 用新数据刷新自选与所有自定义分组（保留买点字段）
+      const mergeFreshIndices = (oldList: IndexData[], freshList: IndexData[]): IndexData[] => {
+        return oldList.map(oldItem => {
+          const matched = freshList.find(f => f['指数代码'] === oldItem['指数代码']);
+          if (!matched) return oldItem;
+          return {
+            ...matched,
+            '指数代码': oldItem['指数代码'],
+            __推荐买点定量__: oldItem.__推荐买点定量__,
+            __推荐买点百分位__: oldItem.__推荐买点百分位__,
+            __月RSI6百分位__: oldItem.__月RSI6百分位__,
+            __周RSI6百分位__: oldItem.__周RSI6百分位__,
+          };
         });
-        setSelectedIndices(updatedSelectedIndices);
-        saveSelectedIndices(updatedSelectedIndices);
+      };
+
+      if (selectedIndices.length > 0) {
+        const updated = mergeFreshIndices(selectedIndices, newData);
+        setSelectedIndices(updated);
+        saveSelectedIndices(updated);
+      }
+
+      const customKeys = Object.keys(customIndicesMap);
+      if (customKeys.length > 0) {
+        setCustomIndicesMap(prev => {
+          const next: Record<string, IndexData[]> = { ...prev };
+          customKeys.forEach(key => {
+            next[key] = mergeFreshIndices(prev[key] || [], newData);
+          });
+          persistCustomIndices(next);
+          return next;
+        });
       }
     } catch (error) {
       console.log('error', error);
@@ -571,6 +680,7 @@ const Index: React.FC = () => {
 
   useEffect(() => {
     loadSelectedIndices();
+    loadCustomTabs();
   }, []);
 
   // 从localStorage加载自选指数
@@ -592,6 +702,265 @@ const Index: React.FC = () => {
     } catch (error) {
       console.log('保存自选指数失败:', error);
     }
+  };
+
+  // 加载自定义分组
+  const loadCustomTabs = () => {
+    try {
+      const savedTabs = localStorage.getItem(CUSTOM_TABS_STORAGE_KEY);
+      const savedMap = localStorage.getItem(CUSTOM_INDICES_STORAGE_KEY);
+      const validTabs: CustomTab[] = savedTabs ? JSON.parse(savedTabs) : [];
+      const stocksMap: Record<string, IndexData[]> = savedMap ? JSON.parse(savedMap) : {};
+      const validKeys = new Set(validTabs.map(t => t.key));
+      const cleanedMap: Record<string, IndexData[]> = {};
+      Object.keys(stocksMap).forEach(key => {
+        if (validKeys.has(key) && Array.isArray(stocksMap[key])) {
+          cleanedMap[key] = stocksMap[key];
+        }
+      });
+      setCustomTabs(validTabs);
+      setCustomIndicesMap(cleanedMap);
+    } catch (error) {
+      console.log('加载自定义分组失败:', error);
+    }
+  };
+
+  const persistCustomTabs = (tabs: CustomTab[]) => {
+    localStorage.setItem(CUSTOM_TABS_STORAGE_KEY, JSON.stringify(tabs));
+  };
+
+  const persistCustomIndices = (map: Record<string, IndexData[]>) => {
+    localStorage.setItem(CUSTOM_INDICES_STORAGE_KEY, JSON.stringify(map));
+  };
+
+  // 按分组 key 读取指数（selected 为固定自选分组）
+  const getGroupIndices = (groupKey: string): IndexData[] =>
+    groupKey === SELECTED_TAB_KEY ? selectedIndicesRef.current : (customIndicesMapRef.current[groupKey] || []);
+
+  // 按分组 key 写入指数并持久化（支持函数式更新）
+  const saveGroupIndices = (
+    groupKey: string,
+    updater: IndexData[] | ((prev: IndexData[]) => IndexData[]),
+  ) => {
+    if (groupKey === SELECTED_TAB_KEY) {
+      const next = typeof updater === 'function' ? updater(selectedIndicesRef.current) : updater;
+      setSelectedIndices(next);
+      saveSelectedIndices(next);
+      return;
+    }
+    setCustomIndicesMap(prev => {
+      const nextList = typeof updater === 'function' ? updater(prev[groupKey] || []) : updater;
+      const next = { ...prev, [groupKey]: nextList };
+      persistCustomIndices(next);
+      return next;
+    });
+  };
+
+  const getGroupLabel = (groupKey: string): string =>
+    groupKey === SELECTED_TAB_KEY
+      ? SELECTED_TAB_LABEL
+      : customTabs.find(t => t.key === groupKey)?.label || '分组';
+
+  // 添加到指定分组
+  const addToGroup = (groupKey: string, index: IndexData) => {
+    const list = getGroupIndices(groupKey);
+    if (list.some(s => s['指数代码'] === index['指数代码'])) {
+      message.info(`「${index['指数简称'] || index['指数代码']}」已在「${getGroupLabel(groupKey)}」中`);
+      return;
+    }
+    saveGroupIndices(groupKey, [...list, index]);
+    message.success(`已添加 ${index['指数简称'] || index['指数代码']} 到「${getGroupLabel(groupKey)}」`);
+  };
+
+  // 从指定分组移除
+  const removeFromGroup = (groupKey: string, index: IndexData) => {
+    saveGroupIndices(groupKey, list => list.filter(s => s['指数代码'] !== index['指数代码']));
+    message.info(`已从「${getGroupLabel(groupKey)}」移除 ${index['指数简称'] || index['指数代码']}`);
+  };
+
+  // 切换某指数在目标分组的归属状态——已在则移除，不在则加入
+  const toggleGroupMembership = (record: IndexData, targetKey: string) => {
+    const list = getGroupIndices(targetKey);
+    if (list.some(s => s['指数代码'] === record['指数代码'])) {
+      saveGroupIndices(targetKey, list.filter(s => s['指数代码'] !== record['指数代码']));
+    } else {
+      saveGroupIndices(targetKey, [...list, record]);
+    }
+  };
+
+  // 判断指数是否已在某分组
+  const isInGroup = (groupKey: string, code: string) =>
+    getGroupIndices(groupKey).some(s => s['指数代码'] === code);
+
+  // 分组内置顶/置底
+  const moveInGroup = (groupKey: string, index: IndexData, position: 'top' | 'bottom') => {
+    const list = getGroupIndices(groupKey);
+    const rest = list.filter(s => s['指数代码'] !== index['指数代码']);
+    saveGroupIndices(groupKey, position === 'top' ? [index, ...rest] : [...rest, index]);
+  };
+
+  // 新建分组
+  const handleCreateTab = () => {
+    const name = newTabName.trim();
+    if (!name) {
+      message.warning('请输入分组名称');
+      return;
+    }
+    if (customTabs.some(t => t.label === name) || name === SELECTED_TAB_LABEL) {
+      message.error('分组名称已存在');
+      return;
+    }
+    const key = `custom-${Date.now()}`;
+    const nextTabs = [...customTabs, { key, label: name }];
+    setCustomTabs(nextTabs);
+    persistCustomTabs(nextTabs);
+    const nextMap = { ...customIndicesMap, [key]: [] };
+    setCustomIndicesMap(nextMap);
+    persistCustomIndices(nextMap);
+    setActiveTab(key);
+    setCreateOpen(false);
+    setNewTabName('');
+    message.success(`分组「${name}」已创建`);
+  };
+
+  // 删除分组（含分组内指数）
+  const handleDeleteTab = (tab: CustomTab) => {
+    const nextTabs = customTabs.filter(t => t.key !== tab.key);
+    setCustomTabs(nextTabs);
+    persistCustomTabs(nextTabs);
+    setCustomIndicesMap(prev => {
+      const next = { ...prev };
+      delete next[tab.key];
+      persistCustomIndices(next);
+      return next;
+    });
+    if (activeTab === tab.key) {
+      setActiveTab(SELECTED_TAB_KEY);
+    }
+    setRenaming(null);
+    message.success(`分组「${tab.label}」已删除`);
+  };
+
+  const startRename = (tab: CustomTab) => {
+    renameCancelRef.current = false;
+    setRenaming({ key: tab.key, value: tab.label });
+  };
+
+  // 提交重命名（空名称/Esc 取消）
+  const commitRename = () => {
+    if (!renaming || renameCancelRef.current) return;
+    const value = renaming.value.trim();
+    setRenaming(null);
+    if (!value) {
+      message.warning('分组名称不能为空，已还原');
+      return;
+    }
+    const target = customTabs.find(t => t.key === renaming.key);
+    if (!target || target.label === value) return;
+    if (customTabs.some(t => t.key !== renaming.key && t.label === value) || value === SELECTED_TAB_LABEL) {
+      message.error('分组名称已存在，已还原');
+      return;
+    }
+    const nextTabs = customTabs.map(t => (t.key === renaming.key ? { ...t, label: value } : t));
+    setCustomTabs(nextTabs);
+    persistCustomTabs(nextTabs);
+  };
+
+  // 切换 tab 时退出重命名并清空批量选择
+  const handleTabChange = (key: string) => {
+    setRenaming(null);
+    setActiveTab(key);
+    setSelectedRowKeys([]);
+    setSelectedRows([]);
+  };
+
+  // 构建跨分组「加入到」菜单项（排除当前分组）
+  const buildCrossGroupMenuItems = (record: IndexData, currentGroupKey: string): MenuProps['items'] => {
+    const items: MenuProps['items'] = [];
+    // 自选
+    if (currentGroupKey !== SELECTED_TAB_KEY) {
+      const inSelected = isInGroup(SELECTED_TAB_KEY, record['指数代码']);
+      items.push({
+        key: SELECTED_TAB_KEY,
+        label: (
+          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minWidth: 120 }}>
+            <span>{SELECTED_TAB_LABEL}</span>
+            {inSelected && <CheckOutlined style={{ color: '#52c41a' }} />}
+          </span>
+        ),
+        onClick: () => toggleGroupMembership(record, SELECTED_TAB_KEY),
+      });
+    }
+    // 其他自定义分组
+    customTabs.forEach(tab => {
+      if (tab.key === currentGroupKey) return;
+      const inGroup = isInGroup(tab.key, record['指数代码']);
+      items.push({
+        key: tab.key,
+        label: (
+          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minWidth: 120 }}>
+            <span>{tab.label}</span>
+            {inGroup && <CheckOutlined style={{ color: '#52c41a' }} />}
+          </span>
+        ),
+        onClick: () => toggleGroupMembership(record, tab.key),
+      });
+    });
+    return items;
+  };
+
+  // 渲染自定义分组的 tab 标题：点铅笔图标重命名（单击即编辑），× 删除
+  const renderCustomTabLabel = (tab: CustomTab) => {
+    if (renaming?.key === tab.key) {
+      return (
+        <Input
+          size="small"
+          autoFocus
+          value={renaming.value}
+          maxLength={12}
+          style={{ width: 130, margin: '0 4px' }}
+          onChange={e => setRenaming({ key: tab.key, value: e.target.value })}
+          onClick={e => e.stopPropagation()}
+          onMouseDown={e => e.stopPropagation()}
+          onFocus={e => e.target.select()}
+          onPressEnter={commitRename}
+          onBlur={commitRename}
+          onKeyDown={e => {
+            if (e.key === 'Escape') {
+              renameCancelRef.current = true;
+              setRenaming(null);
+            }
+          }}
+        />
+      );
+    }
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+        <span>{tab.label}</span>
+        <EditOutlined
+          title="点击重命名"
+          onMouseDown={e => e.stopPropagation()}
+          onClick={e => {
+            e.stopPropagation();
+            startRename(tab);
+          }}
+        />
+        <Popconfirm
+          title={`删除分组「${tab.label}」？`}
+          description="分组内的指数列表将一并删除"
+          okText="删除"
+          cancelText="取消"
+          okButtonProps={{ danger: true }}
+          onConfirm={() => handleDeleteTab(tab)}
+        >
+          <CloseOutlined
+            title="删除分组"
+            onMouseDown={e => e.stopPropagation()}
+            onClick={e => e.stopPropagation()}
+          />
+        </Popconfirm>
+      </span>
+    );
   };
 
   // 添加到自选
@@ -616,26 +985,98 @@ const Index: React.FC = () => {
     return selectedIndices.some(i => i['指数代码'] === indexCode);
   };
 
-  // 置顶功能
-  const moveToTop = (index: IndexData) => {
-    const newSelectedIndices = [index, ...selectedIndices.filter(i => i['指数代码'] !== index['指数代码'])];
-    setSelectedIndices(newSelectedIndices);
-    saveSelectedIndices(newSelectedIndices);
+
+  // 渲染分组表格（自选和自定义分组通用）
+  const renderGroupTable = (groupKey: string) => {
+    const list = getGroupIndices(groupKey);
+    return (
+      <>
+        <div
+          onClick={handleCalculateRecommendation}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            padding: '8px 20px',
+            background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+            borderRadius: '25px',
+            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+            boxShadow: '0 8px 25px rgba(56, 239, 125, 0.5), 0 0 0 3px rgba(56, 239, 125, 0.2)',
+            cursor: 'pointer',
+            transform: 'scale(1.02)',
+            border: '2px solid transparent',
+            overflow: 'hidden',
+            position: 'relative'
+          }}
+        >
+          <div
+            style={{
+              width: '24px',
+              height: '24px',
+              borderRadius: '50%',
+              background: 'rgba(255,255,255,0.9)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.3s ease',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+            }}
+          >
+            <span style={{ fontSize: '14px', fontWeight: 'bold' }}>
+              ✓
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{
+              fontWeight: 'bold', color: '#fff', fontSize: '14px',
+              textShadow: '0 1px 2px rgba(0,0,0,0.2)'
+            }}>
+              计算推荐买点
+            </span>
+            <span style={{
+              color: 'rgba(255,255,255,0.85)', fontSize: '11px', marginTop: '2px'
+            }}>
+              启用后将计算RSI指标
+            </span>
+          </div>
+        </div>
+        <Table
+          rowSelection={{
+            selectedRowKeys,
+            onChange: onSelectChange,
+          }}
+          columns={columns}
+          dataSource={list}
+          rowKey="指数代码"
+          scroll={{ x: 2400, y: 'calc(100vh - 350px)' }}
+          pagination={false}
+        />
+      </>
+    );
   };
-
-  // 置底功能
-  const moveToBottom = (index: IndexData) => {
-    const newSelectedIndices = [...selectedIndices.filter(i => i['指数代码'] !== index['指数代码']), index];
-    setSelectedIndices(newSelectedIndices);
-    saveSelectedIndices(newSelectedIndices);
-  };
-
-
 
   return (
     <div style={{ padding: '0 24px', height: 'calc(100vh - 64px - 32px)', display: 'flex', flexDirection: 'column' }}>
-      <Tabs activeKey={activeTab} onChange={setActiveTab}>
-        <TabPane tab="全部" key="all">
+      <Tabs
+        activeKey={activeTab}
+        onChange={handleTabChange}
+        tabBarExtraContent={{
+          right: (
+            <Button
+              type="primary"
+              size="small"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setNewTabName('');
+                setCreateOpen(true);
+              }}
+            >
+              新建分组
+            </Button>
+          ),
+        }}
+      >
+        <TabPane tab="全部" key={ALL_TAB_KEY}>
           <div style={{ marginBottom: '16px', textAlign: 'right' }}>
             不包含指数简称：
             <Select
@@ -670,72 +1111,37 @@ const Index: React.FC = () => {
             }}
           />
         </TabPane>
-        <TabPane tab="自选" key="selected">
-          <div
-            onClick={handleCalculateRecommendation}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              padding: '8px 20px',
-              background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
-              borderRadius: '25px',
-              transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-              boxShadow: '0 8px 25px rgba(56, 239, 125, 0.5), 0 0 0 3px rgba(56, 239, 125, 0.2)',
-              cursor: 'pointer',
-              transform: 'scale(1.02)',
-              border: '2px solid transparent',
-              overflow: 'hidden',
-              position: 'relative'
-            }}
-          >
-            <div
-              style={{
-                width: '24px',
-                height: '24px',
-                borderRadius: '50%',
-                background: 'rgba(255,255,255,0.9)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.3s ease',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-              }}
-            >
-              <span style={{ fontSize: '14px', fontWeight: 'bold' }}>
-                ✓
-              </span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{
-                fontWeight: 'bold', color: '#fff', fontSize: '14px',
-                textShadow: '0 1px 2px rgba(0,0,0,0.2)'
-              }}>
-                计算推荐买点
-              </span>
-              <span style={{
-                color: 'rgba(255,255,255,0.85)', fontSize: '11px', marginTop: '2px'
-              }}>
-                启用后将计算RSI指标
-              </span>
-            </div>
-          </div>
-          <Table
-            rowSelection={{
-              selectedRowKeys,
-              onChange: onSelectChange,
-            }}
-            columns={columns}
-            dataSource={selectedIndices}
-            rowKey="指数代码"
-            scroll={{ x: 2400, y: 'calc(100vh - 350px)' }}
-            pagination={false}
-          />
+        <TabPane tab={SELECTED_TAB_LABEL} key={SELECTED_TAB_KEY}>
+          {renderGroupTable(SELECTED_TAB_KEY)}
         </TabPane>
-        <TabPane tab="300成长vs300价值" key="growthVsValue">
-          <GrowthVsValue />
-        </TabPane>
+        {customTabs.map(tab => (
+          <TabPane tab={renderCustomTabLabel(tab)} key={tab.key}>
+            {renderGroupTable(tab.key)}
+          </TabPane>
+        ))}
+
       </Tabs>
+
+      <Modal
+        title="新建分组"
+        open={createOpen}
+        onOk={handleCreateTab}
+        onCancel={() => {
+          setCreateOpen(false);
+          setNewTabName('');
+        }}
+        okText="创建"
+        cancelText="取消"
+      >
+        <Input
+          placeholder="请输入分组名称"
+          value={newTabName}
+          maxLength={12}
+          autoFocus
+          onChange={e => setNewTabName(e.target.value)}
+          onPressEnter={handleCreateTab}
+        />
+      </Modal>
     </div>
   );
 };

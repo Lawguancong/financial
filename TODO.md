@@ -71,17 +71,11 @@
 
   最好10个 20个 30个 交易日 收益率/正态分布
 
-  // 自研 逃顶策略 
+  // 自研 逃顶策略 （接口没能力实现）
 
   // 优化 计算rsi6 买点，  新增worker js 线程计算？
   
   // 原油RSI
-
-  中证指数 接口：stock_zh_index_hist_csindex
-
-  指数估值-中证 接口：stock_zh_index_value_csindex
-
-    港股股票指数 实时行情数据-新浪 接口：stock_hk_index_spot_sina
 
     拥挤度  上证指数->中证指数。
 

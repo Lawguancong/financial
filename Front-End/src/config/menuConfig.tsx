@@ -1,4 +1,4 @@
-import { HomeOutlined, BankOutlined, StockOutlined, ShoppingOutlined, ApartmentOutlined, FundOutlined, CodeOutlined, ReadOutlined, GlobalOutlined } from '@ant-design/icons';
+import { HomeOutlined, BankOutlined, StockOutlined, ShoppingOutlined, ApartmentOutlined, FundOutlined, CodeOutlined, ReadOutlined, GlobalOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { lazy } from 'react';
 
@@ -369,13 +369,33 @@ export const menuConfigs: MenuItemConfig[] = [
       },
     ],
   },
-  // {
-  //   key: 'futures',
-  //   label: '期货',
-  //   icon: <ThunderboltOutlined />,
-  //   path: 'futures',
-  //   component: lazy(() => import('@/pages/Futures')),
-  // },
+  {
+    key: 'futures',
+    label: '期货',
+    icon: <ThunderboltOutlined />,
+    children: [
+      {
+        key: 'futures/foreign',
+        label: '国外',
+        children: [
+          {
+            key: 'futures/foreign/quotes',
+            label: '行情',
+            path: 'futures/foreign/quotes',
+            component: lazy(() => import('@/pages/futures/foreign/quotes')),
+            children: [
+              {
+                key: 'futures/foreign/quotes/detail',
+                label: '行情详情',
+                path: 'futures/foreign/quotes/detail',
+                component: lazy(() => import('@/pages/futures/foreign/quotes/detail')),
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
   // {
   //   key: 'options',
   //   label: '期权',

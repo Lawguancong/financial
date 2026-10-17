@@ -149,7 +149,6 @@ const OutTrading: React.FC = () => {
   // 自定义分组 tab（key 唯一、label 可编辑）及其股票列表
   const [customTabs, setCustomTabs] = useState<CustomTab[]>([]);
   const [customStocksMap, setCustomStocksMap] = useState<Record<string, StockData[]>>({});
-  const customStocksMapRef = useRef<Record<string, StockData[]>>({});
 
   // 新建分组弹窗
   const [createOpen, setCreateOpen] = useState(false);
@@ -168,10 +167,6 @@ const OutTrading: React.FC = () => {
   useEffect(() => {
     selectedStocksRef.current = selectedStocks;
   }, [selectedStocks]);
-
-  useEffect(() => {
-    customStocksMapRef.current = customStocksMap;
-  }, [customStocksMap]);
 
   // 从 localStorage 加载自选股票
   useEffect(() => {
@@ -403,17 +398,16 @@ const OutTrading: React.FC = () => {
 
   // 行情刷新后，同步更新自选与所有自定义分组内股票的行情字段（买点字段保留）
   const refreshGroupsQuotes = (freshData: StockData[]) => {
-    const currentSelected = selectedStocksRef.current;
-    if (currentSelected.length > 0) {
-      setSelectedStocks(mergeFreshQuotes(currentSelected, freshData));
+    // 统一走 state（与期货页 fetchData 一致），不再读 ref 快照
+    if (selectedStocks.length > 0) {
+      setSelectedStocks(mergeFreshQuotes(selectedStocks, freshData));
     }
-    const currentCustom = customStocksMapRef.current;
-    const customKeys = Object.keys(currentCustom);
+    const customKeys = Object.keys(customStocksMap);
     if (customKeys.length > 0) {
       setCustomStocksMap(prev => {
         const next: Record<string, StockData[]> = { ...prev };
         customKeys.forEach(key => {
-          next[key] = mergeFreshQuotes(currentCustom[key], freshData);
+          next[key] = mergeFreshQuotes(prev[key] || [], freshData);
         });
         return next;
       });
@@ -554,10 +548,9 @@ const OutTrading: React.FC = () => {
             : s,
         );
         // 每算完一只即更新表格与本地缓存，结果渐进可见
+        // 自选分组：同步 ref，保证同批后续 saveGroupStocks 的函数式更新能读到最新值
         if (groupKey === SELECTED_TAB_KEY) {
           selectedStocksRef.current = working;
-        } else {
-          customStocksMapRef.current = { ...customStocksMapRef.current, [groupKey]: working };
         }
         saveGroupStocks(groupKey, working);
       },

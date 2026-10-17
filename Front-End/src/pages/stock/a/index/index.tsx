@@ -114,14 +114,10 @@ const Index: React.FC = () => {
   const [renaming, setRenaming] = useState<{ key: string; value: string } | null>(null);
   const renameCancelRef = useRef(false);
   const selectedIndicesRef = useRef<IndexData[]>([]);
-  const customIndicesMapRef = useRef<Record<string, IndexData[]>>({});
 
   useEffect(() => {
     selectedIndicesRef.current = selectedIndices;
   }, [selectedIndices]);
-  useEffect(() => {
-    customIndicesMapRef.current = customIndicesMap;
-  }, [customIndicesMap]);
 
   const onSelectChange = (newSelectedRowKeys: React.Key[], newSelectedRows: IndexData[]) => {
     setSelectedRowKeys(newSelectedRowKeys);
@@ -734,8 +730,10 @@ const Index: React.FC = () => {
   };
 
   // 按分组 key 读取指数（selected 为固定自选分组）
+  // 注意：渲染必须走 state，不能用 ref——ref 仅在 setState 后的 effect 里同步，
+  // 若用它作为表格 dataSource，则 setState 触发的重渲染读到的仍是旧数组，导致算完买点后表格不刷新
   const getGroupIndices = (groupKey: string): IndexData[] =>
-    groupKey === SELECTED_TAB_KEY ? selectedIndicesRef.current : (customIndicesMapRef.current[groupKey] || []);
+    groupKey === SELECTED_TAB_KEY ? selectedIndices : (customIndicesMap[groupKey] || []);
 
   // 按分组 key 写入指数并持久化（支持函数式更新）
   const saveGroupIndices = (

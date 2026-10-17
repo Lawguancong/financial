@@ -31,21 +31,7 @@
 
 
 
-
-  // ==================== 行业指数 ====================
-  // todo 行业估值  行业样本数量
-  // 行业市盈率: stock_industry_pe_ratio_cninfo
-  // 申万一级行业信息
-  // 接口: sw_index_first_info
-
-  // 申万二级行业信息
-  // 接口: sw_index_second_info
-
-  // 申万三级行业信息
-  // 接口: sw_index_third_info
-
-  // 申万三级行业成份
-  // 接口: sw_index_third_cons
+（行业/指数） 接口不支持
 
 
   // ==================== 债券 ====================
@@ -67,17 +53,13 @@
   // https://quote.eastmoney.com/center/gridlist.html#global_qtzs
   // 接口ok的 /api/public/index_global_hist_em?symbol=上证指数
 
-  // 港股指数
-
   最好10个 20个 30个 交易日 收益率/正态分布
 
-  // 自研 逃顶策略 （接口没能力实现）
+  // 自研 逃顶策略 （接口没能力实现） 拥挤度  上证指数->中证指数。
+
 
   // 优化 计算rsi6 买点，  新增worker js 线程计算？
   
-  // 原油RSI
 
-    拥挤度  上证指数->中证指数。
 
-    指数/个股/基金  计算完推荐后 表格好像没更新？
     RSI 买点 报告数据、报表（如最大回撤率 等等数据）

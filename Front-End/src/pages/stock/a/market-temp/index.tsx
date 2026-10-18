@@ -8,10 +8,94 @@ import { useSetState } from 'ahooks';
 import { pick } from 'lodash-es';
 import { Tabs, Button, Tag } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
-import { filterByFrequency } from '@/utils/stockUtils';
 import { Macro_china_stock_market_cap } from '../macro/components';
 import StockBelowNetAssetLg from './StockBelowNetAssetLg';
-import GrowthVsValue from '@/components/GrowthVsValue';
+import IndexComparisonChart, { type IndexComparisonChartProps, type NormalizedPoint } from '@/components/IndexComparisonChart';
+
+type CsindexRow = { 日期: string; 收盘: number };
+type SinaIndexRow = { date: string; close: number };
+
+/** 中证源指数历史：调接口并按 {date, close} 归一化（未采样，月度采样由通用组件完成） */
+const fetchCsindexHist = async (symbol: string, startDate: string): Promise<NormalizedPoint[]> => {
+  const endDate = moment().format('YYYYMMDD');
+  const res = await apiClient.get(
+    `/api/public/stock_zh_index_hist_csindex?symbol=${symbol}&start_date=${startDate}&end_date=${endDate}`,
+  );
+  const list = (res?.data as CsindexRow[] | undefined) ?? [];
+  return list.map((item) => ({ date: item['日期'], close: Number(item['收盘']) }));
+};
+
+/** 新浪源指数日线：调接口并按 {date, close} 归一化（未采样，月度采样由通用组件完成） */
+const fetchSinaIndexDaily = async (symbol: string): Promise<NormalizedPoint[]> => {
+  const res = await apiClient.get(`/api/public/stock_zh_index_daily?symbol=${symbol}`);
+  const list = (res?.data as SinaIndexRow[] | undefined) ?? [];
+  return list.map((item) => ({ date: item.date, close: Number(item.close) }));
+};
+
+/** 双指数比值对比：沪深300(000300) vs 债券基金(H11023)，自 2004-11 起对齐 */
+const HS300_VS_BOND_CONFIG: IndexComparisonChartProps = {
+  chartName: '沪深300 vs 债券基金',
+  subtitle: '沪深300(000300) 与 债券基金(H11023) ',
+  left: { name: '沪深300指数', color: '#d62728', axisTitleColor: '#6c6868ff', fetch: () => fetchCsindexHist('000300', '20041101') },
+  right: { name: '债券基金指数', color: '#5AD8A6', fetch: () => fetchCsindexHist('H11023', '20041101') },
+  ratioAxisTitle: '沪深300/债券基金',
+  ratioLegend: '沪深300/债券基金(比值)',
+  ratioColor: '#2516faff',
+  ratioDomain: [0, 6],
+  note: (
+    <>沪深300 与 债券基金(H11023) 起始基点不同。为拟合两者起始数值更接近，数据统一从<strong> 2004-11</strong>开始，使两曲线起点对齐、比值起点≈1，更具可比性。</>
+  ),
+};
+
+/** 双指数比值对比：中证全指(000985) vs 债券基金(H11023)，自 2005-02 起对齐 */
+const CSI_ALL_VS_BOND_CONFIG: IndexComparisonChartProps = {
+  chartName: '中证全指 vs 债券基金',
+  subtitle: '中证全指(000985) 与 债券基金(H11023)',
+  left: { name: '中证全指指数', color: '#722ed1', axisTitleColor: '#6c6868ff', fetch: () => fetchCsindexHist('000985', '20050201') },
+  right: { name: '债券基金指数', color: '#5AD8A6', fetch: () => fetchCsindexHist('H11023', '20050201') },
+  ratioAxisTitle: '中证全指/债券基金',
+  ratioLegend: '中证全指/债券基金(比值)',
+  ratioColor: '#fa8c16',
+  ratioDomain: [0, 6],
+  note: (
+    <>中证全指(000985) 与 债券基金(H11023) 从 <strong>2005-02-01</strong> 开始，两曲线比值起点≈1，更具可比性。</>
+  ),
+};
+
+/** 双指数比值对比：创业板(sz399006, 新浪源) vs 中证红利(000922, 中证源)，均自 2010-06 起 */
+const CYB_VS_DIVIDEND_CONFIG: IndexComparisonChartProps = {
+  chartName: '创业板 vs 中证红利',
+  subtitle: '创业板(sz399006) 与 中证红利(000922)',
+  left: { name: '创业板指数', color: '#1890ff', axisTitleColor: '#6c6868ff', fetch: () => fetchSinaIndexDaily('sz399006') },
+  right: { name: '中证红利指数', color: '#cf1322', fetch: () => fetchCsindexHist('000922', '20100601') },
+  ratioAxisTitle: '创业板/中证红利',
+  ratioLegend: '创业板/中证红利(比值)',
+  ratioColor: '#722ed1',
+  ratioDomain: [0, 1],
+  note: (
+    <>
+      创业板(sz399006) 与 中证红利(000922) 均自 <strong>2010-06</strong> 起，按同一交易日对齐。
+      两者起始基点不同，起点比值≈0.37（创业板点位低于中证红利），比值非从 1 起步；比值&lt;1 表示创业板点位低于中证红利。
+    </>
+  ),
+};
+
+/** 双指数比值对比：300成长(000918) vs 300价值(000919)，均自 2004-12-31 起（比值≈1 附近自适应，右轴不固定区间） */
+const GROWTH_VS_VALUE_CONFIG: IndexComparisonChartProps = {
+  chartName: '300成长 vs 300价值',
+  subtitle: '300成长(000918) 与 300价值(000919)',
+  left: { name: '300成长', color: '#1890ff', axisTitleColor: '#6c6868ff', fetch: () => fetchCsindexHist('000918', '20041231') },
+  right: { name: '300价值', color: '#cf1322', fetch: () => fetchCsindexHist('000919', '20041231') },
+  ratioAxisTitle: '300成长/300价值',
+  ratioLegend: '300成长/300价值(比值)',
+  ratioColor: '#722ed1',
+  note: (
+    <>
+      300成长(000918) 与 300价值(000919) 从 <strong>2004-12-31</strong> 开始，
+      按同一交易日对齐。两者起始基点均为 1000 点，起点比值≈1，更具可比性；比值&gt;1 表示 300成长点位高于 300价值。
+    </>
+  ),
+};
 
 const Stock_buffett_index_lg = ({ key }: { key: number }) => {
   const sampleRate = 10;
@@ -757,437 +841,6 @@ const Stock_a_congestion_lg = ({ key }: { key: number }) => {
 };
 
 
-const Stock_300_vs_bond_fund_lg = ({ key }: { key: number }) => {
-  const chartName = '沪深300 vs 债券基金';
-  const dateKey = '日期';
-  const closeKey = '收盘';
-  const hs300Name = '沪深300指数';
-  const bondFundName = '债券基金指数';
-  const ratioName = '沪深300/债券基金';
-  /** 中证指数代码：沪深300 / 债券基金（H11023） */
-  const HS300_SYMBOL = '000300';
-  const BOND_FUND_SYMBOL = 'H11023';
-
-  type CsindexItem = { 日期: string; 收盘: number };
-  type ChartItem = { date: string; key: string; label: string; value: number };
-
-  const [data, setData] = useState<{ leftData: ChartItem[]; rightData: ChartItem[] }>({ leftData: [], rightData: [] });
-
-  const fetchData = async () => {
-    try {
-      const endDate = moment().format('YYYYMMDD');
-      // 说明：沪深300 与 债券基金(H11023) 起始基点不同（约1000 vs 998，2003年）。
-      // 为拟合两者起始数值更接近（2004年11月起两指数点位几乎重合，见上表 2004-11 差值仅约2点），
-      // 故数据统一从 2004-11-01 开始，使两条曲线起点基本对齐，比值起点≈1，更具可比性。
-      const [hs300Res, bondRes] = await Promise.all([
-        apiClient.get(`/api/public/stock_zh_index_hist_csindex?symbol=${HS300_SYMBOL}&start_date=20041101&end_date=${endDate}`),
-        apiClient.get(`/api/public/stock_zh_index_hist_csindex?symbol=${BOND_FUND_SYMBOL}&start_date=20041101&end_date=${endDate}`),
-      ]);
-      // 月度采样：每月只取最后一条
-      const hs300List: CsindexItem[] = filterByFrequency(hs300Res?.data as CsindexItem[], dateKey, 'monthly');
-      const bondList: CsindexItem[] = filterByFrequency(bondRes?.data as CsindexItem[], dateKey, 'monthly');
-      const bondMap = new Map(
-        bondList
-          .filter((item) => Number.isFinite(Number(item[closeKey])) && Number(item[closeKey]) > 0)
-          .map((item) => [item[dateKey], Number(item[closeKey])]),
-      );
-      const merged = hs300List
-        .filter((item) => Number.isFinite(Number(item[closeKey])) && bondMap.has(item[dateKey]))
-        .map((item) => ({
-          date: item[dateKey],
-          hs300: Number(item[closeKey]),
-          bond: bondMap.get(item[dateKey]) as number,
-        }));
-      setData({
-        leftData: merged.flatMap((item) => [
-          { date: item.date, key: 'hs300', label: hs300Name, value: item.hs300 },
-          { date: item.date, key: 'bond', label: bondFundName, value: item.bond },
-        ]),
-        rightData: merged.map((item) => ({
-          date: item.date,
-          key: 'ratio',
-          label: '沪深300/债券基金(比值)',
-          value: Number((item.hs300 / item.bond).toFixed(4)),
-        })),
-      });
-    } catch (error) {
-      console.log('error', error);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, [key]);
-
-  console.log(`${chartName} -> data`, data)
-
-  // 比值统计：当前值 + 全历史 5%/10% 分位值 + 近十年 5%/10% 分位值
-  const ratioStats = useMemo(() => {
-    const items = data.rightData.filter((d) => Number.isFinite(d.value));
-    if (!items.length) return null;
-    const pct = (list: number[], p: number) => {
-      const sorted = [...list].sort((a, b) => a - b);
-      const idx = Math.min(sorted.length - 1, Math.max(0, Math.floor((p / 100) * sorted.length)));
-      return sorted[idx];
-    };
-    const all = items.map((d) => d.value);
-    // 近十年：以最新日期往前推 10 年作为起算点
-    const latestDate = new Date(items[items.length - 1].date);
-    const cutoff = new Date(latestDate.getFullYear() - 10, latestDate.getMonth(), latestDate.getDate());
-    const recent10y = items
-      .filter((d) => new Date(d.date) >= cutoff)
-      .map((d) => d.value);
-    return {
-      current: all[all.length - 1],
-      p5: pct(all, 5),
-      p10: pct(all, 10),
-      r10P5: pct(recent10y, 5),
-      r10P10: pct(recent10y, 10),
-      has10y: recent10y.length > 0,
-    };
-  }, [data.rightData]);
-
-  const config = {
-    title: {
-      title: chartName,
-      subtitle: `沪深300(000300) 与 债券基金(H11023) `,
-    },
-    xField: (d: { date: string }) => new Date(d.date),
-    legend: true,
-    scale: {
-      color: {
-        domain: ['沪深300指数', '债券基金指数', '沪深300/债券基金(比值)'],
-        range: ['#d62728', '#5AD8A6', '#2516faff'],
-      },
-    },
-    children: [
-      {
-        data: data.leftData,
-        type: 'line',
-        yField: 'value',
-        colorField: 'label',
-        shapeField: 'smooth',
-        style: { lineWidth: 2 },
-        axis: { y: { title: '收盘点位', style: { titleFill: '#6c6868ff' } } },
-      },
-      {
-        data: data.rightData,
-        type: 'area',
-        yField: 'value',
-        colorField: 'label',
-        shapeField: 'smooth',
-        style: {
-          fillOpacity: 0.25,
-          stroke: '#2516faff',
-          strokeOpacity: 0.25,
-          lineWidth: 1,
-          lineDash: [4, 4],
-        },
-        scale: { y: { id: 'ratioY', domain: [0, 6] } },
-        axis: { y: { position: 'right', title: ratioName, style: { titleFill: '#2516faff' } } },
-      },
-    ],
-  };
-
-  return <>
-    <div
-      style={{
-        marginTop: 12,
-        marginBottom: 12,
-        padding: '12px 20px',
-        background: 'linear-gradient(135deg, #fff7e6 0%, #ffe7ba 100%)',
-        borderRadius: 8,
-        border: '1px solid #ffd591',
-        boxShadow: '0 2px 8px rgba(250, 140, 22, 0.15)',
-      }}
-    >
-      <div style={{ fontSize: 13, color: '#8c5d1f', lineHeight: 1.6, marginBottom: 10 }}>
-        <strong>说明：</strong>沪深300 与 债券基金(H11023) 起始基点不同。为拟合两者起始数值更接近，数据统一从
-        <strong> 2004-11</strong>开始，使两曲线起点对齐、比值起点≈1，更具可比性。
-      </div>
-      {ratioStats && (
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          {/* 当前比值 —— 大数字块 */}
-          <div
-            style={{
-              minWidth: 120,
-              flex: '1 1 120px',
-              background: 'rgba(255, 255, 255, 0.65)',
-              border: '1px solid #ffd591',
-              borderRadius: 8,
-              padding: '8px 16px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-            }}
-          >
-            <div style={{ fontSize: 12, color: '#8c5d1f' }}>当前比值</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: '#d46b08', lineHeight: 1.3 }}>
-              {ratioStats.current.toFixed(4)}
-            </div>
-          </div>
-          {/* 全历史分位组 */}
-          <div
-            style={{
-              minWidth: 150,
-              flex: '1 1 150px',
-              background: 'rgba(255, 255, 255, 0.65)',
-              border: '1px solid #ffe0b0',
-              borderRadius: 8,
-              padding: '8px 14px',
-            }}
-          >
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#ad6800', marginBottom: 4 }}>全历史分位</div>
-            <div style={{ fontSize: 13, color: '#8c5d1f', lineHeight: 1.7 }}>
-              5%：<b style={{ color: '#ad6800' }}>{ratioStats.p5.toFixed(4)}</b>
-            </div>
-            <div style={{ fontSize: 13, color: '#8c5d1f', lineHeight: 1.7 }}>
-              10%：<b style={{ color: '#ad6800' }}>{ratioStats.p10.toFixed(4)}</b>
-            </div>
-          </div>
-          {/* 近十年分位组 */}
-          {ratioStats.has10y && (
-            <div
-              style={{
-                minWidth: 150,
-                flex: '1 1 150px',
-                background: 'rgba(255, 255, 255, 0.65)',
-                border: '1px solid #ffe0b0',
-                borderRadius: 8,
-                padding: '8px 14px',
-              }}
-            >
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#ad6800', marginBottom: 4 }}>近十年分位</div>
-              <div style={{ fontSize: 13, color: '#8c5d1f', lineHeight: 1.7 }}>
-                5%：<b style={{ color: '#ad6800' }}>{ratioStats.r10P5.toFixed(4)}</b>
-              </div>
-              <div style={{ fontSize: 13, color: '#8c5d1f', lineHeight: 1.7 }}>
-                10%：<b style={{ color: '#ad6800' }}>{ratioStats.r10P10.toFixed(4)}</b>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-    <DualAxes {...config} />
-  </>;
-};
-
-
-const Stock_000985_vs_bond_fund_lg = ({ key }: { key: number }) => {
-  const chartName = '中证全指 vs 债券基金';
-  const dateKey = '日期';
-  const closeKey = '收盘';
-  const csiName = '中证全指指数';
-  const bondFundName = '债券基金指数';
-  const ratioName = '中证全指/债券基金';
-  /** 中证指数代码：中证全指 / 债券基金（H11023） */
-  const CSI_SYMBOL = '000985';
-  const BOND_FUND_SYMBOL = 'H11023';
-
-  type CsindexItem = { 日期: string; 收盘: number };
-  type ChartItem = { date: string; key: string; label: string; value: number };
-
-  const [data, setData] = useState<{ leftData: ChartItem[]; rightData: ChartItem[] }>({ leftData: [], rightData: [] });
-
-  const fetchData = async () => {
-    try {
-      const endDate = moment().format('YYYYMMDD');
-      // 说明：中证全指(000985) 与 债券基金(H11023) 从 2005-02-01 开始比值起点≈1，无需额外选取对齐起始日。
-      const [csiRes, bondRes] = await Promise.all([
-        apiClient.get(`/api/public/stock_zh_index_hist_csindex?symbol=${CSI_SYMBOL}&start_date=20050201&end_date=${endDate}`),
-        apiClient.get(`/api/public/stock_zh_index_hist_csindex?symbol=${BOND_FUND_SYMBOL}&start_date=20050201&end_date=${endDate}`),
-      ]);
-      // 月度采样：每月只取最后一条
-      const csiList: CsindexItem[] = filterByFrequency(csiRes?.data as CsindexItem[], dateKey, 'monthly');
-      const bondList: CsindexItem[] = filterByFrequency(bondRes?.data as CsindexItem[], dateKey, 'monthly');
-      const bondMap = new Map(
-        bondList
-          .filter((item) => Number.isFinite(Number(item[closeKey])) && Number(item[closeKey]) > 0)
-          .map((item) => [item[dateKey], Number(item[closeKey])]),
-      );
-      const merged = csiList
-        .filter((item) => Number.isFinite(Number(item[closeKey])) && bondMap.has(item[dateKey]))
-        .map((item) => ({
-          date: item[dateKey],
-          csi: Number(item[closeKey]),
-          bond: bondMap.get(item[dateKey]) as number,
-        }));
-      setData({
-        leftData: merged.flatMap((item) => [
-          { date: item.date, key: 'csi', label: csiName, value: item.csi },
-          { date: item.date, key: 'bond', label: bondFundName, value: item.bond },
-        ]),
-        rightData: merged.map((item) => ({
-          date: item.date,
-          key: 'ratio',
-          label: '中证全指/债券基金(比值)',
-          value: Number((item.csi / item.bond).toFixed(4)),
-        })),
-      });
-    } catch (error) {
-      console.log('error', error);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, [key]);
-
-  console.log(`${chartName} -> data`, data)
-
-  // 比值统计：当前值 + 全历史 5%/10% 分位值 + 近十年 5%/10% 分位值
-  const ratioStats = useMemo(() => {
-    const items = data.rightData.filter((d) => Number.isFinite(d.value));
-    if (!items.length) return null;
-    const pct = (list: number[], p: number) => {
-      const sorted = [...list].sort((a, b) => a - b);
-      const idx = Math.min(sorted.length - 1, Math.max(0, Math.floor((p / 100) * sorted.length)));
-      return sorted[idx];
-    };
-    const all = items.map((d) => d.value);
-    // 近十年：以最新日期往前推 10 年作为起算点
-    const latestDate = new Date(items[items.length - 1].date);
-    const cutoff = new Date(latestDate.getFullYear() - 10, latestDate.getMonth(), latestDate.getDate());
-    const recent10y = items
-      .filter((d) => new Date(d.date) >= cutoff)
-      .map((d) => d.value);
-    return {
-      current: all[all.length - 1],
-      p5: pct(all, 5),
-      p10: pct(all, 10),
-      r10P5: pct(recent10y, 5),
-      r10P10: pct(recent10y, 10),
-      has10y: recent10y.length > 0,
-    };
-  }, [data.rightData]);
-
-  const config = {
-    title: {
-      title: chartName,
-      subtitle: `中证全指(000985) 与 债券基金(H11023)`,
-    },
-    xField: (d: { date: string }) => new Date(d.date),
-    legend: true,
-    scale: {
-      color: {
-        domain: ['中证全指指数', '债券基金指数', '中证全指/债券基金(比值)'],
-        range: ['#722ed1', '#5AD8A6', '#fa8c16'],
-      },
-    },
-    children: [
-      {
-        data: data.leftData,
-        type: 'line',
-        yField: 'value',
-        colorField: 'label',
-        shapeField: 'smooth',
-        style: { lineWidth: 2 },
-        axis: { y: { title: '收盘点位', style: { titleFill: '#6c6868ff' } } },
-      },
-      {
-        data: data.rightData,
-        type: 'area',
-        yField: 'value',
-        colorField: 'label',
-        shapeField: 'smooth',
-        style: {
-          fillOpacity: 0.25,
-          stroke: '#fa8c16',
-          strokeOpacity: 0.25,
-          lineWidth: 1,
-          lineDash: [4, 4],
-        },
-        scale: { y: { id: 'ratioY', domain: [0, 6] } },
-        axis: { y: { position: 'right', title: ratioName, style: { titleFill: '#fa8c16' } } },
-      },
-    ],
-  };
-
-  return <>
-    <div
-      style={{
-        marginTop: 12,
-        marginBottom: 12,
-        padding: '12px 20px',
-        background: 'linear-gradient(135deg, #fff7e6 0%, #ffe7ba 100%)',
-        borderRadius: 8,
-        border: '1px solid #ffd591',
-        boxShadow: '0 2px 8px rgba(250, 140, 22, 0.15)',
-      }}
-    >
-      <div style={{ fontSize: 13, color: '#8c5d1f', lineHeight: 1.6, marginBottom: 10 }}>
-        <strong>说明：</strong>中证全指(000985) 与 债券基金(H11023) 从 <strong>2005-02-01</strong> 开始，两曲线比值起点≈1，更具可比性。
-      </div>
-      {ratioStats && (
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          {/* 当前比值 —— 大数字块 */}
-          <div
-            style={{
-              minWidth: 120,
-              flex: '1 1 120px',
-              background: 'rgba(255, 255, 255, 0.65)',
-              border: '1px solid #ffd591',
-              borderRadius: 8,
-              padding: '8px 16px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-            }}
-          >
-            <div style={{ fontSize: 12, color: '#8c5d1f' }}>当前比值</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: '#d46b08', lineHeight: 1.3 }}>
-              {ratioStats.current.toFixed(4)}
-            </div>
-          </div>
-          {/* 全历史分位组 */}
-          <div
-            style={{
-              minWidth: 150,
-              flex: '1 1 150px',
-              background: 'rgba(255, 255, 255, 0.65)',
-              border: '1px solid #ffe0b0',
-              borderRadius: 8,
-              padding: '8px 14px',
-            }}
-          >
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#ad6800', marginBottom: 4 }}>全历史分位</div>
-            <div style={{ fontSize: 13, color: '#8c5d1f', lineHeight: 1.7 }}>
-              5%：<b style={{ color: '#ad6800' }}>{ratioStats.p5.toFixed(4)}</b>
-            </div>
-            <div style={{ fontSize: 13, color: '#8c5d1f', lineHeight: 1.7 }}>
-              10%：<b style={{ color: '#ad6800' }}>{ratioStats.p10.toFixed(4)}</b>
-            </div>
-          </div>
-          {/* 近十年分位组 */}
-          {ratioStats.has10y && (
-            <div
-              style={{
-                minWidth: 150,
-                flex: '1 1 150px',
-                background: 'rgba(255, 255, 255, 0.65)',
-                border: '1px solid #ffe0b0',
-                borderRadius: 8,
-                padding: '8px 14px',
-              }}
-            >
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#ad6800', marginBottom: 4 }}>近十年分位</div>
-              <div style={{ fontSize: 13, color: '#8c5d1f', lineHeight: 1.7 }}>
-                5%：<b style={{ color: '#ad6800' }}>{ratioStats.r10P5.toFixed(4)}</b>
-              </div>
-              <div style={{ fontSize: 13, color: '#8c5d1f', lineHeight: 1.7 }}>
-                10%：<b style={{ color: '#ad6800' }}>{ratioStats.r10P10.toFixed(4)}</b>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-    <DualAxes {...config} />
-  </>;
-};
-
-
 const Index: React.FC = () => {
   const [activeKey, setActiveKey] = useState('1');
   const [refreshKeys, setRefreshKeys] = useState({
@@ -1198,8 +851,10 @@ const Index: React.FC = () => {
     '5': 0,
     '6': 0,
     '7': 0,
+    '8': 0,
     '9': 0,
     '10': 0,
+    '11': 0,
   });
 
   console.log('refreshKeys, ', refreshKeys)
@@ -1231,7 +886,7 @@ const Index: React.FC = () => {
           />
         </div>
       ),
-      children: useMemo(() => <Stock_300_vs_bond_fund_lg key={refreshKeys['9']} />, [refreshKeys['9']]),
+      children: useMemo(() => <IndexComparisonChart key={refreshKeys['9']} {...HS300_VS_BOND_CONFIG} />, [refreshKeys['9']]),
     },
     {
       key: '10',
@@ -1245,7 +900,35 @@ const Index: React.FC = () => {
           />
         </div>
       ),
-      children: useMemo(() => <Stock_000985_vs_bond_fund_lg key={refreshKeys['10']} />, [refreshKeys['10']]),
+      children: useMemo(() => <IndexComparisonChart key={refreshKeys['10']} {...CSI_ALL_VS_BOND_CONFIG} />, [refreshKeys['10']]),
+    },
+    {
+      key: '11',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>创业板 vs 中证红利</span>
+          <Button
+            icon={<ReloadOutlined />}
+            size="small"
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '11': prev['11'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <IndexComparisonChart key={refreshKeys['11']} {...CYB_VS_DIVIDEND_CONFIG} />, [refreshKeys['11']]),
+    },
+    {
+      key: '8',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>300成长 vs 300价值</span>
+          <Button
+            icon={<ReloadOutlined />}
+            size="small"
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '8': prev['8'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <IndexComparisonChart key={refreshKeys['8']} {...GROWTH_VS_VALUE_CONFIG} />, [refreshKeys['8']]),
     },
     {
       key: '5',
@@ -1261,6 +944,20 @@ const Index: React.FC = () => {
       ),
       children: useMemo(() => <Stock_a_congestion_lg key={refreshKeys['5']} />, [refreshKeys['5']]),
     },
+        {
+      key: '6',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>沪深活跃度（逃顶策略）</span>
+          <Button
+            icon={<ReloadOutlined />}
+            size="small"
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '6': prev['6'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <Macro_china_stock_market_cap key={refreshKeys['6']} />, [refreshKeys['6']]),
+    },
     {
       key: '4',
       label: (
@@ -1275,15 +972,7 @@ const Index: React.FC = () => {
       ),
       children: useMemo(() => <Stock_margin_account_info key={refreshKeys['4']} />, [refreshKeys['4']]),
     },
-    {
-      key: '8',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>300成长 vs 300价值</span>
-        </div>
-      ),
-      children: <GrowthVsValue />,
-    },
+
 
     {
       key: '2',
@@ -1314,20 +1003,7 @@ const Index: React.FC = () => {
       ),
       children: useMemo(() => <StockBelowNetAssetLg key={refreshKeys['7']} />, [refreshKeys['7']]),
     },
-    {
-      key: '6',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>全国股票交易统计表</span>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => setRefreshKeys(prev => ({ ...prev, '6': prev['6'] + 1 }))}
-          />
-        </div>
-      ),
-      children: useMemo(() => <Macro_china_stock_market_cap key={refreshKeys['6']} />, [refreshKeys['6']]),
-    },
+
     {
       key: '3',
       label: (

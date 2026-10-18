@@ -5,6 +5,8 @@ import { numberSorter } from '@/utils/tableUtils';
 import { fetchFundRecommendationPointsBoth } from '@/utils/fundUtils';
 import { isRecentDate } from '@/utils/stockUtils';
 import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
+import { BuyPointActionGroup } from '@/components/BuyPointActionGroup';
+import { exportBuyPlan, exportBuySellReport } from '@/utils/buySellReportExport';
 import OpenFundPanel from './components/OpenFundPanel';
 import IndexFundPanel from './components/IndexFundPanel';
 import ExchangeFundPanel from './components/ExchangeFundPanel';
@@ -100,6 +102,32 @@ const FundOpen: React.FC = () => {
       setCalculating(false);
     }
   };
+
+  /** 导出「买入&卖出报告」：仅导出已完成买卖配对的 ★5 信号 */
+  const handleExportBuySellReport = () =>
+    exportBuySellReport<FundData>({
+      targets: selectedFunds.filter(f => checkedFundCodes.includes(String(f['基金代码']))),
+      getCode: f => String(f['基金代码']),
+      getName: f => String(f['基金名称'] || f['基金简称'] || f['基金代码']),
+      getKey: f => String(f['基金代码']),
+      fetchPoints: async f => (await fetchFundRecommendationPointsBoth(String(f['基金代码']))).mqBuyPoints,
+      emptyWarn: '请先勾选需要导出的基金',
+      itemLabel: '基金',
+      filePrefix: '开放式基金',
+    });
+
+  /** 导出「买入计划」：仅导出尚未卖出的 ★5 买入信号 */
+  const handleExportBuyPlan = () =>
+    exportBuyPlan<FundData>({
+      targets: selectedFunds.filter(f => checkedFundCodes.includes(String(f['基金代码']))),
+      getCode: f => String(f['基金代码']),
+      getName: f => String(f['基金名称'] || f['基金简称'] || f['基金代码']),
+      getKey: f => String(f['基金代码']),
+      fetchPoints: async f => (await fetchFundRecommendationPointsBoth(String(f['基金代码']))).mqBuyPoints,
+      emptyWarn: '请先勾选需要导出的基金',
+      itemLabel: '基金',
+      filePrefix: '开放式基金',
+    });
 
   useEffect(() => { loadSelectedFunds(); }, []);
 
@@ -371,24 +399,13 @@ const FundOpen: React.FC = () => {
                 </span>
               }
             />
-            <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Space>
-                <Button
-                  type="primary"
-                  loading={calculating}
-                  disabled={checkedFundCodes.length === 0}
-                  onClick={calculateCheckedFunds}
-                >
-                  计算推荐买点{checkedFundCodes.length > 0 ? `（已选 ${checkedFundCodes.length} 只）` : ''}
-                </Button>
-                {checkedFundCodes.length > 0 && (
-                  <Button disabled={calculating} onClick={() => setCheckedFundCodes([])}>
-                    清空勾选
-                  </Button>
-                )}
-              </Space>
-              <span style={{ color: '#888' }}>共 {selectedFunds.length} 只自选基金</span>
-            </div>
+            <BuyPointActionGroup
+              onCalculate={calculateCheckedFunds}
+              onExportReport={handleExportBuySellReport}
+              onExportPlan={handleExportBuyPlan}
+              itemLabel="基金"
+              showWeeklyStrategy={false}
+            />
             <Table
               rowSelection={{
                 selectedRowKeys: checkedFundCodes,

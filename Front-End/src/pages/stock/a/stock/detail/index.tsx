@@ -111,7 +111,6 @@ const StockDetail: React.FC = () => {
     </Suspense>
   ), []);
 
-
   const rsiFilterMarkComponent = useMemo(() => (
     <Suspense fallback={<ComponentFallback />}>
       <RsiFilterMark data={rawData} type="stock" />

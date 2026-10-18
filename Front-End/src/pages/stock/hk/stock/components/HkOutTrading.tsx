@@ -6,6 +6,9 @@ import apiClient from '@/utils/axios';
 import { isRecentDate } from '@/utils/stockUtils';
 import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
 import { computeBuyPoints } from '@/utils/buyPointWorker';
+import type { BuyPointResult } from '@/utils/buyPointCompute';
+import { BuyPointActionGroup } from '@/components/BuyPointActionGroup';
+import { exportBuyPlan, exportBuySellReport } from '@/utils/buySellReportExport';
 
 const { Search } = Input;
 
@@ -442,12 +445,7 @@ const HkOutTrading: React.FC = () => {
   };
 
   // 计算推荐买点（定量 + 月&季百分位 + 月RSI6百分位 + 周RSI6百分位）
-  const fetchStockDetailAndCalculate = async (symbol: string): Promise<{
-    quantitative: string;
-    percentile: string;
-    monthlyPercentile: string;
-    weeklyPercentile: string;
-  }> => {
+  const fetchStockDetailAndCalculate = async (symbol: string): Promise<BuyPointResult> => {
     try {
       // 港股代码为 5 位数字（如 00700），无需交易所前缀
       const params: Record<string, string> = {
@@ -463,7 +461,7 @@ const HkOutTrading: React.FC = () => {
       return computeBuyPoints({ type: 'stock', rawData: stockHistoryList });
     } catch (error) {
       console.log('Error fetching stock detail:', error);
-      return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '' };
+      return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '', mqBuyPoints: [] };
     }
   };
 
@@ -496,6 +494,32 @@ const HkOutTrading: React.FC = () => {
       },
     });
   };
+
+  /** 导出「买入&卖出报告」：仅导出已完成买卖配对的 ★5 信号 */
+  const handleExportBuySellReport = () =>
+    exportBuySellReport<StockData>({
+      targets: selectedRows,
+      getCode: stock => String(stock['代码']),
+      getName: stock => stock['中文名称'] || String(stock['代码']),
+      getKey: stock => String(stock['代码']),
+      fetchPoints: async stock => (await fetchStockDetailAndCalculate(String(stock['代码']))).mqBuyPoints,
+      emptyWarn: '请选择股票',
+      itemLabel: '股票',
+      filePrefix: '港股个股',
+    });
+
+  /** 导出「买入计划」：仅导出尚未卖出的 ★5 买入信号 */
+  const handleExportBuyPlan = () =>
+    exportBuyPlan<StockData>({
+      targets: selectedRows,
+      getCode: stock => String(stock['代码']),
+      getName: stock => stock['中文名称'] || String(stock['代码']),
+      getKey: stock => String(stock['代码']),
+      fetchPoints: async stock => (await fetchStockDetailAndCalculate(String(stock['代码']))).mqBuyPoints,
+      emptyWarn: '请选择股票',
+      itemLabel: '股票',
+      filePrefix: '港股个股',
+    });
 
   // 判断股票是否已在某分组内
   const isInGroup = (groupKey: string, code: string): boolean =>
@@ -908,56 +932,12 @@ const HkOutTrading: React.FC = () => {
   // 自选 / 自定义分组共用的内容：批量计算入口 + 分组股票表格
   const renderGroupContent = (groupKey: string) => (
     <>
-      <div
-        onClick={() => handleCalculateRecommendation(groupKey)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          padding: '8px 20px',
-          marginBottom: 16,
-          background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
-          borderRadius: '25px',
-          transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-          boxShadow: '0 8px 25px rgba(56, 239, 125, 0.5), 0 0 0 3px rgba(56, 239, 125, 0.2)',
-          cursor: 'pointer',
-          transform: 'scale(1.02)',
-          border: '2px solid transparent',
-          overflow: 'hidden',
-          position: 'relative'
-        }}
-      >
-        <div
-          style={{
-            width: '24px',
-            height: '24px',
-            borderRadius: '50%',
-            background: 'rgba(255,255,255,0.9)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'all 0.3s ease',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-          }}
-        >
-          <span style={{ fontSize: '14px', fontWeight: 'bold' }}>
-            ✓
-          </span>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span style={{
-            fontWeight: 'bold', color: '#fff', fontSize: '14px',
-            textShadow: '0 1px 2px rgba(0,0,0,0.2)'
-          }}>
-            计算推荐买点
-          </span>
-          <span style={{
-            color: 'rgba(255,255,255,0.85)', fontSize: '11px', marginTop: '2px'
-          }}>
-            启用后将计算RSI指标
-          </span>
-        </div>
-      </div>
+      <BuyPointActionGroup
+        onCalculate={() => handleCalculateRecommendation(groupKey)}
+        onExportReport={handleExportBuySellReport}
+        onExportPlan={handleExportBuyPlan}
+        itemLabel="股票"
+      />
       <Table
         rowSelection={{
           selectedRowKeys,

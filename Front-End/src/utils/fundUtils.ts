@@ -1,6 +1,6 @@
 import apiClient from './axios';
 import { computeBuyPoints } from './buyPointWorker';
-import type { BuyPointFundItem } from './buyPointCompute';
+import type { BuyPointFundItem, BuyPointResult } from './buyPointCompute';
 
 type FundDetailItem = Record<string, string | number>;
 
@@ -46,20 +46,14 @@ export const fetchFundRecommendationPoints = async (fundCode: string): Promise<s
  * - 月RSI6百分位策略：月RSI6 单周期，跌破 3% 历史分位建仓（取每笔配对的第一次买入日期）
  * 返回逗号分隔的日期字符串
  */
-export const fetchFundRecommendationPointsBoth = async (fundCode: string): Promise<{
-  quantitative: string;
-  percentile: string;
-  monthlyPercentile: string;
-}> => {
+export const fetchFundRecommendationPointsBoth = async (
+  fundCode: string,
+): Promise<BuyPointResult> => {
   try {
     const rawData = await fetchFundReturnSeries(fundCode);
-    const { quantitative, percentile, monthlyPercentile } = await computeBuyPoints({
-      type: 'fund',
-      rawData,
-    });
-    return { quantitative, percentile, monthlyPercentile };
+    return await computeBuyPoints({ type: 'fund', rawData });
   } catch (error) {
     console.log('Error fetching fund recommendation points:', error);
-    return { quantitative: '', percentile: '', monthlyPercentile: '' };
+    return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '', mqBuyPoints: [] };
   }
 };

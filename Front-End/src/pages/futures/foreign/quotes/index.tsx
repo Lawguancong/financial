@@ -7,6 +7,9 @@ import apiClient from '@/utils/axios';
 import { isRecentDate } from '@/utils/stockUtils';
 import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
 import { computeBuyPoints } from '@/utils/buyPointWorker';
+import type { BuyPointResult } from '@/utils/buyPointCompute';
+import { BuyPointActionGroup } from '@/components/BuyPointActionGroup';
+import { exportBuyPlan, exportBuySellReport } from '@/utils/buySellReportExport';
 
 const { Link } = Typography;
 const { TabPane } = Tabs;
@@ -154,8 +157,34 @@ const FuturesForeignQuotes: React.FC = () => {
     }
   };
 
+  /** 导出「买入&卖出报告」：仅导出已完成买卖配对的 ★5 信号 */
+  const handleExportBuySellReport = () =>
+    exportBuySellReport<FuturesData>({
+      targets: selectedRows,
+      getCode: item => String(item.code),
+      getName: item => item.symbol || String(item.code),
+      getKey: item => String(item.code),
+      fetchPoints: async item => (await fetchFuturesDetailAndCalculate(String(item.code))).mqBuyPoints,
+      emptyWarn: '请选择期货品种',
+      itemLabel: '期货品种',
+      filePrefix: '外盘期货',
+    });
+
+  /** 导出「买入计划」：仅导出尚未卖出的 ★5 买入信号 */
+  const handleExportBuyPlan = () =>
+    exportBuyPlan<FuturesData>({
+      targets: selectedRows,
+      getCode: item => String(item.code),
+      getName: item => item.symbol || String(item.code),
+      getKey: item => String(item.code),
+      fetchPoints: async item => (await fetchFuturesDetailAndCalculate(String(item.code))).mqBuyPoints,
+      emptyWarn: '请选择期货品种',
+      itemLabel: '期货品种',
+      filePrefix: '外盘期货',
+    });
+
   // 计算推荐买点（定量 + 百分位 + 月/周 RSI6 百分位策略）
-  const fetchFuturesDetailAndCalculate = async (code: string): Promise<{ quantitative: string; percentile: string; monthlyPercentile: string; weeklyPercentile: string }> => {
+  const fetchFuturesDetailAndCalculate = async (code: string): Promise<BuyPointResult> => {
     try {
       const response = await apiClient.get('/api/public/futures_foreign_hist', {
         params: { symbol: code },
@@ -170,13 +199,13 @@ const FuturesForeignQuotes: React.FC = () => {
 
       // 接口无数据时无分析意义，直接返回空结果（不覆盖已有买点）
       if (stockHistoryList.length === 0) {
-        return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '' };
+        return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '', mqBuyPoints: [] };
       }
 
       return computeBuyPoints({ type: 'commodity', rawData: stockHistoryList });
     } catch (error) {
       console.log('Error fetching futures detail:', error);
-      return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '' };
+      return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '', mqBuyPoints: [] };
     }
   };
 
@@ -742,49 +771,12 @@ const FuturesForeignQuotes: React.FC = () => {
     const list = getGroupFutures(groupKey);
     return (
       <>
-        <div
-          onClick={handleCalculateRecommendation}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            padding: '8px 20px',
-            background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
-            borderRadius: '25px',
-            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-            boxShadow: '0 8px 25px rgba(56, 239, 125, 0.5), 0 0 0 3px rgba(56, 239, 125, 0.2)',
-            cursor: 'pointer',
-            transform: 'scale(1.02)',
-            border: '2px solid transparent',
-            overflow: 'hidden',
-            position: 'relative',
-            marginBottom: 12,
-          }}
-        >
-          <div
-            style={{
-              width: '24px',
-              height: '24px',
-              borderRadius: '50%',
-              background: 'rgba(255,255,255,0.9)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all 0.3s ease',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-            }}
-          >
-            <span style={{ fontSize: '14px', fontWeight: 'bold' }}>✓</span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontWeight: 'bold', color: '#fff', fontSize: '14px', textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>
-              计算推荐买点
-            </span>
-            <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: '11px', marginTop: '2px' }}>
-              启用后将计算RSI指标
-            </span>
-          </div>
-        </div>
+        <BuyPointActionGroup
+          onCalculate={handleCalculateRecommendation}
+          onExportReport={handleExportBuySellReport}
+          onExportPlan={handleExportBuyPlan}
+          itemLabel="期货品种"
+        />
         <Table
           rowSelection={{
             selectedRowKeys,

@@ -9,6 +9,9 @@ import type { IndexDetailData } from './detail';
 import { createRecommendationAnnotations, isRecentDate } from '@/utils/stockUtils';
 import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
 import { computeBuyPoints } from '@/utils/buyPointWorker';
+import type { BuyPointResult } from '@/utils/buyPointCompute';
+import { BuyPointActionGroup } from '@/components/BuyPointActionGroup';
+import { exportBuyPlan, exportBuySellReport } from '@/utils/buySellReportExport';
 
 
 
@@ -168,10 +171,36 @@ const Index: React.FC = () => {
     }
   };
 
+  /** 导出「买入&卖出报告」：仅导出已完成买卖配对的 ★5 信号 */
+  const handleExportBuySellReport = () =>
+    exportBuySellReport<IndexData>({
+      targets: selectedRows,
+      getCode: item => String(item['指数代码']),
+      getName: item => item['指数简称'] || String(item['指数代码']),
+      getKey: item => String(item['指数代码']),
+      fetchPoints: async item => (await fetchIndexDetailAndCalculate(String(item['指数代码']))).mqBuyPoints,
+      emptyWarn: '请选择指数',
+      itemLabel: '指数',
+      filePrefix: 'A股指数',
+    });
+
+  /** 导出「买入计划」：仅导出尚未卖出的 ★5 买入信号 */
+  const handleExportBuyPlan = () =>
+    exportBuyPlan<IndexData>({
+      targets: selectedRows,
+      getCode: item => String(item['指数代码']),
+      getName: item => item['指数简称'] || String(item['指数代码']),
+      getKey: item => String(item['指数代码']),
+      fetchPoints: async item => (await fetchIndexDetailAndCalculate(String(item['指数代码']))).mqBuyPoints,
+      emptyWarn: '请选择指数',
+      itemLabel: '指数',
+      filePrefix: 'A股指数',
+    });
+
   console.log('11111 selectedIndices', selectedIndices)
 
   // 计算推荐买点（定量 + 百分位 + 月/周 RSI6 百分位策略）
-  const fetchIndexDetailAndCalculate = async (symbol: string): Promise<{ quantitative: string; percentile: string; monthlyPercentile: string; weeklyPercentile: string }> => {
+  const fetchIndexDetailAndCalculate = async (symbol: string): Promise<BuyPointResult> => {
     try {
 
       const startDate = '19800101'; // 默认从1980年1月1日开始查询，并去除第一个日期的空值
@@ -187,7 +216,7 @@ const Index: React.FC = () => {
       return computeBuyPoints({ type: 'index', rawData: stockHistoryList });
     } catch (error) {
       console.log('Error fetching index detail:', error);
-      return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '' };
+      return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '', mqBuyPoints: [] };
     }
   };
 
@@ -948,55 +977,12 @@ const Index: React.FC = () => {
     const list = getGroupIndices(groupKey);
     return (
       <>
-        <div
-          onClick={handleCalculateRecommendation}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            padding: '8px 20px',
-            background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
-            borderRadius: '25px',
-            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-            boxShadow: '0 8px 25px rgba(56, 239, 125, 0.5), 0 0 0 3px rgba(56, 239, 125, 0.2)',
-            cursor: 'pointer',
-            transform: 'scale(1.02)',
-            border: '2px solid transparent',
-            overflow: 'hidden',
-            position: 'relative'
-          }}
-        >
-          <div
-            style={{
-              width: '24px',
-              height: '24px',
-              borderRadius: '50%',
-              background: 'rgba(255,255,255,0.9)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all 0.3s ease',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-            }}
-          >
-            <span style={{ fontSize: '14px', fontWeight: 'bold' }}>
-              ✓
-            </span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{
-              fontWeight: 'bold', color: '#fff', fontSize: '14px',
-              textShadow: '0 1px 2px rgba(0,0,0,0.2)'
-            }}>
-              计算推荐买点
-            </span>
-            <span style={{
-              color: 'rgba(255,255,255,0.85)', fontSize: '11px', marginTop: '2px'
-            }}>
-              启用后将计算RSI指标
-            </span>
-          </div>
-        </div>
+        <BuyPointActionGroup
+          onCalculate={handleCalculateRecommendation}
+          onExportReport={handleExportBuySellReport}
+          onExportPlan={handleExportBuyPlan}
+          itemLabel="指数"
+        />
         <Table
           rowSelection={{
             selectedRowKeys,

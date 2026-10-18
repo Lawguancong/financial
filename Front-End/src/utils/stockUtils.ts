@@ -1365,6 +1365,19 @@ export interface MonthlyQuarterlyPercentileBuyPoint {
   returnRate?: number;
   /** 年化收益率（%），calculateAnnualizedReturn 可能返回 null */
   annualizedReturn?: number | null;
+  /**
+   * 最大回撤率（%，正值）：以买入价为基准，买入之后（已配对的至卖出日，未卖出则至最新交易日）
+   * 低于买入价的最大跌幅；全程未跌破买入价时无值（展示为 -）
+   */
+  maxDrawdown?: number;
+  /** 最大回撤的日期（回撤最低点所在交易日） */
+  maxDrawdownDate?: string;
+  /** 最大回撤的收盘价（回撤最低点的收盘价） */
+  maxDrawdownClose?: number;
+  /** 买点到最大回撤最低点的天数（日历天） */
+  daysToMaxDrawdown?: number;
+  /** Calmar 比率 = 年化收益率 / 最大回撤率（持有不足1年或无回撤时无值） */
+  calmarRatio?: number;
 }
 
 /** 带 RSI6 字段的 K 线数据（calculateRSI 在原 K 线上追加 __RSI6__） */
@@ -1418,7 +1431,8 @@ export interface MonthlyQuarterlyPercentileResult {
  *   1～3 月取 3 月最晚季末值、4～6 月取 6 月最晚、7～9 月取 9 月最晚、10～12 月取 12 月最晚，
  *   与季RSI6 vh（step-before）阶梯折线、shared tooltip 的季度查表完全同口径；
  *   仅当所在季度季末点尚不存在（当前未走完的季度）时，回退最近一个已完成季度
- * - 卖出：持仓中（★5买点）且 月RSI6 与 季RSI6 同时突破各自卖出分位阈值
+ * - 卖出：持仓中（★5买点）且 月RSI6 与 季RSI6 同时突破各自卖出分位阈值，
+ *   并且卖出价高于买入价（盈利）时才平仓；卖出价 <= 买入价时继续持有
  * - 仅 ★5 买点参与卖出配对，顺序配对 ★5买点 → 卖点 → ★5买点 → 卖点 ...
  *
  * @returns 阈值与买点；月/季有效数值任一为空时返回 null
@@ -1519,34 +1533,37 @@ export const analyzeMonthlyQuarterlyPercentile = (
       }
     }
 
-    // 卖出判断：持仓中且月/季 RSI6 同时触及（≥）卖出分位阈值时平仓
+    // 卖出判断：持仓中且月/季 RSI6 同时触及（≥）卖出分位阈值，且卖出价必须高于买入价（盈利）时才平仓
     if (
       holdingFiveStarBuy &&
       monthlyRsi >= sellThresholds.monthly &&
       quarterlyRsi >= sellThresholds.quarterly
     ) {
-      const buyTime = new Date(holdingFiveStarBuy.日期).getTime();
-      const sellTime = new Date(m.日期).getTime();
-      const holdingDays = Math.max(
-        1,
-        Math.round((sellTime - buyTime) / (24 * 60 * 60 * 1000)),
-      );
       const returnRate = calculateHoldingReturnRate(
         holdingFiveStarBuy.收盘,
         m.收盘,
         closeValueType,
       );
-      holdingFiveStarBuy.sellDate = m.日期;
-      holdingFiveStarBuy.sellMonthlyRsi = monthlyRsi;
-      holdingFiveStarBuy.sellQuarterlyRsi = quarterlyRsi;
-      holdingFiveStarBuy.sellPrice = Number(m.收盘.toFixed(2));
-      holdingFiveStarBuy.holdingDays = holdingDays;
-      holdingFiveStarBuy.returnRate = returnRate;
-      // 持有不足1年（365天）不计算年化收益率，展示为 --
-      holdingFiveStarBuy.annualizedReturn =
-        holdingDays >= 365 ? calculateAnnualizedReturn(returnRate, holdingDays) : null;
-      // 平仓后等待下一个★5买点
-      holdingFiveStarBuy = null;
+      // 卖出价 <= 买入价时不卖出，继续持有等待下一个更高价格的卖出信号
+      if (returnRate > 0) {
+        const buyTime = new Date(holdingFiveStarBuy.日期).getTime();
+        const sellTime = new Date(m.日期).getTime();
+        const holdingDays = Math.max(
+          1,
+          Math.round((sellTime - buyTime) / (24 * 60 * 60 * 1000)),
+        );
+        holdingFiveStarBuy.sellDate = m.日期;
+        holdingFiveStarBuy.sellMonthlyRsi = monthlyRsi;
+        holdingFiveStarBuy.sellQuarterlyRsi = quarterlyRsi;
+        holdingFiveStarBuy.sellPrice = Number(m.收盘.toFixed(2));
+        holdingFiveStarBuy.holdingDays = holdingDays;
+        holdingFiveStarBuy.returnRate = returnRate;
+        // 持有不足1年（365天）不计算年化收益率，展示为 --
+        holdingFiveStarBuy.annualizedReturn =
+          holdingDays >= 365 ? calculateAnnualizedReturn(returnRate, holdingDays) : null;
+        // 平仓后等待下一个★5买点
+        holdingFiveStarBuy = null;
+      }
     }
   }
 

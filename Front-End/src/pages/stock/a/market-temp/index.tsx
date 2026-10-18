@@ -11,9 +11,14 @@ import { ReloadOutlined } from '@ant-design/icons';
 import { Macro_china_stock_market_cap } from '../macro/components';
 import StockBelowNetAssetLg from './StockBelowNetAssetLg';
 import IndexComparisonChart, { type IndexComparisonChartProps, type NormalizedPoint } from '@/components/IndexComparisonChart';
+import { filterByFrequency } from '@/utils/stockUtils';
 
 type CsindexRow = { 日期: string; 收盘: number };
 type SinaIndexRow = { date: string; close: number };
+type BondRateRow = { 日期: string; 中国国债收益率10年?: number | null; 中国国债收益率30年?: number | null };
+
+/** 国债利率倒数（倍）= 100 ÷ 国债收益率(%)，即「债券的隐含市盈率」，与指数滚动市盈率同口径可比 */
+const toInverse = (rate?: number | null) => (typeof rate === 'number' && rate > 0 ? Number((100 / rate).toFixed(2)) : null);
 
 /** 中证源指数历史：调接口并按 {date, close} 归一化（未采样，月度采样由通用组件完成） */
 const fetchCsindexHist = async (symbol: string, startDate: string): Promise<NormalizedPoint[]> => {
@@ -95,6 +100,198 @@ const GROWTH_VS_VALUE_CONFIG: IndexComparisonChartProps = {
       按同一交易日对齐。两者起始基点均为 1000 点，起点比值≈1，更具可比性；比值&gt;1 表示 300成长点位高于 300价值。
     </>
   ),
+};
+
+/** 中证全指-滚动市盈率（复制自 /stock/a/valuation 的 Stock_zh_index_hist_csindex） */
+const Stock_zh_index_hist_csindex = () => {
+  const chartName = '中证全指-滚动市盈率'; // 图表名称
+  const bondChartName = '10年/30年期国债利率倒数&滚动市盈率走势'; // 国债利率倒数对比图名称
+  const startDate = '20050101'; // 起始日：与中证全指数据起始日保持一致
+  const dateKey = '日期' // 日期键名
+  const dateName = '日期' // 日期键名
+  const leftKey = '收盘' // 左y轴键名
+  const leftName = '中证全指' // 左y轴名称
+  const rightKeys = { // 右y轴键名: 右y轴名称
+    滚动市盈率: '滚动市盈率',
+  }
+  type DataRes = {
+    [dateKey]: string;
+    [leftKey]: number;
+  } & {
+    [K in keyof typeof rightKeys]: number;
+  };
+
+  const labelMap = {
+    [dateKey]: dateName,
+    [leftKey]: leftName,
+    ...rightKeys
+  }
+  const [data, setData] = useState<{
+    leftData: { date: string; key: string; label: string; value: number }[];
+    rightData: {
+      date: string;
+      key: string;
+      value: number;
+    }[];
+  }>({ leftData: [], rightData: [] });
+  // 国债收益率按月取样：key = YYYY-MM，value = 该月最后一条 10 年/30 年收益率(%)
+  const [bondMonthly, setBondMonthly] = useState<Record<string, { ten?: number | null; thirty?: number | null }>>({});
+  const fetchData = async () => {
+    try {
+      // 入参
+      // symbol	str	symbol = "000928"; 指数代码
+      // start_date	str	start_date = "20180526"
+      // end_date	str	end_date = "20240604"
+      const response = await apiClient.get(`/api/public/stock_zh_index_hist_csindex?symbol=000985&start_date=${startDate}&end_date=${moment().format('YYYYMMDD')}`)
+      console.log(`${chartName} -> response`, response)
+      const dataFormat = filterByFrequency(response?.data as DataRes[], dateKey, 'monthly')?.map((item: DataRes) => Object.keys(pick(item, Object.keys({ [leftKey]: leftName, ...rightKeys }))).map((key) => ({
+        date: item[dateKey],
+        key,
+        label: labelMap[key as keyof typeof labelMap],
+        value: item[key as keyof DataRes] as number,
+      }))).flat()
+      setData({
+        leftData: dataFormat?.filter((item: { key: string }) => item.key === leftKey),
+        rightData: dataFormat?.filter((item: { key: string }) => item.key !== leftKey)
+      })
+    } catch (error) {
+      console.log('error', error)
+    }
+    // 国债收益率：按月取样（每月取最后一条），供「国债利率倒数 vs 滚动市盈率」图与中证全指按月对齐
+    try {
+      const bondRes = await apiClient.get(`/api/public/bond_zh_us_rate?start_date=${startDate}`)
+      console.log(`${bondChartName} -> response`, bondRes)
+      const map: Record<string, { ten?: number | null; thirty?: number | null }> = {}
+        ; (bondRes?.data as BondRateRow[] | undefined)?.forEach((item) => {
+          const month = item['日期']?.slice(0, 7)
+          if (!month) return
+          map[month] = { ten: item['中国国债收益率10年'], thirty: item['中国国债收益率30年'] }
+        })
+      setBondMonthly(map)
+    } catch (error) {
+      console.log('error', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // 按「中证全指」月末日期对齐：左轴滚动市盈率 + 右轴 10 年/30 年国债利率倒数
+  const bondChartData = useMemo(() => {
+    const peData: { date: string; value: number; label: string }[] = []
+    const inverseData: { date: string; value: number; label: string }[] = []
+    data.rightData.forEach((item) => {
+      const bond = bondMonthly[item.date.slice(0, 7)]
+      if (!bond) return
+      peData.push({ date: item.date, value: item.value, label: '滚动市盈率' })
+      const ten = toInverse(bond.ten)
+      const thirty = toInverse(bond.thirty)
+      if (ten !== null) inverseData.push({ date: item.date, value: ten, label: '十年国债利率倒数' })
+      if (thirty !== null) inverseData.push({ date: item.date, value: thirty, label: '三十年国债利率倒数' })
+    })
+    return { peData, inverseData }
+  }, [data.rightData, bondMonthly]);
+
+  console.log(`${chartName} -> data`, data)
+  const config = {
+    title: {
+      title: chartName,
+    },
+    xField: (d: { date: string }) => new Date(d.date),
+    // scale: { color: { range: ['#5B8FF9', '#5AD8A6', '#5D7092', '#F6BD16', '#6F5EF9'] } },
+    children: [
+      {
+        data: data.leftData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        style: {
+          stroke: '#5B8FF9',
+          lineWidth: 2,
+        },
+        axis: {
+          y: {
+            title: leftName,
+            style: { titleFill: '#5B8FF9' },
+          },
+        },
+      },
+      {
+        data: data.rightData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        axis: {
+          y: {
+            position: 'right',
+            title: chartName,
+            style: { titleFill: '#6c6868ff' },
+          },
+        },
+      },
+
+    ],
+  };
+
+  // 十年&三十年期国债利率倒数 vs 中证全指滚动市盈率：左轴 PE、右轴国债利率倒数（与股票 PE 同口径）
+  const bondConfig = {
+    title: {
+      title: bondChartName,
+    },
+    xField: (d: { date: string }) => new Date(d.date),
+    legend: true,
+    scale: {
+      color: {
+        domain: ['滚动市盈率', '十年国债利率倒数', '三十年国债利率倒数'],
+        range: ['#d62728', '#1890ff', '#722ed1'],
+      },
+    },
+    children: [
+      {
+        data: bondChartData.peData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        style: { lineWidth: 2 },
+        axis: {
+          y: {
+            title: '滚动市盈率',
+            style: { titleFill: '#d62728' },
+          },
+        },
+      },
+      {
+        data: bondChartData.inverseData,
+        type: 'line',
+        yField: 'value',
+        colorField: 'label',
+        shapeField: 'smooth',
+        style: { lineWidth: 2 },
+        axis: {
+          y: {
+            position: 'right',
+            title: '国债利率倒数（倍）',
+            style: { titleFill: '#1890ff' },
+          },
+        },
+      },
+    ],
+  };
+
+  return <>
+    <DualAxes {...config} />
+    <div style={{ marginTop: 24 }}>
+      <div style={{ fontSize: 12, color: '#8c8c8c', lineHeight: 1.8, marginBottom: 4 }}>
+        说明：国债利率倒数（倍）= 100 ÷ 国债收益率(%)，即「债券的隐含市盈率」；左轴为中证全指滚动市盈率，
+        当 PE 低于右轴倒数线时，代表股票相对债券更便宜。数据自中证全指起始日（2005-01）起按月取样。
+      </div>
+      <DualAxes {...bondConfig} />
+    </div>
+  </>
 };
 
 const Stock_buffett_index_lg = ({ key }: { key: number }) => {
@@ -855,6 +1052,7 @@ const Index: React.FC = () => {
     '9': 0,
     '10': 0,
     '11': 0,
+    '12': 0,
   });
 
   console.log('refreshKeys, ', refreshKeys)
@@ -902,6 +1100,7 @@ const Index: React.FC = () => {
       ),
       children: useMemo(() => <IndexComparisonChart key={refreshKeys['10']} {...CSI_ALL_VS_BOND_CONFIG} />, [refreshKeys['10']]),
     },
+
     {
       key: '11',
       label: (
@@ -944,7 +1143,7 @@ const Index: React.FC = () => {
       ),
       children: useMemo(() => <Stock_a_congestion_lg key={refreshKeys['5']} />, [refreshKeys['5']]),
     },
-        {
+    {
       key: '6',
       label: (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -988,7 +1187,20 @@ const Index: React.FC = () => {
       ),
       children: useMemo(() => <Stock_ebs_lg key={refreshKeys['2']} />, [refreshKeys['2']]),
     },
-
+    {
+      key: '12',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>国债倒数&滚动PE走势</span>
+          <Button
+            icon={<ReloadOutlined />}
+            size="small"
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '12': prev['12'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <Stock_zh_index_hist_csindex key={refreshKeys['12']} />, [refreshKeys['12']]),
+    },
     {
       key: '7',
       label: (

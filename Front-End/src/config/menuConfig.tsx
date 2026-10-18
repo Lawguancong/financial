@@ -1,4 +1,4 @@
-import { HomeOutlined, BankOutlined, StockOutlined, ShoppingOutlined, ApartmentOutlined, FundOutlined, ThunderboltOutlined, ExperimentOutlined, CodeOutlined, ReadOutlined, GlobalOutlined } from '@ant-design/icons';
+import { HomeOutlined, BankOutlined, StockOutlined, ShoppingOutlined, ApartmentOutlined, FundOutlined, CodeOutlined, ReadOutlined, GlobalOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { lazy } from 'react';
 
@@ -141,6 +141,34 @@ export const menuConfigs: MenuItemConfig[] = [
             path: 'stock/hk/hsi-dividend-yield',
             component: lazy(() => import('@/pages/stock/hk/hsi-dividend-yield')),
           },
+          {
+            key: 'stock/hk/index',
+            label: '指数',
+            path: 'stock/hk/index',
+            component: lazy(() => import('@/pages/stock/hk/index')),
+            children: [
+              {
+                key: 'stock/hk/index/detail',
+                label: '指数详情',
+                path: 'stock/hk/index/detail',
+                component: lazy(() => import('@/pages/stock/hk/index/detail')),
+              },
+            ],
+          },
+          {
+            key: 'stock/hk/stock',
+            label: '个股',
+            path: 'stock/hk/stock',
+            component: lazy(() => import('@/pages/stock/hk/stock')),
+            children: [
+              {
+                key: 'stock/hk/stock/detail',
+                label: '个股详情',
+                path: 'stock/hk/stock/detail',
+                component: lazy(() => import('@/pages/stock/hk/stock/detail')),
+              },
+            ],
+          },
         ],
       },
       {
@@ -161,6 +189,83 @@ export const menuConfigs: MenuItemConfig[] = [
       //   path: 'stock/other',
       //   component: lazy(() => import('@/pages/StockOther')),
       // },
+    ],
+  },
+    {
+    key: 'fund',
+    label: '基金',
+    icon: <FundOutlined />,
+    children: [
+      {
+        key: 'fund/cn',
+        label: '国内',
+        path: 'fund/cn',
+        children: [
+          {
+            key: 'fund/cn/market-temp',
+            label: '基金温度',
+            path: 'fund/cn/market-temp',
+            component: lazy(() => import('@/pages/fund/cn/market-temp')),
+          },
+          {
+            key: 'fund/cn/new-fund',
+            label: '新发基金',
+            path: 'fund/cn/new-fund',
+            component: lazy(() => import('@/pages/fund/cn/new-fund')),
+          },
+          {
+            key: 'fund/cn/position',
+            label: '基金仓位',
+            path: 'fund/cn/position',
+            component: lazy(() => import('@/pages/fund/cn/position')),
+          },
+          {
+            key: 'fund/cn/company',
+            label: '基金公司',
+            path: 'fund/cn/company',
+            component: lazy(() => import('@/pages/fund/cn/company')),
+          },
+          {
+            key: 'fund/cn/dividend',
+            label: '基金分红',
+            path: 'fund/cn/dividend',
+            component: lazy(() => import('@/pages/fund/cn/dividend')),
+          },
+          {
+            key: 'fund/cn/manager',
+            label: '基金经理',
+            path: 'fund/cn/manager',
+            component: lazy(() => import('@/pages/fund/cn/manager')),
+          },
+          {
+            key: 'fund/cn/open',
+            label: '基金列表',
+            path: 'fund/cn/open',
+            component: lazy(() => import('@/pages/fund/cn/open')),
+            children: [
+              {
+                key: 'fund/cn/open/detail',
+                label: '基金详情',
+                path: 'fund/cn/open/detail',
+                component: lazy(() => import('@/pages/fund/cn/open/detail')),
+              }
+            ]
+          },
+          {
+            key: 'fund/cn/fund-asset-allocation',
+            label: '基金资产配置',
+            path: 'fund/cn/fund-asset-allocation',
+            component: lazy(() => import('@/pages/fund/cn/fund-asset-allocation')),
+          },
+          {
+            key: 'fund/cn/fund-scale-change',
+            label: '基金规模变动',
+            path: 'fund/cn/fund-scale-change',
+            component: lazy(() => import('@/pages/fund/cn/fund-scale-change')),
+          },
+
+        ],
+      },
     ],
   },
   {
@@ -251,79 +356,48 @@ export const menuConfigs: MenuItemConfig[] = [
       },
     ],
   },
-  {
-    key: 'fund',
-    label: '基金',
-    icon: <FundOutlined />,
+
+    {
+    key: 'futures',
+    label: '期货',
+    icon: <ThunderboltOutlined />,
     children: [
       {
-        key: 'fund/cn',
-        label: '国内',
-        path: 'fund/cn',
+        key: 'futures/foreign',
+        label: '国外',
         children: [
           {
-            key: 'fund/cn/market-temp',
-            label: '基金温度',
-            path: 'fund/cn/market-temp',
-            component: lazy(() => import('@/pages/fund/cn/market-temp')),
-          },
-          {
-            key: 'fund/cn/new-fund',
-            label: '新发基金',
-            path: 'fund/cn/new-fund',
-            component: lazy(() => import('@/pages/fund/cn/new-fund')),
-          },
-          {
-            key: 'fund/cn/position',
-            label: '基金仓位',
-            path: 'fund/cn/position',
-            component: lazy(() => import('@/pages/fund/cn/position')),
-          },
-          {
-            key: 'fund/cn/company',
-            label: '基金公司',
-            path: 'fund/cn/company',
-            component: lazy(() => import('@/pages/fund/cn/company')),
-          },
-          {
-            key: 'fund/cn/dividend',
-            label: '基金分红',
-            path: 'fund/cn/dividend',
-            component: lazy(() => import('@/pages/fund/cn/dividend')),
-          },
-          {
-            key: 'fund/cn/manager',
-            label: '基金经理',
-            path: 'fund/cn/manager',
-            component: lazy(() => import('@/pages/fund/cn/manager')),
-          },
-          {
-            key: 'fund/cn/open',
-            label: '基金列表',
-            path: 'fund/cn/open',
-            component: lazy(() => import('@/pages/fund/cn/open')),
+            key: 'futures/foreign/quotes',
+            label: '大宗商品',
+            path: 'futures/foreign/quotes',
+            component: lazy(() => import('@/pages/futures/foreign/quotes')),
             children: [
               {
-                key: 'fund/cn/open/detail',
-                label: '基金详情',
-                path: 'fund/cn/open/detail',
-                component: lazy(() => import('@/pages/fund/cn/open/detail')),
-              }
-            ]
+                key: 'futures/foreign/quotes/detail',
+                label: '行情详情',
+                path: 'futures/foreign/quotes/detail',
+                component: lazy(() => import('@/pages/futures/foreign/quotes/detail')),
+              },
+            ],
           },
+        ],
+      },
+      {
+        key: 'futures/cn',
+        label: '国内',
+        children: [
           {
-            key: 'fund/cn/fund-asset-allocation',
-            label: '基金资产配置',
-            path: 'fund/cn/fund-asset-allocation',
-            component: lazy(() => import('@/pages/fund/cn/fund-asset-allocation')),
+            key: 'futures/cn/commodity',
+            label: '大宗商品',
+            children: [
+              {
+                key: 'futures/cn/commodity/hog-index',
+                label: '生猪指数',
+                path: 'futures/cn/commodity/hog-index',
+                component: lazy(() => import('@/pages/futures/cn/commodity/hog-index')),
+              },
+            ],
           },
-          {
-            key: 'fund/cn/fund-scale-change',
-            label: '基金规模变动',
-            path: 'fund/cn/fund-scale-change',
-            component: lazy(() => import('@/pages/fund/cn/fund-scale-change')),
-          },
-
         ],
       },
     ],
@@ -341,13 +415,7 @@ export const menuConfigs: MenuItemConfig[] = [
       },
     ],
   },
-  // {
-  //   key: 'futures',
-  //   label: '期货',
-  //   icon: <ThunderboltOutlined />,
-  //   path: 'futures',
-  //   component: lazy(() => import('@/pages/Futures')),
-  // },
+
   // {
   //   key: 'options',
   //   label: '期权',
@@ -413,6 +481,11 @@ export const menuItems: MenuProps['items'] = menuConfigs.map(item => ({
     children: child.children ? child.children.map(subChild => ({
       key: subChild.key,
       label: subChild.label,
+      // 第三级为纯分组（无 path，如「期货 > 国内 > 大宗商品」）时，展开其第四级子项
+      children: !subChild.path && subChild.children ? subChild.children.map(leaf => ({
+        key: leaf.key,
+        label: leaf.label,
+      })) : undefined,
     })) : undefined,
   })) : undefined,
 }));

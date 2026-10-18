@@ -4,7 +4,7 @@ import type { TablePaginationConfig } from 'antd';
 import apiClient from '@/utils/axios';
 import { numberSorter, stringSorter, createRangeFilter } from '@/utils/tableUtils';
 import type { KLineData } from '@/utils/stockUtils';
-import IndexMetrics from './IndexMetrics';
+import IndexMetrics from '@/components/IndexMetrics';
 const RsiFilterMark = React.lazy(() => import('@/components/RsiFilterMark'));
 
 interface IndexData extends Record<string, unknown> {

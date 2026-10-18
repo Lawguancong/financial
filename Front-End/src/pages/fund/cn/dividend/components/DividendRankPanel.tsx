@@ -9,7 +9,6 @@ import {
 } from '@ant-design/icons';
 import apiClient from '@/utils/axios';
 import { numberSorter, createRangeFilter } from '@/utils/tableUtils';
-import type { TablePaginationConfig } from 'antd';
 
 interface FundDividend extends Record<string, unknown> {
   序号: number;
@@ -55,7 +54,7 @@ const DividendRankPanel: React.FC = () => {
 
   useEffect(() => {
     // fetchData();
-  }, []);
+  }, [fetchData]);
 
   useEffect(() => {
     const filtered = data.filter(

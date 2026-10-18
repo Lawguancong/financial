@@ -390,7 +390,7 @@ const IndexFundPanel: React.FC<IndexFundPanelProps> = ({
       sorter: stringSorter<IndexFundData>('跟踪方式'),
     },
     {
-      title: '推荐买点', dataIndex: '__推荐买点__', key: '__推荐买点__', width: 400,
+      title: '推荐买点', dataIndex: '__推荐买点__', key: '__推荐买点__', width: 120,
       sorter: stringSorter<IndexFundData>('__推荐买点__'),
       render: (value: string) => {
         if (!value) return <span style={{ color: '#999' }}>-</span>;

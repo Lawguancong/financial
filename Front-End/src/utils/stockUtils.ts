@@ -1,5 +1,31 @@
 import moment from 'moment';
-import { isNumber } from 'lodash-es'
+
+// 数据频率：daily = 保留全部日频数据；monthly = 每月只取最后一条数据
+export type DataFrequency = 'daily' | 'monthly';
+
+/**
+ * 按频率过滤数据
+ * - daily：返回全部数据
+ * - monthly（默认）：按 YYYY-MM 归组，取每月最晚的一条
+ */
+export const filterByFrequency = <T>(
+  list: T[] | undefined,
+  dateKey: string,
+  frequency: DataFrequency = 'monthly',
+): T[] => {
+  if (!Array.isArray(list)) return [];
+  if (frequency === 'daily') return list;
+  const monthLastMap = new Map<string, T>();
+  list.forEach((item) => {
+    const date = moment(item[dateKey as keyof T] as unknown as string);
+    const month = date.format('YYYY-MM');
+    const existing = monthLastMap.get(month);
+    if (!existing || date.isAfter(moment(existing[dateKey as keyof T] as unknown as string))) {
+      monthLastMap.set(month, item);
+    }
+  });
+  return Array.from(monthLastMap.values());
+};
 
 export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
   params: {
@@ -7,12 +33,18 @@ export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
     leftKey?: string;
     dateKey?: string;
     percentKey?: string;
+    /** 收盘值语义：cumulativeReturn=累计收益率(可为负、起点通常为0)；默认按 leftKey 是否为「累计收益率」推断 */
+    closeValueType?: CloseValueType;
   }
 ): (T & { __最大回撤率__: number; __年化收益率__: number | null })[] => {
-  const { data, leftKey = '', dateKey = '', percentKey } = params;
+  const { data, leftKey = '', dateKey = '', percentKey, closeValueType } = params;
   if (!data || data.length === 0) {
     return [];
   }
+
+  // 是否按「累计收益率」口径计算（显式参数优先，未传时沿用字段名推断，兼容旧调用方）
+  const isCumulativeReturn =
+    closeValueType === 'cumulativeReturn' || (closeValueType == null && leftKey === '累计收益率');
 
   let maxClose = 0;
   const firstClose = data[0][leftKey] as number;
@@ -37,7 +69,7 @@ export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
     }
 
     let drawdown: number | null = null;
-    if (leftKey === '累计收益率') {
+    if (isCumulativeReturn) {
       drawdown = ((maxClose + 100) - (closePrice + 100)) / (maxClose + 100);
     } else {
       drawdown = (maxClose - closePrice) / maxClose;
@@ -47,7 +79,7 @@ export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
     const days = moment(currentDate, 'YYYYMMDD').diff(moment(firstDate, 'YYYYMMDD'), 'days');
     let annualizedRate: number | null = null;
     if (days > 365) {
-      if (leftKey === '累计收益率') {
+      if (isCumulativeReturn) {
         // 总收益：上市以来，2009年12月～2026年2月，累计收益率：177.36%
         // 前段收益：2009年12月～2023年2月，累计收益率：118.46%
         // 后段收益：最近3年，2023年2月～2026年2月，累计收益率：26.97%
@@ -668,6 +700,36 @@ export const fundRsiRecommendationRules: RsiRecommendationRules = {
   ],
 };
 
+// 大商品 RSI6 推荐级别规则
+export const commodityRsiRecommendationRules: RsiRecommendationRules = {
+  5: [
+    [
+      { period: 'daily', threshold: 14 },
+      { period: 'weekly', threshold: 18 },
+      { period: 'monthly', threshold: 22 },
+      { period: 'quarterly', threshold: 25 },
+    ],
+  ],
+  3: [
+    [
+      { period: 'daily', threshold: 9 },
+      { period: 'weekly', threshold: 12 },
+      { period: 'monthly', threshold: 15 },
+    ],
+  ],
+  1: [
+    [
+      { period: 'daily', threshold: 15 },
+      { period: 'weekly', threshold: 17 },
+      { period: 'monthly', threshold: 19 },
+    ],
+    [
+      { period: 'daily', threshold: 9 },
+      { period: 'weekly', threshold: 12 },
+    ],
+  ],
+};
+
 // 根据规则表计算 RSI6 推荐级别
 const calculateRecommendationLevelByRules = (
   rules: RsiRecommendationRules,
@@ -709,6 +771,16 @@ const calculateStockRecommendationLevel = (dailyRSIValue?: number, weeklyRSIValu
     quarterlyRSIValue,
   );
 
+// 计算RSI6推荐级别(大宗商品) - 口径与个股一致
+const calculateCommodityRecommendationLevel = (dailyRSIValue?: number, weeklyRSIValue?: number, monthlyRSIValue?: number, quarterlyRSIValue?: number) =>
+  calculateRecommendationLevelByRules(
+    commodityRsiRecommendationRules,
+    dailyRSIValue,
+    weeklyRSIValue,
+    monthlyRSIValue,
+    quarterlyRSIValue,
+  );
+
 // 计算RSI6推荐级别(指数)
 export const calculateIndexRecommendationLevel = (dailyRSIValue?: number, weeklyRSIValue?: number, monthlyRSIValue?: number, quarterlyRSIValue?: number) =>
   calculateRecommendationLevelByRules(
@@ -728,6 +800,17 @@ export const calculateFundRecommendationLevel = (dailyRSIValue?: number, weeklyR
     monthlyRSIValue,
     quarterlyRSIValue,
   );
+
+// 标的类型 -> RSI6 推荐级别计算方法 的映射（新增类型在此登记即可）
+const recommendationLevelCalculatorMap: Record<
+  'stock' | 'index' | 'fund' | 'commodity',
+  typeof calculateStockRecommendationLevel
+> = {
+  stock: calculateStockRecommendationLevel,
+  index: calculateIndexRecommendationLevel,
+  fund: calculateFundRecommendationLevel,
+  commodity: calculateCommodityRecommendationLevel,
+};
 
 
 // 计算分位数
@@ -801,7 +884,7 @@ export const computeRSIRecommendations = (params: {
   weeklyRSI: KLineData[];
   monthlyRSI: KLineData[];
   quarterlyRSI: KLineData[];
-}, type: 'stock' | 'index' | 'fund' = 'stock'): (KLineData & { __recommendationLevel__: number })[] => {
+}, type: 'stock' | 'index' | 'fund' | 'commodity' = 'stock'): (KLineData & { __recommendationLevel__: number })[] => {
   const { dailyRSI, weeklyRSI, monthlyRSI, quarterlyRSI } = params;
 
   if (!dailyRSI || dailyRSI.length === 0) {
@@ -815,11 +898,7 @@ export const computeRSIRecommendations = (params: {
   // 过滤日K数据并计算推荐级别
   const aaa =  dailyRSI.map(dailyRSIData => {
     const rsiValues = getPeriodRSIValues(dailyRSIData, weeklyRSIMap, monthlyRSIMap, quarterlyRSIMap);
-    const calculateFunc = type === 'stock'
-      ? calculateStockRecommendationLevel
-      : type === 'fund'
-        ? calculateFundRecommendationLevel
-        : calculateIndexRecommendationLevel;
+    const calculateFunc = recommendationLevelCalculatorMap[type];
     const __recommendationLevel__ = calculateFunc(
       rsiValues.dailyRSIValue,
       rsiValues.weeklyRSIValue,
@@ -1088,6 +1167,182 @@ export const MONTHLY_RSI_SELL_PERCENTILE = 85;
 /** 季RSI6 卖出分位：季RSI6 突破该历史分位时满足卖出条件之一 */
 export const QUARTERLY_RSI_SELL_PERCENTILE = 85;
 
+// ============================================================
+// 单周期 RSI6 百分位策略（周 / 月，规则一致，仅周期与分位常量不同）
+// ============================================================
+
+/** 周RSI6 买入分位：周RSI6 触及（≤）该历史分位时建仓/加仓（可配置） */
+export const WEEKLY_RSI_BUY_PERCENTILE = 1;
+/** 周RSI6 卖出分位：周RSI6 触及（≥）该历史分位且收益率＞0 时卖出（可配置） */
+export const WEEKLY_RSI_SELL_PERCENTILE = 90;
+/** 月RSI6 买入分位：月RSI6 触及（≤）该历史分位时建仓/加仓（可配置） */
+export const MONTHLY_RSI_PCT_BUY_PERCENTILE = 3;
+/** 月RSI6 卖出分位：月RSI6 触及（≥）该历史分位且收益率＞0 时卖出（可配置） */
+export const MONTHLY_RSI_PCT_SELL_PERCENTILE = 90;
+
+/** 单周期百分位策略持仓期间的重复买入（加仓）记录（仅标记，不参与卖出收益配对） */
+export interface SinglePeriodPercentileExtraBuy {
+  buyDate: string;
+  buyRsi: number;
+  buyPrice: number;
+}
+
+/** 单周期（周/月）RSI6 百分位策略买卖配对交易记录 */
+export interface SinglePeriodPercentileTrade {
+  /** 第一次买入日期（卖出时仅与该笔配对计算收益） */
+  buyDate: string;
+  buyRsi: number;
+  buyPrice: number;
+  sellDate: string | null;
+  sellRsi: number | null;
+  sellPrice: number | null;
+  holdingDays: number | null;
+  returnRate: number | null;
+  annualizedReturn: number | null;
+  status: '已平仓' | '持仓中';
+  /** 持仓期间的重复买入（加仓）记录（不含第一次买入） */
+  extraBuys: SinglePeriodPercentileExtraBuy[];
+}
+
+/** 单周期百分位策略入参（周/月策略共用） */
+export interface SinglePeriodPercentileParams {
+  rsiData: KLineData[];
+  buyPercentile: number;
+  sellPercentile: number;
+  warmup?: number;
+  closeValueType?: CloseValueType;
+}
+
+/** 单周期百分位买卖阈值（买入/卖出分位对应的 RSI6 值） */
+export interface PercentileThresholdPair {
+  buy: number;
+  sell: number;
+}
+
+/**
+ * 分析单周期（周/月）RSI6 百分位策略
+ *
+ * 一次计算同时产出「买卖阈值」与「交易配对」，供表格、阈值参考线、规则文案复用同一份结果，
+ * 避免调用方各自重算分位阈值导致口径漂移。
+ *
+ * 口径：剔除前 warmup 个预热点 → 按历史分位计算买入/卖出阈值 →
+ * 空仓触及（≤）买入分位建仓；持仓期间触及（≤）即加仓；触及（≥）卖出分位且相对首次买入盈利时卖出。
+ *
+ * @returns { threshold, trades }；有效数值为空时返回 { threshold: null, trades: [] }
+ */
+export const analyzeSinglePeriodPercentile = (
+  params: SinglePeriodPercentileParams,
+): { threshold: PercentileThresholdPair | null; trades: SinglePeriodPercentileTrade[] } => {
+  const {
+    rsiData,
+    buyPercentile,
+    sellPercentile,
+    warmup = rsiWarmup,
+    closeValueType = 'price',
+  } = params;
+
+  const arr = (rsiData as RsiKLineData[]).slice(warmup);
+  const values = arr
+    .map((item) => item.__RSI6__)
+    .filter((value): value is number => typeof value === 'number');
+
+  if (!values.length) return { threshold: null, trades: [] };
+
+  const buyThreshold = roundPercentile(values, buyPercentile);
+  const sellThreshold = roundPercentile(values, sellPercentile);
+
+  const trades: SinglePeriodPercentileTrade[] = [];
+  let holding: {
+    buyDate: string;
+    buyRsi: number;
+    buyPrice: number;
+    buyTime: number;
+    extraBuys: SinglePeriodPercentileExtraBuy[];
+  } | null = null;
+
+  for (const item of arr) {
+    const rsi = item.__RSI6__;
+    if (typeof rsi !== 'number') continue;
+
+    if (!holding) {
+      // 空仓期间 RSI6 触及（≤）买入分位时建仓
+      if (rsi <= buyThreshold) {
+        holding = {
+          buyDate: item.日期,
+          buyRsi: rsi,
+          buyPrice: item.收盘,
+          buyTime: new Date(item.日期).getTime(),
+          extraBuys: [],
+        };
+      }
+      continue;
+    }
+
+    // 持仓期间 RSI6 只要触及（≤）买入分位即重复买入（加仓）并标记
+    if (rsi <= buyThreshold) {
+      holding.extraBuys.push({
+        buyDate: item.日期,
+        buyRsi: rsi,
+        buyPrice: item.收盘,
+      });
+    }
+
+    // 卖出只与第一次买入配对；超买但未盈利则继续持有
+    const returnRate = calculateHoldingReturnRate(holding.buyPrice, item.收盘, closeValueType);
+    if (rsi >= sellThreshold && returnRate > 0) {
+      const holdingDays = Math.max(
+        1,
+        Math.round((new Date(item.日期).getTime() - holding.buyTime) / (24 * 60 * 60 * 1000)),
+      );
+      const tradeReturnRate = Number(returnRate.toFixed(2));
+      trades.push({
+        buyDate: holding.buyDate,
+        buyRsi: holding.buyRsi,
+        buyPrice: Number(holding.buyPrice.toFixed(2)),
+        sellDate: item.日期,
+        sellRsi: rsi,
+        sellPrice: Number(item.收盘.toFixed(2)),
+        holdingDays,
+        returnRate: tradeReturnRate,
+        annualizedReturn:
+          holdingDays >= 365 ? calculateAnnualizedReturn(tradeReturnRate, holdingDays) : null,
+        status: '已平仓',
+        extraBuys: holding.extraBuys,
+      });
+      holding = null;
+    }
+  }
+
+  // 末尾未卖出：记为持仓中
+  if (holding) {
+    trades.push({
+      buyDate: holding.buyDate,
+      buyRsi: holding.buyRsi,
+      buyPrice: Number(holding.buyPrice.toFixed(2)),
+      sellDate: null,
+      sellRsi: null,
+      sellPrice: null,
+      holdingDays: null,
+      returnRate: null,
+      annualizedReturn: null,
+      status: '持仓中',
+      extraBuys: holding.extraBuys,
+    });
+  }
+
+  return { threshold: { buy: buyThreshold, sell: sellThreshold }, trades };
+};
+
+/**
+ * 计算单周期（周/月）RSI6 百分位策略的交易配对（analyzeSinglePeriodPercentile 的薄包装）
+ *
+ * 仅需交易列表、不需要阈值的调用方（自选表格批量回填等）使用本方法；
+ * 同时需要阈值的场景请直接调用 analyzeSinglePeriodPercentile，避免重复计算。
+ */
+export const computeSinglePeriodPercentileTrades = (
+  params: SinglePeriodPercentileParams,
+): SinglePeriodPercentileTrade[] => analyzeSinglePeriodPercentile(params).trades;
+
 /** 月+季 RSI6 共振买点（月/季 RSI6 同时跌破历史分位，带推荐级别） */
 export interface MonthlyQuarterlyPercentileBuyPoint {
   日期: string;
@@ -1125,25 +1380,52 @@ export const roundPercentile = (values: number[], p: number): number =>
   Number(calculatePercentile(values, p).toFixed(2));
 
 /**
- * 计算「月 & 季 RSI6 百分位策略」的买卖点
+ * 日期所在自然季度键 `${year}-Q${1~4}`：
+ * 1～3 月 → Q1、4～6 月 → Q2、7～9 月 → Q3、10～12 月 → Q4（moment month 为 0-based）
  *
- * 策略口径：
- * - 买入：月RSI6 与 季RSI6 同时低于各自历史分位阈值，按分位严度分级（★5=3% / ★3=5% / ★1=10%）
- * - 卖出：持仓中（★5买点）且 月RSI6 与 季RSI6 同时突破各自卖出分位阈值（默认 85%）
- * - 仅 ★5 买点参与卖出配对，顺序配对 ★5买点 → 卖点 → ★5买点 → 卖点 ...
- *
- * @param params.monthlyRSI6Data  月K线数据（含 __RSI6__ 字段，来自 calculateRSI）
- * @param params.quarterlyRSI6Data 季K线数据（含 __RSI6__ 字段，来自 calculateRSI）
- * @param params.warmup RSI 预热点数，默认 6
- * @returns 买点列表（含配对的卖出信息）
+ * 月&季策略表格、季RSI6 vh 阶梯折线、tooltip 查表统一使用本函数，保证三方季度归属一致。
  */
-export const computeMonthlyQuarterlyPercentileBuyPoints = (params: {
+export const getQuarterKey = (dateStr: string): string => {
+  const d = moment(dateStr);
+  return `${d.year()}-Q${Math.floor(d.month() / 3) + 1}`;
+};
+
+/** 月&季 RSI6 百分位策略入参 */
+export interface MonthlyQuarterlyPercentileParams {
   monthlyRSI6Data: KLineData[];
   quarterlyRSI6Data: KLineData[];
   warmup?: number;
   /** 收盘值语义，决定收益率计算公式，默认 price */
   closeValueType?: CloseValueType;
-}): MonthlyQuarterlyPercentileBuyPoint[] => {
+}
+
+/** 月&季 RSI6 百分位策略分析结果（阈值 + 卖点 + 买点，一次计算全部产出） */
+export interface MonthlyQuarterlyPercentileResult {
+  /** 各级别买入分位阈值：★5=3% / ★3=5% / ★1=10% */
+  thresholds: Record<number, { monthly: number; quarterly: number }>;
+  /** 卖出分位阈值（月/季分别可配置，默认 97%） */
+  sellThresholds: { monthly: number; quarterly: number };
+  /** 买点列表（含配对的卖出信息） */
+  buyPoints: MonthlyQuarterlyPercentileBuyPoint[];
+}
+
+/**
+ * 分析「月 & 季 RSI6 百分位策略」
+ *
+ * 策略口径：
+ * - 买入：月RSI6 与 季RSI6 同时低于各自历史分位阈值，按分位严度分级（★5=3% / ★3=5% / ★1=10%）
+ * - 季度对齐：每个月取其「所在自然季度」的季末 RSI6 ——
+ *   1～3 月取 3 月最晚季末值、4～6 月取 6 月最晚、7～9 月取 9 月最晚、10～12 月取 12 月最晚，
+ *   与季RSI6 vh（step-before）阶梯折线、shared tooltip 的季度查表完全同口径；
+ *   仅当所在季度季末点尚不存在（当前未走完的季度）时，回退最近一个已完成季度
+ * - 卖出：持仓中（★5买点）且 月RSI6 与 季RSI6 同时突破各自卖出分位阈值
+ * - 仅 ★5 买点参与卖出配对，顺序配对 ★5买点 → 卖点 → ★5买点 → 卖点 ...
+ *
+ * @returns 阈值与买点；月/季有效数值任一为空时返回 null
+ */
+export const analyzeMonthlyQuarterlyPercentile = (
+  params: MonthlyQuarterlyPercentileParams,
+): MonthlyQuarterlyPercentileResult | null => {
   const { monthlyRSI6Data, quarterlyRSI6Data, warmup = rsiWarmup, closeValueType = 'price' } = params;
 
   const monthlyArr = (monthlyRSI6Data as RsiKLineData[]).slice(warmup);
@@ -1156,10 +1438,8 @@ export const computeMonthlyQuarterlyPercentileBuyPoints = (params: {
     .map((item) => item.__RSI6__)
     .filter((value): value is number => typeof value === 'number');
 
-  const result: MonthlyQuarterlyPercentileBuyPoint[] = [];
-
   if (!monthlyValues.length || !quarterlyValues.length) {
-    return result;
+    return null;
   }
 
   // 按级别计算月/季 RSI6 买入分位阈值
@@ -1177,28 +1457,51 @@ export const computeMonthlyQuarterlyPercentileBuyPoints = (params: {
     quarterly: roundPercentile(quarterlyValues, QUARTERLY_RSI_SELL_PERCENTILE),
   };
 
+  // 季末点按「所在自然季度」建表（与季RSI6 vh 折线、tooltip 查表同口径），
+  // 同一季度若存在多条则保留日期最晚的一条
+  const quarterlyByKey = new Map<string, RsiKLineData>();
+  for (const point of quarterlyArr) {
+    const key = getQuarterKey(point.日期);
+    const existed = quarterlyByKey.get(key);
+    if (!existed || point.日期 > existed.日期) {
+      quarterlyByKey.set(key, point);
+    }
+  }
+
+  const buyPoints: MonthlyQuarterlyPercentileBuyPoint[] = [];
+
   // 持仓状态机：顺序配对 ★5买点 → 卖点 → ★5买点 → 卖点 ...
   let holdingFiveStarBuy: MonthlyQuarterlyPercentileBuyPoint | null = null;
 
+  // 未完成季度回退用：最近一个 日期 <= 月日期 的已完成季度指针
   let qIdx = 0;
   for (const m of monthlyArr) {
     const monthlyRsi = m.__RSI6__;
     if (typeof monthlyRsi !== 'number') continue;
 
-    // 推进季度指针到最近一个 日期 <= 当前月日期 的季度点
-    while (
-      qIdx + 1 < quarterlyArr.length &&
-      quarterlyArr[qIdx + 1].日期 <= m.日期
-    ) {
-      qIdx += 1;
+    // 所在自然季度的季末 RSI6：1～3 月取 3 月最晚、4～6 月取 6 月最晚……
+    let currentQuarterly = quarterlyByKey.get(getQuarterKey(m.日期));
+    if (!currentQuarterly) {
+      // 所在季度季末点尚不存在（当前未走完的季度，或预热剔除后该季不可用）：
+      // 回退到最近一个已完成季度
+      while (
+        qIdx + 1 < quarterlyArr.length &&
+        quarterlyArr[qIdx + 1].日期 <= m.日期
+      ) {
+        qIdx += 1;
+      }
+      currentQuarterly = quarterlyArr[qIdx];
+      // 守卫：不存在日期 <= 当前月的有效季度点时必须跳过，
+      // 否则会把未来季度点错配给当前月，导致日期与 RSI 值错位
+      if (!currentQuarterly || currentQuarterly.日期 > m.日期) continue;
     }
-    const quarterlyRsi = quarterlyArr[qIdx]?.__RSI6__;
+    const quarterlyRsi = currentQuarterly.__RSI6__;
     if (typeof quarterlyRsi !== 'number') continue;
 
-    // 从高到低匹配，取命中的最高级别（买点判断）
+    // 从高到低匹配，取命中的最高级别（买点判断，RSI6 触及分位阈值 ≤ 即算命中）
     const hitRule = MQ_LEVEL_RULES.find(
       ({ level }) =>
-        monthlyRsi < thresholds[level].monthly && quarterlyRsi < thresholds[level].quarterly,
+        monthlyRsi <= thresholds[level].monthly && quarterlyRsi <= thresholds[level].quarterly,
     );
     if (hitRule) {
       const buyPoint: MonthlyQuarterlyPercentileBuyPoint = {
@@ -1208,7 +1511,7 @@ export const computeMonthlyQuarterlyPercentileBuyPoints = (params: {
         quarterlyRsi,
         level: hitRule.level,
       };
-      result.push(buyPoint);
+      buyPoints.push(buyPoint);
 
       // 仅★5买点参与卖出配对；持仓中（已有未平仓★5）时不再重复建仓
       if (hitRule.level === 5 && !holdingFiveStarBuy) {
@@ -1216,11 +1519,11 @@ export const computeMonthlyQuarterlyPercentileBuyPoints = (params: {
       }
     }
 
-    // 卖出判断：持仓中且月/季 RSI6 同时突破卖出分位阈值时平仓
+    // 卖出判断：持仓中且月/季 RSI6 同时触及（≥）卖出分位阈值时平仓
     if (
       holdingFiveStarBuy &&
-      monthlyRsi > sellThresholds.monthly &&
-      quarterlyRsi > sellThresholds.quarterly
+      monthlyRsi >= sellThresholds.monthly &&
+      quarterlyRsi >= sellThresholds.quarterly
     ) {
       const buyTime = new Date(holdingFiveStarBuy.日期).getTime();
       const sellTime = new Date(m.日期).getTime();
@@ -1247,8 +1550,19 @@ export const computeMonthlyQuarterlyPercentileBuyPoints = (params: {
     }
   }
 
-  return result;
+  return { thresholds, sellThresholds, buyPoints };
 };
+
+/**
+ * 计算「月 & 季 RSI6 百分位策略」的买点列表（analyzeMonthlyQuarterlyPercentile 的薄包装）
+ *
+ * 仅需买点列表、不需要阈值的调用方（自选表格批量回填等）使用本方法；
+ * 同时需要阈值的场景请直接调用 analyzeMonthlyQuarterlyPercentile，避免重复计算。
+ */
+export const computeMonthlyQuarterlyPercentileBuyPoints = (
+  params: MonthlyQuarterlyPercentileParams,
+): MonthlyQuarterlyPercentileBuyPoint[] =>
+  analyzeMonthlyQuarterlyPercentile(params)?.buyPoints ?? [];
 
 // ============================================================
 // 推荐买点展示相关配置

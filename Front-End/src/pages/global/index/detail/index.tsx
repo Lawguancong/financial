@@ -1,9 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Table, Card, Spin, Typography } from 'antd';
-import type { TablePaginationConfig } from 'antd';
+import { Card, Spin, Typography } from 'antd';
 import apiClient from '@/utils/axios';
-import { numberSorter, stringSorter, createRangeFilter } from '@/utils/tableUtils';
 const RsiFilterMark = React.lazy(() => import('@/components/RsiFilterMark'));
 import { message } from 'antd';
 
@@ -55,6 +53,8 @@ const GlobalIndexDetail: React.FC = () => {
     <Card>
       <Title level={4} style={{ marginTop: 0 }}>{symbol || '全球指数详情'}</Title>
       <Spin spinning={loading}>
+        {/* todo  */}
+        {/* {useMemo(() => <IndexMetrics data={data} />, [data])} */}
         {useMemo(() => <RsiFilterMark data={data} type="index" />, [data])}
       </Spin>
     </Card>

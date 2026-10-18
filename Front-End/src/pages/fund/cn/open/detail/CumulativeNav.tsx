@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Select, Button, Card, Spin, Table } from 'antd';
-import { DualAxes, Line } from '@ant-design/plots';
+import { Select, Card, Spin } from 'antd';
+import { DualAxes } from '@ant-design/plots';
 import { pick } from 'lodash-es';
-import { calculateMaxDrawdown, calculateRSI, calculateStartDate, calculateVolatility, calculateAnnualizedVolatility } from '@/utils';
+import { calculateMaxDrawdown, calculateStartDate, calculateVolatility, calculateAnnualizedVolatility } from '@/utils';
 import moment from 'moment';
 import apiClient from '@/utils/axios';
-import { timeRangeOptions, keyMap, rightKeys, getLevelStyle } from './constants';
+import { timeRangeOptions, keyMap, rightKeys } from './constants';
 
 interface CumulativeNavProps {
   symbol: string | null;

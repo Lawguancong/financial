@@ -1,6 +1,6 @@
 import moment from 'moment';
 import apiClient from './axios';
-import { calculateRSI, calculateFundRecommendationLevel, computeMonthlyQuarterlyPercentileBuyPoints } from './stockUtils';
+import { calculateRSI, calculateFundRecommendationLevel, computeMonthlyQuarterlyPercentileBuyPoints, computeSinglePeriodPercentileTrades, MONTHLY_RSI_PCT_BUY_PERCENTILE, MONTHLY_RSI_PCT_SELL_PERCENTILE } from './stockUtils';
 import type { KLineData } from './stockUtils';
 
 type FundDetailItem = Record<string, string | number>;
@@ -128,18 +128,20 @@ export const fetchFundRecommendationPoints = async (fundCode: string): Promise<s
 };
 
 /**
- * 同时计算单只基金的「定量」与「百分位」两种推荐买点日期
+ * 同时计算单只基金的「定量」「百分位」「月RSI6百分位策略」三种推荐买点日期
  * - 定量：固定 RSI6 阈值（月/季 RSI6 ≤ 阈值）
  * - 百分位：月/季 RSI6 同时跌破历史分位（★5=3% / ★3=5% / ★1=10%）
- * 返回 { quantitative, percentile }，均为逗号分隔的日期字符串
+ * - 月RSI6百分位策略：月RSI6 单周期，跌破 3% 历史分位建仓（取每笔配对的第一次买入日期）
+ * 返回逗号分隔的日期字符串
  */
 export const fetchFundRecommendationPointsBoth = async (fundCode: string): Promise<{
   quantitative: string;
   percentile: string;
+  monthlyPercentile: string;
 }> => {
   try {
     const data = await fetchFundMonthlyQuarterlyRSI(fundCode);
-    if (!data) return { quantitative: '', percentile: '' };
+    if (!data) return { quantitative: '', percentile: '', monthlyPercentile: '' };
     const { monthlyRSI6Data, quarterlyRSI6Data, dateKey } = data;
 
     // ---- 定量策略 ----
@@ -183,12 +185,22 @@ export const fetchFundRecommendationPointsBoth = async (fundCode: string): Promi
       moment(point.日期).format('YYYY-MM-DD'),
     );
 
+    // ---- 月RSI6 百分位策略（月单周期，买入分位 3% / 卖出 90%）----
+    // 基金口径为累计收益率，closeValueType 与月&季共振策略保持一致
+    const monthlyPercentileDates = computeSinglePeriodPercentileTrades({
+      rsiData: monthlyRSI6Data,
+      buyPercentile: MONTHLY_RSI_PCT_BUY_PERCENTILE,
+      sellPercentile: MONTHLY_RSI_PCT_SELL_PERCENTILE,
+      closeValueType: 'cumulativeReturn',
+    }).map((trade) => moment(trade.buyDate).format('YYYY-MM-DD'));
+
     return {
       quantitative: quantitativeDates.join(','),
       percentile: percentileDates.join(','),
+      monthlyPercentile: monthlyPercentileDates.join(','),
     };
   } catch (error) {
     console.log('Error fetching fund recommendation points:', error);
-    return { quantitative: '', percentile: '' };
+    return { quantitative: '', percentile: '', monthlyPercentile: '' };
   }
 };

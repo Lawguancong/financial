@@ -66,3 +66,24 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+/* 非交易时间-自定义分组 tab 的重命名/删除小图标 */
+.outtrading-tab-action {
+  font-size: 12px;
+  color: #a8a8a8;
+  padding: 2px 3px;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.8;
+  transition: color 0.2s, background-color 0.2s, opacity 0.2s;
+}
+.outtrading-tab-action:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.06);
+}
+.outtrading-tab-edit:hover {
+  color: #1890ff;
+}
+.outtrading-tab-close:hover {
+  color: #ff4d4f;
+}

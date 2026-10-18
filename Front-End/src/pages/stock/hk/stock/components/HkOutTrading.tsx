@@ -3,10 +3,9 @@ import { Table, Typography, Space, Button, Input, Tabs, message, Dropdown, Modal
 import type { MenuProps } from 'antd';
 import { PlusOutlined, EditOutlined, CloseOutlined, CheckOutlined, FieldTimeOutlined } from '@ant-design/icons';
 import apiClient from '@/utils/axios';
-import moment from 'moment';
-import { computeRSIRecommendations, calculatePeriodRSI, computeMonthlyQuarterlyPercentileBuyPoints, computeSinglePeriodPercentileTrades, WEEKLY_RSI_BUY_PERCENTILE, WEEKLY_RSI_SELL_PERCENTILE, MONTHLY_RSI_PCT_BUY_PERCENTILE, MONTHLY_RSI_PCT_SELL_PERCENTILE, isRecentDate } from '@/utils/stockUtils';
-import type { KLineData } from '@/utils/stockUtils';
+import { isRecentDate } from '@/utils/stockUtils';
 import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
+import { computeBuyPoints } from '@/utils/buyPointWorker';
 
 const { Search } = Input;
 
@@ -35,21 +34,6 @@ interface StockData {
   /** 周 RSI6 百分位策略建仓日期（逗号分隔，取每笔配对的第一次买入） */
   __周RSI6百分位__?: string;
 }
-
-// 周期 RSI 字段名（与 stockUtils 中返回的字段保持一致）
-type RsiFieldKey =
-  | '__daily__RSI6__'
-  | '__weekly__RSI6__'
-  | '__monthly__RSI6__'
-  | '__quarterly__RSI6__';
-
-// 单行数据：日期 + 收盘价 + 各周期 RSI6 + 推荐级别（null 表示非买点）
-type ChartRow = KLineData & {
-  __recommendationLevel__: number | null;
-} & Record<RsiFieldKey, number | null>;
-
-// 过滤后的买点数据行（推荐级别必不为 null）
-type BuyPointRow = ChartRow & { __recommendationLevel__: number };
 
 /** 固定 tab：全部港股列表、自选（不可删除/重命名） */
 const ALL_TAB_KEY = 'all';
@@ -476,45 +460,7 @@ const HkOutTrading: React.FC = () => {
         收盘: Number(item.close),
       })) || [];
 
-      // 1) 计算日/周/月/季 K 线的 RSI6 值
-      const periodRSIMap = calculatePeriodRSI(stockHistoryList);
-
-      // 2) 合并为带推荐级别的图表数据
-      const chartData = computeRSIRecommendations(periodRSIMap, 'stock') as ChartRow[];
-
-      // 3) 过滤出推荐买点
-      const buyPointList = chartData.filter(
-        (row): row is BuyPointRow => row.__recommendationLevel__ != null,
-      );
-
-      // 定量买点日期
-      const quantitative = buyPointList?.reverse()?.map(item => moment(item['日期'])?.format('YYYY-MM-DD'))?.join(',') || '';
-
-      // 4) 百分位策略买点（月&季 RSI6 共振），港股个股为真实价格口径
-      const percentileBuyPoints = computeMonthlyQuarterlyPercentileBuyPoints({
-        monthlyRSI6Data: periodRSIMap.monthlyRSI,
-        quarterlyRSI6Data: periodRSIMap.quarterlyRSI,
-        closeValueType: 'price',
-      });
-      const percentile = percentileBuyPoints.map(p => moment(p.日期).format('YYYY-MM-DD')).join(',');
-
-      // 5) 月 RSI6 百分位策略：取每笔配对交易的第一次买入（建仓）日期
-      const monthlyPercentile = computeSinglePeriodPercentileTrades({
-        rsiData: periodRSIMap.monthlyRSI,
-        buyPercentile: MONTHLY_RSI_PCT_BUY_PERCENTILE,
-        sellPercentile: MONTHLY_RSI_PCT_SELL_PERCENTILE,
-        closeValueType: 'price',
-      }).map(t => moment(t.buyDate).format('YYYY-MM-DD')).join(',');
-
-      // 6) 周 RSI6 百分位策略：取每笔配对交易的第一次买入（建仓）日期
-      const weeklyPercentile = computeSinglePeriodPercentileTrades({
-        rsiData: periodRSIMap.weeklyRSI,
-        buyPercentile: WEEKLY_RSI_BUY_PERCENTILE,
-        sellPercentile: WEEKLY_RSI_SELL_PERCENTILE,
-        closeValueType: 'price',
-      }).map(t => moment(t.buyDate).format('YYYY-MM-DD')).join(',');
-
-      return { quantitative, percentile, monthlyPercentile, weeklyPercentile };
+      return computeBuyPoints({ type: 'stock', rawData: stockHistoryList });
     } catch (error) {
       console.log('Error fetching stock detail:', error);
       return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '' };

@@ -3,20 +3,9 @@ import { Table, Typography, Input, Button, Tabs, message, Dropdown, Modal, Popco
 import type { MenuProps } from 'antd';
 import { PlusOutlined, EditOutlined, CloseOutlined, CheckOutlined, FieldTimeOutlined } from '@ant-design/icons';
 import apiClient from '@/utils/axios';
-import moment from 'moment';
-import {
-  computeRSIRecommendations,
-  calculatePeriodRSI,
-  computeMonthlyQuarterlyPercentileBuyPoints,
-  computeSinglePeriodPercentileTrades,
-  WEEKLY_RSI_BUY_PERCENTILE,
-  WEEKLY_RSI_SELL_PERCENTILE,
-  MONTHLY_RSI_PCT_BUY_PERCENTILE,
-  MONTHLY_RSI_PCT_SELL_PERCENTILE,
-  isRecentDate,
-} from '@/utils/stockUtils';
+import { isRecentDate } from '@/utils/stockUtils';
 import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
-import { convertToMonthlyData } from '@/pages/fund/cn/open/detail/constants';
+import { computeBuyPoints } from '@/utils/buyPointWorker';
 
 const { Link } = Typography;
 const { TabPane } = Tabs;
@@ -137,44 +126,7 @@ const HkIndex: React.FC = () => {
         收盘: Number(item.close),
       })) || [];
 
-      // 1) 计算日/周/月/季 K 线的 RSI6 值
-      const periodRSIMap = calculatePeriodRSI(stockHistoryList);
-
-      // 2) 合并为带推荐级别的图表数据
-      const chartData = computeRSIRecommendations(periodRSIMap, 'index') as any[]; // eslint-disable-line @typescript-eslint/no-explicit-any
-
-      // 3) 过滤出推荐买点
-      const buyPointList = chartData.filter((row): row is any => row.__recommendationLevel__ != null); // eslint-disable-line @typescript-eslint/no-explicit-any
-
-      // 4) 过滤每月最晚（最新）的一条记录，作为定量买点日期
-      const chartDataMonthly = convertToMonthlyData(buyPointList);
-      const quantitative = chartDataMonthly?.reverse()?.map(item => moment(item['日期'])?.format('YYYY-MM-DD'))?.join(',') || '';
-
-      // 5) 百分位策略买点（月&季 RSI6 共振）
-      const percentileBuyPoints = computeMonthlyQuarterlyPercentileBuyPoints({
-        monthlyRSI6Data: periodRSIMap.monthlyRSI,
-        quarterlyRSI6Data: periodRSIMap.quarterlyRSI,
-        closeValueType: 'price',
-      });
-      const percentile = percentileBuyPoints.map(p => moment(p.日期).format('YYYY-MM-DD')).join(',');
-
-      // 6) 月 RSI6 百分位策略：取每笔配对交易的第一次买入（建仓）日期
-      const monthlyPercentile = computeSinglePeriodPercentileTrades({
-        rsiData: periodRSIMap.monthlyRSI,
-        buyPercentile: MONTHLY_RSI_PCT_BUY_PERCENTILE,
-        sellPercentile: MONTHLY_RSI_PCT_SELL_PERCENTILE,
-        closeValueType: 'price',
-      }).map(t => moment(t.buyDate).format('YYYY-MM-DD')).join(',');
-
-      // 7) 周 RSI6 百分位策略：取每笔配对交易的第一次买入（建仓）日期
-      const weeklyPercentile = computeSinglePeriodPercentileTrades({
-        rsiData: periodRSIMap.weeklyRSI,
-        buyPercentile: WEEKLY_RSI_BUY_PERCENTILE,
-        sellPercentile: WEEKLY_RSI_SELL_PERCENTILE,
-        closeValueType: 'price',
-      }).map(t => moment(t.buyDate).format('YYYY-MM-DD')).join(',');
-
-      return { quantitative, percentile, monthlyPercentile, weeklyPercentile };
+      return computeBuyPoints({ type: 'index', rawData: stockHistoryList });
     } catch (error) {
       console.log('Error fetching hk index detail:', error);
       return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '' };

@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Select, Button, Table, Card, Tabs, Typography, Input, Spin, Slider, message } from 'antd';
 import apiClient from '@/utils/axios';
-import moment from 'moment';
 import { numberSorter, stringSorter, createRangeFilter } from '@/utils/tableUtils';
-import { calculateRSI } from '@/utils/stockUtils';
-import { calculateFundRecommendationLevel } from '@/utils/stockUtils';
+import { fetchFundRecommendationPoints } from '@/utils/fundUtils';
 
 const { Link } = Typography;
 const { TabPane } = Tabs;
@@ -81,103 +79,6 @@ const IndexFundPanel: React.FC<IndexFundPanelProps> = ({
     fetchData();
   }, [symbol, indicator]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 计算推荐买点
-  const fetchFundDetailAndCalculate = async (fundCode: string): Promise<string | null> => {
-    try {
-      const response = await apiClient.get('/api/public/fund_open_fund_info_em', {
-        params: {
-          symbol: fundCode,
-          indicator: '累计收益率走势',
-          period: '成立来',
-        },
-      });
-
-      const detailData = response?.data || [];
-      if (detailData.length === 0) return null;
-
-      const dateKey = '日期';
-      const closeKey = '累计收益率';
-
-      // 月度数据处理
-      const monthlyMap = new Map<string, any>();
-      detailData.forEach((item: any) => {
-        const date = item[dateKey];
-        const monthKey = moment(date).format('YYYY-MM');
-        const currentItem = monthlyMap.get(monthKey);
-        if (!currentItem) {
-          monthlyMap.set(monthKey, item);
-        } else {
-          if (moment(date).isAfter(moment(currentItem[dateKey]))) {
-            monthlyMap.set(monthKey, item);
-          }
-        }
-      });
-
-      const monthlyData = Array.from(monthlyMap.values()).sort((a: any, b: any) => {
-        return moment(a[dateKey]).valueOf() - moment(b[dateKey]).valueOf();
-      });
-
-      // 季度数据处理
-      const quarterlyMap = new Map<string, any>();
-      monthlyData.forEach((item: any) => {
-        const date = item[dateKey];
-        const year = moment(date).year();
-        const quarter = moment(date).quarter();
-        const quarterKey = `${year}-Q${quarter}`;
-        const currentItem = quarterlyMap.get(quarterKey);
-        if (!currentItem) {
-          quarterlyMap.set(quarterKey, item);
-        } else {
-          if (moment(date).isAfter(moment(currentItem[dateKey]))) {
-            quarterlyMap.set(quarterKey, item);
-          }
-        }
-      });
-
-      const quarterlyData = Array.from(quarterlyMap.values()).sort((a: any, b: any) => {
-        return moment(a[dateKey]).valueOf() - moment(b[dateKey]).valueOf();
-      });
-
-      // 计算RSI6
-      const monthlyRSI6Data = calculateRSI({ data: monthlyData, closeKey, period: 6 });
-      const quarterlyRSI6Data = calculateRSI({ data: quarterlyData, closeKey, period: 6 });
-
-      // 构建季度RSI映射
-      const quarterlyRSIMap = new Map<string, number>();
-      quarterlyRSI6Data.forEach(item => {
-        const date = item[dateKey];
-        const year = moment(date).year();
-        const quarter = moment(date).quarter();
-        const quarterKey = `${year}-Q${quarter}`;
-        quarterlyRSIMap.set(quarterKey, item['__RSI6__']);
-      });
-
-      // 计算推荐级别并过滤推荐买点
-      const RSI6Data = monthlyRSI6Data.map(item => {
-        const date = item[dateKey];
-        const year = moment(date).year();
-        const quarter = moment(date).quarter();
-        const quarterKey = `${year}-Q${quarter}`;
-        const __monthlyRSI6__ = item['__RSI6__'];
-        const __quarterlyRSI6__ = quarterlyRSIMap.get(quarterKey);
-
-        return {
-          日期: date,
-          累计收益率: item[closeKey],
-          __monthlyRSI6__,
-          __quarterlyRSI6__,
-          __recommendationLevel__: calculateFundRecommendationLevel(undefined, undefined, __monthlyRSI6__, __quarterlyRSI6__,),
-        };
-      }).filter(item => [5, 3, 1].includes(item.__recommendationLevel__));
-
-      // 返回推荐买点日期字符串
-      return RSI6Data?.map(item => moment(item['日期'])?.format('YYYY-MM-DD'))?.join(',');
-    } catch (error) {
-      console.log('Error fetching fund detail:', error);
-      return null;
-    }
-  };
-
   // 应用筛选条件
   const applyFilters = async (rawData: IndexFundData[]): Promise<IndexFundData[]> => {
     let filteredData = [...rawData];
@@ -231,7 +132,7 @@ const IndexFundPanel: React.FC<IndexFundPanelProps> = ({
       const results: IndexFundData[] = [];
       for (const item of filteredData) {
         message.info(`正在分析【${item['基金名称']}】中...`, 10);
-        const recommendationDates = await fetchFundDetailAndCalculate(String(item['基金代码']));
+        const recommendationDates = await fetchFundRecommendationPoints(String(item['基金代码']));
         results.push({
           ...item,
           ['__推荐买点__']: recommendationDates || '',

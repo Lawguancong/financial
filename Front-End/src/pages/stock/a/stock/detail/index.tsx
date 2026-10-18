@@ -4,6 +4,7 @@ import type { RadioChangeEvent } from 'antd/es/radio';
 import apiClient from '@/utils/axios';
 import { useSearchParams } from 'react-router-dom';
 import moment from 'moment';
+import DailyReturnAnalysis from '@/components/DailyReturnAnalysis';
 
 // 懒加载组件，按需加载
 const PriceAndTurnover = React.lazy(() => import('./components/PriceAndTurnover'));
@@ -117,6 +118,12 @@ const StockDetail: React.FC = () => {
     </Suspense>
   ), [rawData]);
 
+  const dailyReturnAnalysisComponent = useMemo(() => (
+    <Suspense fallback={<ComponentFallback />}>
+      <DailyReturnAnalysis data={rawData} />
+    </Suspense>
+  ), [rawData]);
+
   const priceAvgComponent = useMemo(() => (
     <Suspense fallback={<ComponentFallback />}>
       <PriceAvg data={rawData} />
@@ -165,6 +172,16 @@ const StockDetail: React.FC = () => {
             <Title level={5}>RSI6 技术指标</Title>
             {rsiFilterMarkComponent}
           </Card>
+      ),
+    },
+    {
+      key: 'daily-return-analysis',
+      label: '日涨跌幅分析',
+      children: (
+        <Card style={cardStyle}>
+          <Title level={5}>日涨跌幅分析</Title>
+          {dailyReturnAnalysisComponent}
+        </Card>
       ),
     },
     // {

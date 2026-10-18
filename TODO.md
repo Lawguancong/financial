@@ -48,15 +48,15 @@
   // 接口不ok index_global_spot_em
   // https://quote.eastmoney.com/center/gridlist.html#global_qtzs
   // 接口ok的 /api/public/index_global_hist_em?symbol=上证指数
+    A股指数 历史行情数据 历史行情数据-新浪 接口：stock_zh_index_daily （好接口、可深入研究）
 
-  最好10个 20个 30个 交易日 收益率/正态分布
 
 
-  // 优化 计算rsi6 买点，  新增worker js 线程计算？
+
+
+  // 计算rsi6 买点，新增worker js 线程计算 是否稳定？
   
 
 
     RSI 买点 报告数据、报表（如最大回撤率 等等数据）
-
     
-    A股指数 历史行情数据 历史行情数据-新浪 接口：stock_zh_index_daily （好接口、可深入研究）

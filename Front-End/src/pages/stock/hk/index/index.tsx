@@ -115,20 +115,20 @@ const HkIndex: React.FC = () => {
 
   // 计算推荐买点（定量 + 月&季百分位 + 月RSI6百分位 + 周RSI6百分位）
   const fetchIndexDetailAndCalculate = async (symbol: string): Promise<BuyPointResult> => {
-    try {
-      const response = await apiClient.get('/api/public/stock_hk_index_daily_sina', {
-        params: { symbol },
-      });
-      const stockHistoryList = response?.data?.map((item: Record<string, unknown>) => ({
+    const response = await apiClient.get('/api/public/stock_hk_index_daily_sina', {
+      params: { symbol },
+    });
+    const stockHistoryList = (response?.data || [])
+      .map((item: Record<string, unknown>) => ({
         日期: item.date,
         收盘: Number(item.close),
-      })) || [];
+      }))
+      .filter((item: { 收盘: number }) => Number.isFinite(item.收盘));
 
-      return computeBuyPoints({ type: 'index', rawData: stockHistoryList });
-    } catch (error) {
-      console.log('Error fetching hk index detail:', error);
-      return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '', mqBuyPoints: [] };
-    }
+    // 接口异常（空数据 / 无有效收盘价）需抛出，由批量编排统一重试并汇总提示
+    if (stockHistoryList.length === 0) throw new Error('接口返回空数据');
+
+    return computeBuyPoints({ type: 'index', rawData: stockHistoryList });
   };
 
   const handleCalculateRecommendation = async () => {

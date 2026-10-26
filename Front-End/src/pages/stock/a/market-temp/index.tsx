@@ -11,7 +11,8 @@ import { ReloadOutlined } from '@ant-design/icons';
 import { Macro_china_stock_market_cap } from '../macro/components';
 import StockBelowNetAssetLg from './StockBelowNetAssetLg';
 import IndexComparisonChart, { type IndexComparisonChartProps, type NormalizedPoint } from '@/components/IndexComparisonChart';
-import { filterByFrequency } from '@/utils/stockUtils';
+import { calculateAnnualizedReturn, filterByFrequency } from '@/utils/stockUtils';
+import { appConfig } from '@/config/appConfig';
 
 type CsindexRow = { 日期: string; 收盘: number };
 type SinaIndexRow = { date: string; close: number };
@@ -35,6 +36,39 @@ const fetchSinaIndexDaily = async (symbol: string): Promise<NormalizedPoint[]> =
   const res = await apiClient.get(`/api/public/stock_zh_index_daily?symbol=${symbol}`);
   const list = (res?.data as SinaIndexRow[] | undefined) ?? [];
   return list.map((item) => ({ date: item.date, close: Number(item.close) }));
+};
+
+/**
+ * 把 {date, close} 序列按首日为基期折算为累计年化收益率(%)
+ * 口径复用 calculateAnnualizedReturn（365 自然日/年）；
+ * 持有不足 appConfig.chart.indexComparison.annualizedMinDays（默认 365 天）的点不产出，避免短窗口年化被极端放大
+ */
+const annualizePoints = (points: NormalizedPoint[]): NormalizedPoint[] => {
+  const minDays = appConfig.chart.indexComparison.annualizedMinDays;
+  const list = points
+    .filter((item) => Number.isFinite(item.close) && item.close > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const base = list[0];
+  if (!base) return [];
+  const baseDate = moment(base.date);
+  return list.reduce<NormalizedPoint[]>((acc, item) => {
+    const days = moment(item.date).diff(baseDate, 'days');
+    if (days < minDays) return acc;
+    const annualized = calculateAnnualizedReturn((item.close / base.close - 1) * 100, days);
+    if (annualized !== null) acc.push({ date: item.date, close: annualized });
+    return acc;
+  }, []);
+};
+
+/** 中证源指数：自 startDate 起计算累计年化收益率(%) */
+const fetchAnnualizedCsindex = async (symbol: string, startDate: string): Promise<NormalizedPoint[]> =>
+  annualizePoints(await fetchCsindexHist(symbol, startDate));
+
+/** 新浪源指数：先截取 startDate（YYYYMMDD）之后的日线，再计算累计年化收益率(%) */
+const fetchAnnualizedSinaIndex = async (symbol: string, startDate: string): Promise<NormalizedPoint[]> => {
+  const start = moment(startDate, 'YYYYMMDD').format('YYYY-MM-DD');
+  const points = (await fetchSinaIndexDaily(symbol)).filter((item) => item.date >= start);
+  return annualizePoints(points);
 };
 
 /** 双指数比值对比：沪深300(000300) vs 债券基金(H11023)，自 2004-11 起对齐 */
@@ -67,6 +101,176 @@ const CSI_ALL_VS_BOND_CONFIG: IndexComparisonChartProps = {
   ),
 };
 
+/** 双指标年化收益率差：股票基金(H11021) vs 债券基金(H11023)，自 2003-01 起累计年化 */
+const STOCK_BOND_ANNUALIZED_SPREAD_CONFIG: IndexComparisonChartProps = {
+  chartName: '股票基金&债券基金年化收益率差',
+  subtitle: '股票基金(H11021) 与 债券基金(H11023) 自 2003 起累计年化收益率',
+  left: {
+    name: '股票基金年化收益率',
+    color: '#d62728',
+    axisTitleColor: '#6c6868ff',
+    fetch: () => fetchAnnualizedCsindex('H11021', '20030101'),
+  },
+  right: {
+    name: '债券基金年化收益率',
+    color: '#5AD8A6',
+    fetch: () => fetchAnnualizedCsindex('H11023', '20030101'),
+  },
+  leftAxisTitle: '年化收益率(%)',
+  ratioAxisTitle: '年化收益率差(百分点)',
+  ratioLegend: '股票基金−债券基金(年化差)',
+  ratioColor: '#722ed1',
+  derivedMode: 'diff',
+  derivedCurrentLabel: '当前年化差',
+  showLatestValues: true,
+  allowNegative: true,
+  valueSuffix: '%',
+  note: (
+    <>
+      股票基金(H11021) 与 债券基金(H11023) 均自 <strong>2003-01-01</strong> 起计算累计年化，按月对齐（取各自当月最后一个交易日）。
+      年化收益率 = (当日点位 ÷ 首日点位)<sup>365 ÷ 自然日天数</sup> − 1；
+      为避免短窗口把年化放大失真，图表仅展示持有满 <strong>1 年（365 自然日）</strong>之后的点（约从 2004-01 起）。
+      右轴为两者年化收益率之差（百分点，<strong>股票基金 − 债券基金</strong>）：正值表示股票基金年化更高，负值表示债券基金年化更高。
+    </>
+  ),
+};
+
+/** 双指标年化收益率差：创业板(sz399006, 新浪源) vs 中证红利(000922, 中证源)，均自 2010-06 起累计年化 */
+const CYB_DIVIDEND_ANNUALIZED_SPREAD_CONFIG: IndexComparisonChartProps = {
+  chartName: '创业板&中证红利年化收益率差',
+  subtitle: '创业板(sz399006) 与 中证红利(000922) 自 2010-06 起累计年化收益率',
+  left: {
+    name: '创业板年化收益率',
+    color: '#1890ff',
+    axisTitleColor: '#6c6868ff',
+    fetch: () => fetchAnnualizedSinaIndex('sz399006', '20100601'),
+  },
+  right: {
+    name: '中证红利年化收益率',
+    color: '#cf1322',
+    fetch: () => fetchAnnualizedCsindex('000922', '20100601'),
+  },
+  leftAxisTitle: '年化收益率(%)',
+  ratioAxisTitle: '年化收益率差(百分点)',
+  ratioLegend: '创业板−中证红利(年化差)',
+  ratioColor: '#722ed1',
+  derivedMode: 'diff',
+  derivedCurrentLabel: '当前年化差',
+  showLatestValues: true,
+  allowNegative: true,
+  valueSuffix: '%',
+  note: (
+    <>
+      创业板(sz399006) 与 中证红利(000922) 均自 <strong>2010-06</strong> 起计算累计年化，按月对齐（取各自当月最后一个交易日）。
+      年化收益率 = (当日点位 ÷ 首日点位)<sup>365 ÷ 自然日天数</sup> − 1；
+      为避免短窗口把年化放大失真，图表仅展示持有满 <strong>1 年（365 自然日）</strong>之后的点（约从 2011-06 起）。
+      右轴为两者年化收益率之差（百分点，<strong>创业板 − 中证红利</strong>）：正值表示创业板年化更高，负值表示中证红利年化更高。
+    </>
+  ),
+};
+
+/** 双指标年化收益率差：中证全指(000985) vs 长期国债(H11075)，均自 2008-01 起累计年化 */
+const CSI_ALL_LONG_BOND_ANNUALIZED_SPREAD_CONFIG: IndexComparisonChartProps = {
+  chartName: '中证全指&长期国债年化收益率差',
+  subtitle: '中证全指(000985) 与 长期国债(H11075) 自 2008-01 起累计年化收益率',
+  left: {
+    name: '中证全指年化收益率',
+    color: '#722ed1',
+    axisTitleColor: '#6c6868ff',
+    fetch: () => fetchAnnualizedCsindex('000985', '20130101'),
+  },
+  right: {
+    name: '长期国债年化收益率',
+    color: '#fa8c16',
+    fetch: () => fetchAnnualizedCsindex('H11075', '20130101'),
+  },
+  leftAxisTitle: '年化收益率(%)',
+  ratioAxisTitle: '年化收益率差(百分点)',
+  ratioLegend: '中证全指−长期国债(年化差)',
+  ratioColor: '#1890ff',
+  derivedMode: 'diff',
+  derivedCurrentLabel: '当前年化差',
+  showLatestValues: true,
+  allowNegative: true,
+  valueSuffix: '%',
+  note: (
+    <>
+      中证全指(000985) 与 长期国债(H11075) 均自 <strong>2013-01-01</strong> 起计算累计年化，按月对齐（取各自当月最后一个交易日）。
+      年化收益率 = (当日点位 ÷ 首日点位)<sup>365 ÷ 自然日天数</sup> − 1；
+      为避免短窗口把年化放大失真，图表仅展示持有满 <strong>1 年（365 自然日）</strong>之后的点（首个点为 2008-12-31）。
+      右轴为两者年化收益率之差（百分点，<strong>中证全指 − 长期国债</strong>）：正值表示中证全指年化更高，负值表示长期国债年化更高。
+    </>
+  ),
+};
+
+/** 双指标年化收益率差：沪深300(000300) vs 债券基金(H11023)，均自 2003-01 起累计年化 */
+const HS300_BOND_ANNUALIZED_SPREAD_CONFIG: IndexComparisonChartProps = {
+  chartName: '沪深300&债券基金年化收益率差',
+  subtitle: '沪深300(000300) 与 债券基金(H11023) 自 2003-01 起累计年化收益率',
+  left: {
+    name: '沪深300年化收益率',
+    color: '#d62728',
+    axisTitleColor: '#6c6868ff',
+    fetch: () => fetchAnnualizedCsindex('000300', '20030101'),
+  },
+  right: {
+    name: '债券基金年化收益率',
+    color: '#2ca02c',
+    fetch: () => fetchAnnualizedCsindex('H11023', '20030101'),
+  },
+  leftAxisTitle: '年化收益率(%)',
+  ratioAxisTitle: '年化收益率差(百分点)',
+  ratioLegend: '沪深300−债券基金(年化差)',
+  ratioColor: '#1890ff',
+  derivedMode: 'diff',
+  derivedCurrentLabel: '当前年化差',
+  showLatestValues: true,
+  allowNegative: true,
+  valueSuffix: '%',
+  note: (
+    <>
+      沪深300(000300) 与 债券基金(H11023) 均自 <strong>2003-01-01</strong> 起计算累计年化，按月对齐（取各自当月最后一个交易日）。
+      年化收益率 = (当日点位 ÷ 首日点位)<sup>365 ÷ 自然日天数</sup> − 1；
+      为避免短窗口把年化放大失真，图表仅展示持有满 <strong>1 年（365 自然日）</strong>之后的点（首个展示点为 2004-01-02）。
+      右轴为两者年化收益率之差（百分点，<strong>沪深300 − 债券基金</strong>）：正值表示沪深300年化更高，负值表示债券基金年化更高。
+    </>
+  ),
+};
+
+/** 双指标年化收益率差：中证全指(000985) vs 债券基金(H11023)，均自 2004-12-31（中证全指基期）起累计年化 */
+const CSI_ALL_BOND_ANNUALIZED_SPREAD_CONFIG: IndexComparisonChartProps = {
+  chartName: '中证全指&债券基金年化收益率差',
+  subtitle: '中证全指(000985) 与 债券基金(H11023) 自 2004-12-31 起累计年化收益率',
+  left: {
+    name: '中证全指年化收益率',
+    color: '#722ed1',
+    axisTitleColor: '#6c6868ff',
+    fetch: () => fetchAnnualizedCsindex('000985', '20041231'),
+  },
+  right: {
+    name: '债券基金年化收益率',
+    color: '#2ca02c',
+    fetch: () => fetchAnnualizedCsindex('H11023', '20041231'),
+  },
+  leftAxisTitle: '年化收益率(%)',
+  ratioAxisTitle: '年化收益率差(百分点)',
+  ratioLegend: '中证全指−债券基金(年化差)',
+  ratioColor: '#1890ff',
+  derivedMode: 'diff',
+  derivedCurrentLabel: '当前年化差',
+  showLatestValues: true,
+  allowNegative: true,
+  valueSuffix: '%',
+  note: (
+    <>
+      中证全指(000985) 与 债券基金(H11023) 均自 <strong>2004-12-31</strong>（中证全指基期）起计算累计年化，按月对齐（取各自当月最后一个交易日）。
+      年化收益率 = (当日点位 ÷ 首日点位)<sup>365 ÷ 自然日天数</sup> − 1；
+      为避免短窗口把年化放大失真，图表仅展示持有满 <strong>1 年（365 自然日）</strong>之后的点（首个展示点为 2006-01-04）。
+      右轴为两者年化收益率之差（百分点，<strong>中证全指 − 债券基金</strong>）：正值表示中证全指年化更高，负值表示债券基金年化更高。
+    </>
+  ),
+};
+
 /** 双指数比值对比：创业板(sz399006, 新浪源) vs 中证红利(000922, 中证源)，均自 2010-06 起 */
 const CYB_VS_DIVIDEND_CONFIG: IndexComparisonChartProps = {
   chartName: '创业板 vs 中证红利',
@@ -79,7 +283,7 @@ const CYB_VS_DIVIDEND_CONFIG: IndexComparisonChartProps = {
   ratioDomain: [0, 1],
   note: (
     <>
-      创业板(sz399006) 与 中证红利(000922) 均自 <strong>2010-06</strong> 起，按同一交易日对齐。
+      创业板(sz399006) 与 中证红利(000922) 均自 <strong>2010-06</strong> 起，按月对齐（取各自当月最后一个交易日）。
       两者起始基点不同，起点比值≈0.37（创业板点位低于中证红利），比值非从 1 起步；比值&lt;1 表示创业板点位低于中证红利。
     </>
   ),
@@ -97,7 +301,7 @@ const GROWTH_VS_VALUE_CONFIG: IndexComparisonChartProps = {
   note: (
     <>
       300成长(000918) 与 300价值(000919) 从 <strong>2004-12-31</strong> 开始，
-      按同一交易日对齐。两者起始基点均为 1000 点，起点比值≈1，更具可比性；比值&gt;1 表示 300成长点位高于 300价值。
+      按月对齐（取各自当月最后一个交易日）。两者起始基点均为 1000 点，起点比值≈1，更具可比性；比值&gt;1 表示 300成长点位高于 300价值。
     </>
   ),
 };
@@ -819,8 +1023,8 @@ const Stock_margin_account_info = ({ key }: { key: number }) => {
 
 const Stock_a_congestion_lg = ({ key }: { key: number }) => {
   const chartName = '大盘拥挤度';
-  /** 拥挤度分位阈值（可配置），用于高亮展示历史分位水平 */
-  const CONGESTION_PERCENTILE = 99;
+  /** 拥挤度分位阈值（配置见 appConfig.chart.congestionPercentile） */
+  const CONGESTION_PERCENTILE = appConfig.chart.congestionPercentile;
   const dateKey = 'date'
   const dateName = '日期'
   const leftKey = 'close'
@@ -1053,6 +1257,11 @@ const Index: React.FC = () => {
     '10': 0,
     '11': 0,
     '12': 0,
+    '13': 0,
+    '14': 0,
+    '15': 0,
+    '16': 0,
+    '17': 0,
   });
 
   console.log('refreshKeys, ', refreshKeys)
@@ -1099,6 +1308,76 @@ const Index: React.FC = () => {
         </div>
       ),
       children: useMemo(() => <IndexComparisonChart key={refreshKeys['10']} {...CSI_ALL_VS_BOND_CONFIG} />, [refreshKeys['10']]),
+    },
+    {
+      key: '13',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>股票基金&债券基金年化收益率差</span>
+          <Button
+            icon={<ReloadOutlined />}
+            size="small"
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '13': prev['13'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <IndexComparisonChart key={refreshKeys['13']} {...STOCK_BOND_ANNUALIZED_SPREAD_CONFIG} />, [refreshKeys['13']]),
+    },
+    {
+      key: '14',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>创业板&中证红利年化收益率差</span>
+          <Button
+            icon={<ReloadOutlined />}
+            size="small"
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '14': prev['14'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <IndexComparisonChart key={refreshKeys['14']} {...CYB_DIVIDEND_ANNUALIZED_SPREAD_CONFIG} />, [refreshKeys['14']]),
+    },
+    {
+      key: '15',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>中证全指&长期国债年化收益率差</span>
+          <Button
+            icon={<ReloadOutlined />}
+            size="small"
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '15': prev['15'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <IndexComparisonChart key={refreshKeys['15']} {...CSI_ALL_LONG_BOND_ANNUALIZED_SPREAD_CONFIG} />, [refreshKeys['15']]),
+    },
+    {
+      key: '16',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>沪深300&债券基金年化收益率差</span>
+          <Button
+            icon={<ReloadOutlined />}
+            size="small"
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '16': prev['16'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <IndexComparisonChart key={refreshKeys['16']} {...HS300_BOND_ANNUALIZED_SPREAD_CONFIG} />, [refreshKeys['16']]),
+    },
+    {
+      key: '17',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>中证全指&债券基金年化收益率差</span>
+          <Button
+            icon={<ReloadOutlined />}
+            size="small"
+            onClick={() => setRefreshKeys(prev => ({ ...prev, '17': prev['17'] + 1 }))}
+          />
+        </div>
+      ),
+      children: useMemo(() => <IndexComparisonChart key={refreshKeys['17']} {...CSI_ALL_BOND_ANNUALIZED_SPREAD_CONFIG} />, [refreshKeys['17']]),
     },
 
     {

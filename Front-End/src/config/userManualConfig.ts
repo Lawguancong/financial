@@ -340,7 +340,7 @@ export const userManualItems: ManualItem[] = [
     menuKey: 'knowledge/rsi',
     features: [
       'RSI（相对强弱指标）基础知识讲解',
-      '介绍RSI的计算方法、参数设置和应用场景',
+      '介绍RSI的计算方式（标准 Wilder 平滑 / Wilder RSI）、参数设置和应用场景',
       '展示不同周期RSI的使用技巧和常见误区',
       '配合实战案例理解RSI指标的实战用法',
     ],

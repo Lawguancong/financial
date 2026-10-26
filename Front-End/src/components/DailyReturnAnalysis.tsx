@@ -5,6 +5,7 @@ import type { TableColumnsType } from 'antd';
 import { RightOutlined } from '@ant-design/icons';
 import moment from 'moment';
 import type { KLineData } from '@/utils/stockUtils';
+import { appConfig } from '@/config/appConfig';
 
 interface DailyReturnAnalysisProps {
   data: KLineData[]; // 至少包含「日期」「收盘」字段的 K 线数据
@@ -36,8 +37,8 @@ const HIST_FILL = '#91caff';
 const HIST_STROKE = '#1677ff';
 const NORMAL_COLOR = '#fa541c';
 
-const BIN_COUNT = 50; // 正态分布直方图分箱数量（可配置，越大区间越窄）
-const RANK_SIZE = 30; // 涨幅榜 / 跌幅榜各取前 30 个交易日
+const BIN_COUNT = appConfig.chart.dailyReturn.binCount; // 正态分布直方图分箱数量
+const RANK_SIZE = appConfig.chart.dailyReturn.rankSize; // 涨幅榜 / 跌幅榜各取前 N 个交易日
 
 const formatPct = (value: number) => `${value > 0 ? '+' : ''}${Number(value).toFixed(2)}%`;
 

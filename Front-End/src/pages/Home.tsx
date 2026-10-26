@@ -20,8 +20,26 @@ import {
   ArrowRightOutlined,
 } from '@ant-design/icons';
 import type { ReactNode } from 'react';
+import { appConfig } from '@/config/appConfig';
 
 /* ------------------------------- 数据配置 ------------------------------- */
+
+/** 月&季 RSI6 策略参数（用于能力卡片文案，避免与配置漂移） */
+const {
+  levelRules: MQ_LEVEL_RULES,
+  monthlySellPercentile: MQ_SELL_PERCENTILE,
+  quarterlySellPercentile: MQ_QUARTERLY_SELL_PERCENTILE,
+} = appConfig.rsi.monthlyQuarterly;
+/** 月/季分位相同时展示一个值，不同时展示「月x/季y」 */
+const formatMqLevelPercentile = (rule: { monthlyPercentile: number; quarterlyPercentile: number }): string =>
+  rule.monthlyPercentile === rule.quarterlyPercentile
+    ? `${rule.monthlyPercentile}%`
+    : `月${rule.monthlyPercentile}%/季${rule.quarterlyPercentile}%`;
+const MQ_LEVEL_TEXT = MQ_LEVEL_RULES.map(formatMqLevelPercentile).join(' / ');
+const MQ_SELL_TEXT =
+  MQ_SELL_PERCENTILE === MQ_QUARTERLY_SELL_PERCENTILE
+    ? `${MQ_SELL_PERCENTILE}%`
+    : `${MQ_SELL_PERCENTILE}% / ${MQ_QUARTERLY_SELL_PERCENTILE}%`;
 
 interface ModuleItem {
   title: string;
@@ -167,7 +185,11 @@ const CAPABILITIES = [
   {
     icon: <StarOutlined />,
     title: '月&季 RSI6 百分位策略',
-    points: ['月、季 RSI6 同时低于 3% / 5% / 10% 分位买入', '★5 持仓且双双突破 85% 分位时卖出配对', '自动计算持有期收益与年化收益'],
+    points: [
+      `月、季 RSI6 同时低于截至当月近 ${appConfig.rsi.asOfWindowMonths / 12} 年的 ${MQ_LEVEL_TEXT} 滚动分位买入`,
+      `★5 持仓且双双突破近 ${appConfig.rsi.asOfWindowMonths / 12} 年 ${MQ_SELL_TEXT} 滚动分位时卖出配对`,
+      '自动计算持有期收益与年化收益',
+    ],
     accent: '#fa8c16',
   },
   {

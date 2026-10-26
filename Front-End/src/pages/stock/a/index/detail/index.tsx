@@ -4,7 +4,8 @@ import { Radio, Tag, Collapse, Card } from 'antd';
 import { DualAxes } from '@ant-design/plots';
 import apiClient from '@/utils/axios';
 import moment from 'moment';
-import { calculateMaxDrawdown, calculateStartDate, calculatePercentiles } from '@/utils';
+import { calculateMaxDrawdown, calculateStartDate, calculatePercentiles, cleanCsindexHistory } from '@/utils';
+import { appConfig } from '@/config/appConfig';
 import dayjs from 'dayjs';
 import IndexMetrics from '@/components/IndexMetrics';
 
@@ -63,13 +64,11 @@ const IndexDetail: React.FC = () => {
       return;
     }
     try {
-      const startDate = '19800101'; // 默认从1980年1月1日开始查询，并去除第一个日期的空值
-      console.log('指数详情 -> startDate', startDate);
+      // 从 A 股最早交易日开始查询，覆盖指数全部历史；接口在起始日早于首条真实数据时会补占位行，
+      // 由 cleanCsindexHistory 统一剔除，避免远期伪数据点参与指标计算
+      const startDate = appConfig.http.indexHistoryStartDate;
       const response = await apiClient.get(`/api/public/stock_zh_index_hist_csindex?symbol=${code}&start_date=${startDate}&end_date=${moment().format('YYYYMMDD')}`);
-      const data = response?.data || [];
-      const firstNonMultipleIndex = data.findIndex((item: IndexDetailData) => Number(item.收盘) % 100 !== 0);
-      console.log('111 firstNonMultipleIndex', firstNonMultipleIndex)
-      setRawData((0 < firstNonMultipleIndex && firstNonMultipleIndex < 10) ? data.slice(firstNonMultipleIndex - 1) : data)
+      setRawData(cleanCsindexHistory(response?.data as IndexDetailData[] | undefined, startDate));
     } catch (error) {
       console.log('error', error);
     } finally {

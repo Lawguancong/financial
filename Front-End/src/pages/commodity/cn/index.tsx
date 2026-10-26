@@ -158,31 +158,25 @@ const Index: React.FC = () => {
   const fetchCommodityAndCalculate = async (
     symbol: string,
   ): Promise<BuyPointResult> => {
-    try {
-      const response = await apiClient.get('/api/public/spot_hist_sge', {
-        params: { symbol },
-      });
-      const stockHistoryList =
-        (response?.data || [])
-          .map((item: Record<string, unknown>) => ({
-            日期: String(item.date).slice(0, 10),
-            收盘: Number(item.close),
-          }))
-          .filter((item: { 日期: string; 收盘: number }) => Number.isFinite(item.收盘)) ?? [];
+    const response = await apiClient.get('/api/public/spot_hist_sge', {
+      params: { symbol },
+    });
+    const stockHistoryList =
+      (response?.data || [])
+        .map((item: Record<string, unknown>) => ({
+          日期: String(item.date).slice(0, 10),
+          收盘: Number(item.close),
+        }))
+        .filter((item: { 日期: string; 收盘: number }) => Number.isFinite(item.收盘)) ?? [];
 
-      // 接口无数据或收盘价全为 0 时无分析意义，直接跳过 RSI/买点计算（结果为空，也不写入缓存）
-      const hasValidPrice = stockHistoryList.length > 0
-        && stockHistoryList.some((item: { 日期: string; 收盘: number }) => item.收盘 !== 0);
-      if (!hasValidPrice) {
-        console.warn(`品种【${symbol}】历史收盘价全为 0 或无数据，跳过买点计算`);
-        return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '', mqBuyPoints: [] };
-      }
-
-      return computeBuyPoints({ type: 'commodity', rawData: stockHistoryList });
-    } catch (error) {
-      console.log('Error fetching commodity detail:', error);
-      return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '', mqBuyPoints: [] };
+    // 接口无数据或收盘价全为 0 时无法计算，抛出后由批量编排统一重试并汇总提示
+    const hasValidPrice = stockHistoryList.length > 0
+      && stockHistoryList.some((item: { 日期: string; 收盘: number }) => item.收盘 !== 0);
+    if (!hasValidPrice) {
+      throw new Error('接口无数据或收盘价全为 0');
     }
+
+    return computeBuyPoints({ type: 'commodity', rawData: stockHistoryList });
   };
 
   // 仅对勾选的品种批量计算买点，逐行回填

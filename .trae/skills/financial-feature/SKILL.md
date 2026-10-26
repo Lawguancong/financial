@@ -339,7 +339,7 @@ const response = await apiClient.get<T>(url);
 优先复用 `src/utils/` 下已有工具：
 
 - **`stockUtils.ts`**：
-  - `calculateMaxDrawdown`：计算最大回撤率、年化收益率
+  - `calculateMaxDrawdown`：计算最大回撤率、年化收益率（峰值以首值为基准，累计收益率负起点不会虚构回撤）；传入 `percentKey` 时额外产出 15%/85% 百分位列，未传则不产出这些字段（避免 `undefined` 列名与 NaN）
 - **`tableUtils.tsx`**：
   - `createRangeFilter<T>(key)`：表格数值范围筛选（含 filterDropdown/filterIcon/onFilter）
   - `numberSorter<T>(key)`：数值排序
@@ -380,6 +380,27 @@ const response = await apiClient.get<T>(url);
 | 表格筛选 | `createRangeFilter` / `numberSorter` / `stringSorter` |
 | 菜单层级 | 最多两层 children（antd Menu 映射限制） |
 | 端口 | aktools 后端 6670 / 前端 6671；akshare 后端 6680 / 前端 6681 |
+
+## 详情页技术指标 tab（MACD 示例）
+
+在已有行情详情页（如 A 股个股 `/stock/a/stock/detail`）新增技术指标 tab 时，按以下约定：
+
+1. **组件位置**：放 `Front-End/src/components/`（跨页面复用），页面内用 `React.lazy` + `Suspense` 引入。
+2. **Props**：`data: KLineData[]` 为必传（日 K，至少含 `日期`/`收盘`，基金场景 `收盘` 为累计收益率）；`type?: 'stock' | 'index' | 'fund' | 'commodity'` 默认 `stock`，仅影响「收盘价 / 累计收益率」文案；`visiblePeriods?: MacdPeriodKey[]` 默认全部四周期，基金可传 `['monthly','quarterly']`；传空数组则不展示任何周期。
+3. **多周期口径**：日 K 直接算；周/月/季先用 `aggregateKLineByPeriod` 聚合，再按同一参数独立计算。MACD 参数固定为 `(12, 26, 9)`：`DIF=EMA(收盘,12)-EMA(收盘,26)`、`DEA=EMA(DIF,9)`、`MACD柱=2×(DIF-DEA)`，计算内核为 `stockUtils.calculateMACD`；内核同时产出派生序列 `DEA-DIF`（= −MACD柱/2）与 `DEA÷DIF`（DIF=0 时为 `null`）。
+4. **图表组合**：用 `DualAxes` 叠加三个同 X 视图——主视图画 DIF/DEA/DEA-DIF 三条折线并负责 shared tooltip（按日期查表补齐柱/DIFF/DEA/DEA-DIF/DEA÷DIF 五个值），柱状视图画 interval 柱（正红负绿）且只关闭 y 轴（`axis: { y: false }`），比值视图画 `DEA÷DIF` 粉色实线并使用右侧独立 y 轴（`axis: { y: { position: 'right' } }`，无网格）。x 轴配置必须放在**顶层** `axis.x`，否则后续 mark 的 axis 配置会把共享 x guide 置空、导致日期轴消失。主视图与柱状视图显式设置相同的 y `domain`（包含 0）保证零轴对齐；比值右轴取 2%~98% 分位，超出范围的比值**钳制到上下边界**（不要置空，否则曲线会出现缺失时段），tooltip 仍为真实值。
+5. **图例过滤**：每个周期图的自定义图例可点击（`role="button"` + `tabIndex`，支持 Enter/Space），按 `MacdLegendKey`（`bar`/`dif`/`dea`/`deaMinusDif`/`ratio`）独立记录隐藏状态；被隐藏的折线不进入长表数据、柱/比值 mark 直接不生成，比值右轴随之一并消失。MACD 柱正/负两个图例共用 `bar` 键。主折线被全部隐藏时 tooltip 依次回退到柱、比值；全部系列隐藏时显示占位提示而不是空图。
+6. **样本区间（as-of）**：组件顶部提供 `DatePicker.RangePicker`，支持双边/单边区间与「清除开始/结束」；**先按区间裁剪 `data` 得到 `filteredData`，再基于它重算各周期 MACD 与峰值**，区间外数据完全不使用。为避免切换区间时 G2 重绘阻塞日期面板：选择器状态 `sampleRange` 立即更新，实际计算用 `appliedRange`，通过 `setTimeout(0) + startTransition` 延后提交；两者不一致期间显示 `Spin`「MACD 指标与峰值重算中」，图表配置设 `animate: false`。
+7. **峰值标记与买点表（as-of）**：峰值检测用 `stockUtils.findConfirmedPeaks`：只回看过去 `peakWindows` 根（周52 / 月12 / 季4，来自 `appConfig.chart.macd`）要求为窗口最高，且峰值后 `peakConfirmLags` 根（默认 1，可逐周期配置）全部回落才确认；确认回落使用 `confirmValues` 传入真实比值，避免显示裁剪的 null 误判为未确认；确认日当天即产生买点，不使用确认日之后的数据。红点仍标在峰值位置；买点表用 `stockUtils.mapConfirmedPeakRows` 配对峰值行/确认行：峰值日期、峰值收盘价、DEA÷DIF、MACD、DEA、DIFF 取峰值日数据；「买入收盘价（N根后）」取峰值后第 N 根确认日的收盘价，并在单元格内展示确认日期。峰值参与判定的比值允许到右轴上限×2，避免「略超 98% 分位」的有效峰值（如季K 2024-06 的 1.91）被漏掉。主折线全隐藏时由柱状图承担左 y 轴。表格与图例隐藏状态无关。
+8. **测试**：公共计算函数改动必须补 `Front-End/test/macd.test.ts` 一类用例（含 `calculateMACD`、`cleanCsindexHistory`、`findLocalMaxima`、`findConfirmedPeaks`、`mapConfirmedPeakRows`），并运行 `npm test`。
+
+### 中证指数历史起始日与占位行
+
+`/api/public/stock_zh_index_hist_csindex` 在 `start_date` 早于指数首条真实数据时，会补一条「日期 = start_date、数值与下一条完全重复」的占位行（`收盘=基点`、开高低为空）。统一处理方式：
+
+- 起始日使用 `appConfig.http.indexHistoryStartDate`（默认 `19901219`，A 股最早交易日）；
+- 用 `stockUtils.cleanCsindexHistory(rows, startDate)` 清洗，禁止再写 `19800101` 或用「收盘 % 100」等启发式切片；
+- 指数列表买点计算与指数详情页都必须走同一函数，避免两边口径不一致。
 
 ## 注意事项
 

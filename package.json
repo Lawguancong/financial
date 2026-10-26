@@ -10,6 +10,7 @@
     "start:server:aktools": "p=$(lsof -ti:6670); [ -n \"$p\" ] && kill -9 $p; cd Back-End/ak/aktools && python3.14 -m aktools --port 6670",
     "start:frontend:aktools": "p=$(lsof -ti:6671); [ -n \"$p\" ] && kill -9 $p; cd Front-End && yarn vite --port 6671 --mode aktools",
     "dev": "trap 'kill 0' EXIT; npm run start:server:aktools & npm run start:frontend:aktools",
+    "test": "cd Front-End && npm test",
 
 
     "start:server:akshare": "p=$(lsof -ti:6680); [ -n \"$p\" ] && kill -9 $p; cd Back-End/ak/akshare && python3.14 app.py --port 6680",

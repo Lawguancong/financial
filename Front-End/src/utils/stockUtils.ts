@@ -1,4 +1,5 @@
 import moment from 'moment';
+import { appConfig } from '@/config/appConfig';
 
 // 数据频率：daily = 保留全部日频数据；monthly = 每月只取最后一条数据
 export type DataFrequency = 'daily' | 'monthly';
@@ -46,19 +47,21 @@ export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
   const isCumulativeReturn =
     closeValueType === 'cumulativeReturn' || (closeValueType == null && leftKey === '累计收益率');
 
-  let maxClose = 0;
-  const firstClose = data[0][leftKey] as number;
+  const firstClose = Number(data[0][leftKey]);
   const firstDate = data[0][dateKey] as string;
+  // 峰值以首值为基准：起点本身回撤为 0；累计收益率首值为负时也不会虚构回撤
+  let maxClose = Number.isFinite(firstClose) ? firstClose : 0;
 
-  const values = percentKey && data
-    ?.map(item => item[percentKey] as number)
-    ?.filter(value => typeof value === 'number' && !isNaN(value))
-    ?.sort((a, b) => a - b);
+  const values = percentKey
+    ? data
+      .map(item => item[percentKey] as number)
+      .filter(value => typeof value === 'number' && !isNaN(value))
+      .sort((a, b) => a - b)
+    : undefined;
 
-
-  // 计算15%和85%百分位
-  const percentile15 = values?.[Math.floor(values.length * 0.15)];
-  const percentile85 = values?.[Math.floor(values.length * 0.85)];
+  // 计算15%和85%百分位（未传 percentKey 时不产出对应字段，避免污染数据）
+  const percentile15 = values && values.length ? values[Math.floor(values.length * 0.15)] : null;
+  const percentile85 = values && values.length ? values[Math.floor(values.length * 0.85)] : null;
 
   return data.map(item => {
     const closePrice = item[leftKey] as number;
@@ -96,8 +99,12 @@ export const calculateMaxDrawdown = <T extends Record<string, unknown>>(
       ...item,
       ['__最大回撤率__']: -drawdownPercent,
       ['__年化收益率__']: annualizedRate !== null ? Number((annualizedRate * 100).toFixed(2)) : null,
-      [`__${percentKey}15%百分位__`]: percentile15 !== null ? Number(percentile15?.toFixed(2)) : null,
-      [`__${percentKey}85%百分位__`]: percentile85 !== null ? Number(percentile85?.toFixed(2)) : null,
+      ...(percentKey
+        ? {
+          [`__${percentKey}15%百分位__`]: percentile15 !== null ? Number(percentile15.toFixed(2)) : null,
+          [`__${percentKey}85%百分位__`]: percentile85 !== null ? Number(percentile85.toFixed(2)) : null,
+        }
+        : {}),
     };
   });
 };
@@ -162,6 +169,24 @@ export const calculatePercentiles = (
   };
 };
 
+/**
+ * 由 Wilder 平滑后的平均涨幅/跌幅计算 RSI6（保留 2 位小数）
+ * calculateRSI 与「周期初→当日」截断口径共用，保证两条路径口径完全一致
+ */
+const rsiFromAvgGainLoss = (avgGain: number, avgLoss: number): number => {
+  let rsi = 50;
+  if (avgGain > 0 && avgLoss === 0) {
+    rsi = 100;
+  } else if (avgLoss > 0 && avgGain === 0) {
+    rsi = 0;
+  } else if (avgLoss !== 0) {
+    const rs = avgGain / avgLoss;
+    rsi = 100 - (100 / (1 + rs));
+  }
+  rsi = Math.max(0, Math.min(100, rsi));
+  return parseFloat(rsi.toFixed(2));
+};
+
 // 计算当前Period 的 RSI指标
 export const calculateRSI = (
   params: {
@@ -207,21 +232,9 @@ export const calculateRSI = (
       avgGain = totalGain / period;
       avgLoss = totalLoss / period;
 
-      // 计算RS和RSI
-      let rsi = 50;
-      if (avgGain > 0 && avgLoss === 0) {
-        rsi = 100;
-      } else if (avgLoss > 0 && avgGain === 0) {
-        rsi = 0;
-      } else if (avgLoss !== 0) {
-        const rs = avgGain / avgLoss;
-        rsi = 100 - (100 / (1 + rs));
-      }
-      rsi = Math.max(0, Math.min(100, rsi));
-
       result.push({
         ...data[i],
-        __RSI6__: parseFloat(rsi.toFixed(2))
+        __RSI6__: rsiFromAvgGainLoss(avgGain, avgLoss),
       });
     } else {
       // 后续每日：使用EMA平滑递推
@@ -232,21 +245,9 @@ export const calculateRSI = (
       avgGain = (avgGain * (period - 1) + currentGain) / period;
       avgLoss = (avgLoss * (period - 1) + currentLoss) / period;
 
-      // 计算RS和RSI
-      let rsi = 50;
-      if (avgGain > 0 && avgLoss === 0) {
-        rsi = 100;
-      } else if (avgLoss > 0 && avgGain === 0) {
-        rsi = 0;
-      } else if (avgLoss !== 0) {
-        const rs = avgGain / avgLoss;
-        rsi = 100 - (100 / (1 + rs));
-      }
-      rsi = Math.max(0, Math.min(100, rsi));
-
       result.push({
         ...data[i],
-        __RSI6__: parseFloat(rsi.toFixed(2))
+        __RSI6__: rsiFromAvgGainLoss(avgGain, avgLoss),
       });
     }
   }
@@ -254,6 +255,22 @@ export const calculateRSI = (
   return result;
 };
 
+/**
+ * 计算 MACD（指数平滑异同移动平均线），默认参数 (12, 26, 9)。
+ *
+ * 口径（与行情软件一致）：
+ * - EMA 递推：EMA_t = EMA_(t-1) × (N-1)/(N+1) + 收盘_t × 2/(N+1)，首根 EMA 取首根收盘价；
+ * - DIF（快线）= EMA(收盘, 12) − EMA(收盘, 26)；
+ * - DEA（慢线）= EMA(DIF, 9)；
+ * - MACD 柱 = 2 × (DIF − DEA)。
+ *
+ * 同时产出两条派生序列（供图表观察快慢线关系）：
+ * - DEA − DIF = −MACD柱 / 2；
+ * - DEA / DIF：DIF 为 0 时无定义，返回 null（图表显示为断点）。
+ *
+ * 返回与输入等长的数组（首根 DIF/DEA/柱均为 0，没有历史可比），
+ * 不做 warmup 截断，方便图表从首个交易日连续展示。
+ */
 export const calculateMACD = (
   params: {
     data: KLineData[];
@@ -262,99 +279,56 @@ export const calculateMACD = (
     slowPeriod?: number;
     signalPeriod?: number;
   }
-): (KLineData & { __MACD_DIF__: number; __MACD_DEA__: number; __MACD_BAR__: number })[] => {
+): (KLineData & {
+  __MACD_DIF__: number;
+  __MACD_DEA__: number;
+  __MACD_BAR__: number;
+  /** DEA − DIF（等于 −MACD柱 / 2） */
+  __MACD_DEA_MINUS_DIF__: number;
+  /** DEA ÷ DIF；DIF = 0 时无定义，为 null */
+  __MACD_DEA_DIV_DIF__: number | null;
+})[] => {
   const { data, closeKey = '收盘', fastPeriod = 12, slowPeriod = 26, signalPeriod = 9 } = params;
 
-  // 确保返回与输入等长的数组
   if (!data || data.length === 0) {
     return [];
   }
 
-  // 计算EMA
+  /** EMA 递推（首值取首个收盘价，保证与行情软件同口径） */
   const calculateEMA = (values: number[], period: number): number[] => {
-    const ema: number[] = [];
     const multiplier = 2 / (period + 1);
-
-    // 第一个EMA值使用简单平均
-    let sum = 0;
-    let validCount = 0;
-    for (let i = 0; i < period; i++) {
-      if (i < values.length) {
-        const value = values[i];
-        if (!isNaN(value)) {
-          sum += value;
-          validCount++;
-        }
-      }
-    }
-
-    if (validCount === 0) {
-      // 没有有效数据，返回与输入等长的0数组
-      return values.map(() => 0);
-    }
-
-    let currentEMA = sum / validCount;
-    ema.push(currentEMA);
-
-    // 后续EMA值使用递推公式
-    for (let i = period; i < values.length; i++) {
-      const value = values[i];
-      if (!isNaN(value)) {
-        currentEMA = (value - currentEMA) * multiplier + currentEMA;
-      }
-      ema.push(currentEMA);
-    }
-
-    return ema;
+    return values.reduce<number[]>((ema, value, index) => {
+      ema.push(index === 0 ? value : ema[index - 1] * (1 - multiplier) + value * multiplier);
+      return ema;
+    }, []);
   };
 
-  // 提取收盘价数据
+  // 收盘价无效时按 0 处理，避免 NaN 沿 EMA 递推扩散
   const closePrices = data.map(item => {
-    const value = item[closeKey] as number;
-    return isNaN(value) ? 0 : value;
+    const value = Number(item[closeKey as keyof KLineData]);
+    return Number.isFinite(value) ? value : 0;
   });
 
-  // 计算快速EMA（12日）和慢速EMA（26日）
   const fastEMA = calculateEMA(closePrices, fastPeriod);
   const slowEMA = calculateEMA(closePrices, slowPeriod);
-
-  // 计算DIF（快线）：快速EMA - 慢速EMA
-  const dif: number[] = [];
-  const maxLength = Math.min(fastEMA.length, slowEMA.length);
-  for (let i = 0; i < maxLength; i++) {
-    const difValue = fastEMA[i] - slowEMA[i];
-    dif.push(isNaN(difValue) ? 0 : difValue);
-  }
-
-  // 计算DEA（慢线）：DIF的9日EMA
+  const dif = closePrices.map((_, index) => fastEMA[index] - slowEMA[index]);
   const dea = calculateEMA(dif, signalPeriod);
 
-  // 计算MACD柱：(DIF - DEA) * 2
-  const result = data.map((item, index) => {
-    let difValue = 0;
-    let deaValue = 0;
-    let barValue = 0;
+  const round = (value: number) => parseFloat(value.toFixed(4));
 
-    // 计算DIF值
-    if (index >= slowPeriod - 1 && index - (slowPeriod - 1) < dif.length) {
-      difValue = dif[index - (slowPeriod - 1)];
-    }
-
-    // 计算DEA和MACD柱值
-    if (index >= slowPeriod + signalPeriod - 2 && index - (slowPeriod + signalPeriod - 2) < dea.length) {
-      deaValue = dea[index - (slowPeriod + signalPeriod - 2)];
-      barValue = (difValue - deaValue) * 2;
-    }
-
+  return data.map((item, index) => {
+    const roundedDif = round(dif[index]);
+    const roundedDea = round(dea[index]);
     return {
       ...item,
-      __MACD_DIF__: parseFloat(difValue.toFixed(4)),
-      __MACD_DEA__: parseFloat(deaValue.toFixed(4)),
-      __MACD_BAR__: parseFloat(barValue.toFixed(4))
+      __MACD_DIF__: roundedDif,
+      __MACD_DEA__: roundedDea,
+      __MACD_BAR__: round((dif[index] - dea[index]) * 2),
+      __MACD_DEA_MINUS_DIF__: round(dea[index] - dif[index]),
+      // 用四舍五入后的 DIF/DEA 计算比值，保证与返回字段口径一致；DIF 为 0 时无定义
+      __MACD_DEA_DIV_DIF__: roundedDif === 0 ? null : round(roundedDea / roundedDif),
     };
   });
-
-  return result;
 };
 
 // K线数据类型
@@ -372,6 +346,199 @@ export interface KLineData {
   涨跌额?: number;
   换手率?: number;
 }
+
+/** 中证指数历史接口返回行（只声明清洗所需字段） */
+export interface CsindexHistoryRow {
+  日期: string;
+  收盘?: number | null;
+  成交量?: number | null;
+  成交金额?: number | null;
+}
+
+/**
+ * 清洗中证指数历史接口（stock_zh_index_hist_csindex）返回数据。
+ *
+ * 接口行为：当请求的 start_date 早于指数首条真实数据时，会在结果最前面补一条
+ * 「日期 = start_date」的占位行，其收盘/成交量/成交金额与紧随其后的首条真实记录完全相同。
+ * 该占位行会让「上市以来」收益、RSI/MACD 等指标多出一个远期伪数据点，因此这里按
+ * 「日期等于请求起始日 且 与下一条数值完全重复」识别并剔除；真实数据恰好从起始日开始时不满足
+ * 重复条件，会被保留。同时过滤收盘价为空或非正的记录。
+ *
+ * @param rows 接口原始数据（按日期升序）
+ * @param requestStartDate 请求时传入的 start_date（YYYYMMDD 或 YYYY-MM-DD）
+ */
+export const cleanCsindexHistory = <T extends CsindexHistoryRow>(
+  rows: T[] | undefined | null,
+  requestStartDate: string,
+): T[] => {
+  if (!Array.isArray(rows) || rows.length === 0) return [];
+
+  const validRows = rows.filter(row => {
+    const close = Number(row.收盘);
+    return Number.isFinite(close) && close > 0;
+  });
+  if (validRows.length <= 1) return validRows;
+
+  const [first, second] = validRows;
+  const requestedDate = moment(requestStartDate, ['YYYYMMDD', 'YYYY-MM-DD']).format('YYYY-MM-DD');
+  const firstDate = moment(first.日期).format('YYYY-MM-DD');
+  const duplicated =
+    Number(first.收盘) === Number(second.收盘) &&
+    Number(first.成交量 ?? 0) === Number(second.成交量 ?? 0) &&
+    Number(first.成交金额 ?? 0) === Number(second.成交金额 ?? 0);
+
+  return firstDate === requestedDate && duplicated ? validRows.slice(1) : validRows;
+};
+
+/**
+ * 查找序列中的局部峰值索引（滚动窗口极值口径）。
+ *
+ * 判定条件：
+ * - 当前值有效且严格高于相邻的前后各一根（平台期不重复标记）；
+ * - 在当前值前后各 window 根组成的窗口内，不存在更高的有效值；
+ * - 首尾点不标记（缺少完整的前后邻点）；
+ * - 可选 requirePositive：只保留正值峰值（用于 DEA÷DIF 的“顶部最大值”）。
+ *
+ * @param values 数值序列（可含 null/undefined，表示断点）
+ * @param window 前后比较根数（≥1）
+ * @param options.requirePositive 是否只标记正值峰值，默认 false
+ */
+export const findLocalMaxima = (
+  values: (number | null | undefined)[],
+  window: number,
+  options: { requirePositive?: boolean } = {},
+): number[] => {
+  const { requirePositive = false } = options;
+  const result: number[] = [];
+  if (!values?.length || window < 1 || values.length < 3) return result;
+
+  for (let i = 1; i < values.length - 1; i++) {
+    const value = values[i];
+    if (value == null || !Number.isFinite(value)) continue;
+    if (requirePositive && value <= 0) continue;
+
+    // 断点附近不标记，避免被截断的隐藏高点误判为峰值
+    const prev = values[i - 1];
+    const next = values[i + 1];
+    if (prev == null || next == null || value <= prev || value <= next) continue;
+
+    let isWindowMax = true;
+    const start = Math.max(0, i - window);
+    const end = Math.min(values.length - 1, i + window);
+    for (let j = start; j <= end; j++) {
+      const other = values[j];
+      if (other != null && Number.isFinite(other) && other > value) {
+        isWindowMax = false;
+        break;
+      }
+    }
+    if (isWindowMax) result.push(i);
+  }
+
+  return result;
+};
+
+/** 已确认峰值：峰值位置 + 确认位置（买点日） */
+export interface ConfirmedPeak {
+  /** 峰值所在索引 */
+  peakIndex: number;
+  /** 确认所在索引（峰值后第 confirmLag 根，即 as-of 买点日） */
+  confirmIndex: number;
+}
+
+/**
+ * 查找“已确认”的局部峰值（as-of 口径）。
+ *
+ * 与 findLocalMaxima 的 ±window 不同，这里只回看过去 window 根，并要求峰值后的
+ * confirmLag 根全部低于峰值；因此确认日（peakIndex + confirmLag）当天就能得到信号，
+ * 不需要确认日之后的数据，避免未来函数。
+ *
+ * 判定条件：
+ * - 当前值是过去 window 根（含当前）内的最高值，且严格高于前一根（平台期不重复标记）；
+ * - 峰值后 confirmLag 根必须全部为有效值且严格低于峰值；
+ * - 首部/尾部不足 window、confirmLag 的位置不产生信号；
+ * - 可选 requirePositive：只保留正值峰值。
+ *
+ * @param values 数值序列（可含 null/undefined，表示断点）
+ * @param window 回看根数（≥1）
+ * @param confirmLag 确认滞后根数（≥1，默认由调用方传入 1）
+ * @param options.requirePositive 是否只标记正值峰值，默认 false
+ * @param options.confirmValues 确认用的数值序列（默认为 values）。
+ *   峰值判定可用过滤后的序列（忽略极端值），但确认回落应使用真实比值，
+ *   避免显示裁剪产生的 null 把有效峰值误判为未确认。
+ */
+export const findConfirmedPeaks = (
+  values: (number | null | undefined)[],
+  window: number,
+  confirmLag: number,
+  options: { requirePositive?: boolean; confirmValues?: (number | null | undefined)[] } = {},
+): ConfirmedPeak[] => {
+  const { requirePositive = false } = options;
+  const confirmValues = options.confirmValues ?? values;
+  const result: ConfirmedPeak[] = [];
+  const lookback = Math.max(1, Math.floor(window));
+  const lag = Math.max(1, Math.floor(confirmLag));
+  if (!values?.length || values.length < lookback + lag) return result;
+
+  for (let i = lookback - 1; i < values.length - lag; i++) {
+    const value = values[i];
+    if (value == null || !Number.isFinite(value)) continue;
+    if (requirePositive && value <= 0) continue;
+
+    // 严格新高：优先用峰值判定序列；若上一根被显示裁剪为 null，则回退到真实比值
+    // （真实值更低时仍可成为峰值；真实值更高时说明仍在下降，不应标记）
+    const prev = values[i - 1] ?? confirmValues[i - 1];
+    if (prev == null || !Number.isFinite(prev) || value <= prev) continue;
+
+    // 过去 window 根（含当前）内最高
+    let isWindowMax = true;
+    for (let j = i - lookback + 1; j <= i; j++) {
+      const other = values[j];
+      if (other != null && Number.isFinite(other) && other > value) {
+        isWindowMax = false;
+        break;
+      }
+    }
+    if (!isWindowMax) continue;
+
+    // 峰值后 confirmLag 根全部低于峰值，才算确认（使用真实比值，避免显示裁剪的 null 误判）
+    let confirmed = true;
+    for (let j = i + 1; j <= i + lag; j++) {
+      const next = confirmValues[j];
+      if (next == null || !Number.isFinite(next) || next >= value) {
+        confirmed = false;
+        break;
+      }
+    }
+    if (confirmed) result.push({ peakIndex: i, confirmIndex: i + lag });
+  }
+
+  return result;
+};
+
+/** 峰值行配对：峰值位置的数据行 + 确认位置（买点日）的数据行 */
+export interface ConfirmedPeakRowPair<T> {
+  peakIndex: number;
+  confirmIndex: number;
+  peakRow: T;
+  confirmRow: T;
+}
+
+/**
+ * 将 findConfirmedPeaks 返回的索引映射为峰值行/确认行。
+ * 索引越界时跳过该条，保证表格数据安全。
+ */
+export const mapConfirmedPeakRows = <T>(
+  rows: T[],
+  peaks: ConfirmedPeak[],
+): ConfirmedPeakRowPair<T>[] =>
+  peaks.flatMap(({ peakIndex, confirmIndex }) => {
+    const peakRow = rows[peakIndex];
+    const confirmRow = rows[confirmIndex];
+    return peakRow === undefined || confirmRow === undefined
+      ? []
+      : [{ peakIndex, confirmIndex, peakRow, confirmRow }];
+  });
 
 // 周期类型
 export type KLinePeriod = 'weekly' | 'monthly' | 'quarterly';
@@ -398,7 +565,9 @@ export const aggregateKLineByPeriod = (params: {
     switch (period) {
       case 'weekly':
         const week = date.week(); // 周数
-        key = `${year}-W${week}`;
+        // 使用 ISO weekYear 而非日历 year：跨年周（如 2014-12-29~2015-01-02）属同一周，
+        // 若用 year() 会被拆成两组、并与同年 12 月合并，导致周K日期错位、周RSI6 取到错误的上一完成周
+        key = `${date.weekYear()}-W${week}`;
         break;
       case 'monthly':
         const month = date.month() + 1; // 月份从1开始
@@ -427,8 +596,8 @@ export const aggregateKLineByPeriod = (params: {
   Object.values(groups).forEach(group => {
     if (group.length === 0) return;
 
-    // 按日期排序
-    group.sort((a, b) => new Date(a.日期).getTime() - new Date(b.日期).getTime());
+    // 按日期排序（用 moment 解析，兼容 YYYY-MM-DD / YYYYMMDD 两种输入）
+    group.sort((a, b) => moment(a.日期).valueOf() - moment(b.日期).valueOf());
 
     // 计算K线数据
     const firstDay = group[0];
@@ -453,8 +622,8 @@ export const aggregateKLineByPeriod = (params: {
     kLineData.push(kLine);
   });
 
-  // 按日期排序
-  kLineData.sort((a, b) => new Date(a.日期).getTime() - new Date(b.日期).getTime());
+  // 按日期排序（用 moment 解析，兼容 YYYY-MM-DD / YYYYMMDD 两种输入）
+  kLineData.sort((a, b) => moment(a.日期).valueOf() - moment(b.日期).valueOf());
 
   return kLineData;
 };
@@ -478,11 +647,180 @@ export const calculateMonthlyRSI6 = (dailyData: KLineData[]) => {
   return calculateRSI({ data: monthlyData, closeKey: '收盘', period: 6 });
 }
 
-// 计算季K数据的RSI6值
+/**
+ * 逐根返回 Wilder RSI 的递推状态（处理完第 i 根后的 avgGain/avgLoss）
+ * 与 calculateRSI 的递推完全一致：第 period 根为简单平均种子，之后为递推；前 period 根无有效状态（null）
+ */
+const computeWilderStates = (
+  closes: number[],
+  period: number,
+): ({ avgGain: number; avgLoss: number } | null)[] => {
+  const states: ({ avgGain: number; avgLoss: number } | null)[] = closes.map(() => null);
+  if (closes.length < period + 1) return states;
+
+  const gains: number[] = [];
+  const losses: number[] = [];
+  for (let i = 1; i < closes.length; i++) {
+    const change = closes[i] - closes[i - 1];
+    gains.push(Math.max(change, 0));
+    losses.push(Math.max(-change, 0));
+  }
+
+  // 初始 period 根：简单平均
+  let avgGain = 0;
+  let avgLoss = 0;
+  for (let j = 0; j < period; j++) {
+    avgGain += gains[j];
+    avgLoss += losses[j];
+  }
+  avgGain /= period;
+  avgLoss /= period;
+  states[period] = { avgGain, avgLoss };
+
+  for (let i = period + 1; i < closes.length; i++) {
+    avgGain = (avgGain * (period - 1) + gains[i - 1]) / period;
+    avgLoss = (avgLoss * (period - 1) + losses[i - 1]) / period;
+    states[i] = { avgGain, avgLoss };
+  }
+  return states;
+};
+
+/**
+ * 计算「周期初→当日」截断口径的周/月 RSI6（逐日产出，消除未来函数）
+ *
+ * 背景：整周期口径下每个周/月只产出一根周期 K 线（日期=周期最后一天）。若把周期内某一天
+ * 直接匹配到该周期末 K 线，等于用该天之后（未来）的数据计算当天的周 RSI6 / 月 RSI6。本函数改为逐日产出：
+ *
+ * - 已完成周期（前 k 根周期 K 线）作为历史前缀，其 Wilder 递推状态在周期末固定；
+ * - 当日所在周期按「周期初→当日」截断（截断周期收盘 = 当日收盘）；
+ * - 用前缀状态对「截断周期相对上一已完成周期的涨跌」做一次 Wilder 递推，得到当日周/月 RSI6；
+ * - 周期末当天的截断周期即整周期 K 线，结果与整周期口径一致；
+ * - 前 period 根周期（预热点，无有效前缀状态）内的日不输出。
+ *
+ * 复杂度 O(日 K 数 × log 周期数)：每天的周期定位用二分查找，不依赖 dailyData 的输入顺序。
+ *
+ * @param dailyData 日 K 数据（输入顺序不限，逐日独立定位其所属周期）
+ * @param periodBars 对应周期的 K 线序列（须按日期升序），通常直接传入 calculateWeeklyRSI6 / calculateMonthlyRSI6 的结果
+ * @returns 逐日序列（日期=日 K 日期，收盘=当日收盘，__RSI6__=当日截断口径的周/月 RSI6）
+ */
+export const calculateAsOfPeriodRSI6 = (
+  dailyData: KLineData[],
+  periodBars: KLineData[],
+): (KLineData & { __RSI6__: number })[] => {
+  const period = 6;
+  if (!dailyData?.length || !periodBars || periodBars.length < period + 1) return [];
+
+  const barCloses = periodBars.map(bar => bar.收盘 as number);
+  const states = computeWilderStates(barCloses, period);
+
+  // k === period 时的种子：前 period-1 个「已完成周期之间」涨跌累计（固定不变）
+  let seedGain = 0;
+  let seedLoss = 0;
+  for (let j = 1; j < period; j++) {
+    const change = barCloses[j] - barCloses[j - 1];
+    seedGain += Math.max(change, 0);
+    seedLoss += Math.max(-change, 0);
+  }
+
+  // 二分查找：首个「周期末日期 >= 当日」的周期 K 线下标；当日晚于最后一根周期 K 线时返回 periodBars.length
+  // 逐日独立定位（O(log 周期数)），不使用单调指针，因此不依赖 dailyData 的输入顺序
+  const findPeriodIndex = (dayDate: string): number => {
+    let lo = 0;
+    let hi = periodBars.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (periodBars[mid].日期 < dayDate) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    return lo;
+  };
+
+  const result: (KLineData & { __RSI6__: number })[] = [];
+  for (const day of dailyData) {
+    // 定位当日所在周期
+    const k = findPeriodIndex(day.日期);
+    if (k >= periodBars.length) continue; // 当日晚于最后一根周期 K 线，无对应周期
+    if (k < period) continue; // 预热点：无有效前缀状态
+
+    const close = day.收盘 as number;
+    // 截断周期相对「上一已完成周期」的涨跌
+    const change = close - barCloses[k - 1];
+    let avgGain: number;
+    let avgLoss: number;
+    if (k === period) {
+      // 首个有效周期：简单平均种子（前 period-1 个变化固定，第 period 个为截断变化）
+      avgGain = (seedGain + Math.max(change, 0)) / period;
+      avgLoss = (seedLoss + Math.max(-change, 0)) / period;
+    } else {
+      const state = states[k - 1];
+      if (!state) continue;
+      avgGain = (state.avgGain * (period - 1) + Math.max(change, 0)) / period;
+      avgLoss = (state.avgLoss * (period - 1) + Math.max(-change, 0)) / period;
+    }
+    result.push({ 日期: day.日期, 收盘: close, __RSI6__: rsiFromAvgGainLoss(avgGain, avgLoss) });
+  }
+  return result;
+};
+
+/**
+ * 计算「季初→当月」截断口径的季 RSI6 序列（消除未来函数）
+ *
+ * 背景：整季口径每季只产出一根季 K 线（日期=季末），若把 1～2 月的月度点直接匹配到
+ * 该季末 K 线，等于用 3 月（未来）数据计算 1 月、2 月的季 RSI6。本函数改为逐月产出：
+ *
+ * - 取「已完成季度」的季末 K 线序列作为历史前缀（每季一根，收盘=该季最后一个月的收盘）；
+ * - 当前季度按「季初→当月」截断：前缀 + 当月收盘，构成「截至当月」的季 K 线序列；
+ * - 在该序列上计算 Wilder RSI6，取序列最后一点作为该月的季 RSI6；
+ * - 季末月（1～3 月取 3 月、4～6 月取 6 月 …）的截断季 K 线即整季 K 线，结果与整季口径一致；
+ * - 前缀不足 rsiWarmup 个已完成季度（RSI 尚不可信）的月份不输出，保证分位样本不含预热点。
+ *
+ * @returns 与月 K 线一一对应的季 RSI6 序列（日期=当月最后一条数据日期，__RSI6__=当月季 RSI6）
+ */
 export const calculateQuarterlyRSI6 = (dailyData: KLineData[]) => {
-  // 聚合日K数据为季K数据
-  const quarterlyData = aggregateKLineByPeriod({ dailyData, period: 'quarterly' });
-  return calculateRSI({ data: quarterlyData, closeKey: '收盘', period: 6 });
+  // 季初→当月 的截断序列以「月」为粒度，先聚合为月 K 线
+  const monthlyData = aggregateKLineByPeriod({ dailyData, period: 'monthly' });
+  if (monthlyData.length === 0) return [];
+
+  const closeKey = '收盘';
+  const result: (KLineData & { __RSI6__: number })[] = [];
+  // 已完成季度的季末 K 线（后续月份计算季 RSI6 的历史前缀）
+  const completedQuarters: KLineData[] = [];
+
+  let i = 0;
+  while (i < monthlyData.length) {
+    const quarterKey = getQuarterKey(monthlyData[i].日期);
+
+    // 收集当前自然季度内的所有月份
+    const quarterMonths: KLineData[] = [];
+    let j = i;
+    while (j < monthlyData.length && getQuarterKey(monthlyData[j].日期) === quarterKey) {
+      quarterMonths.push(monthlyData[j]);
+      j += 1;
+    }
+
+    // 前缀不足预热数时 RSI 不可信，整季跳过（不参与分位与买卖判定）
+    if (completedQuarters.length >= rsiWarmup) {
+      // 季内每个月：已完成季度前缀 + 当月收盘 => 「季初→当月」截断季序列
+      for (const month of quarterMonths) {
+        const rsiSeries = calculateRSI({
+          data: [...completedQuarters, month],
+          closeKey,
+          period: 6,
+        });
+        if (!rsiSeries.length) continue;
+        result.push({ ...month, __RSI6__: rsiSeries[rsiSeries.length - 1].__RSI6__ });
+      }
+    }
+
+    // 本季度已走完：其季末 K 线（季内最后一个月）进入历史前缀
+    completedQuarters.push(quarterMonths[quarterMonths.length - 1]);
+    i = j;
+  }
+
+  return result;
 }
 
 // 计算周期（日、周、月、季）K线的RSI6值
@@ -839,41 +1177,53 @@ export const calculateAnnualizedReturn = (
   return Number((((Math.pow(growth, 365 / holdingDays)) - 1) * 100).toFixed(2));
 };
 
-// 在周期 RSI 映射中查找匹配给定日期的值
-const findMatchingPeriodRSI = (
-  rsiMap: Map<string, number>,
-  matchFn: (date: moment.Moment) => boolean,
-): number => {
-  for (const [date, rsi] of rsiMap.entries()) {
-    if (matchFn(moment(date))) {
-      return rsi;
-    }
+/**
+ * 判断「买入&卖出一一配对」在候选卖点是否达到最低收益率门槛
+ *
+ * 门槛口径按持有期分两段（门槛与分界均可配置，见 appConfig.rsi.sellMinReturnPct / annualizeMinHoldingDays）：
+ * - 持有不足年化分界天数（当前配置 1 天，该分支实际不会命中）：要求区间收益率 ≥ 门槛；
+ * - 持有满年化分界天数及以上（当前配置下为全部持有期）：要求年化收益率 ≥ 门槛（年化为 null 视为不满足）。
+ *
+ * @param returnRate 区间收益率（%，卖出价 vs 第一次买入价）
+ * @param holdingDays 持有天数（自然日）
+ * @param minReturnPct 最低收益率门槛（%）
+ */
+const isPairSellReturnSatisfied = (
+  returnRate: number,
+  holdingDays: number,
+  minReturnPct: number,
+): boolean => {
+  if (holdingDays >= RSI_ANNUALIZE_MIN_HOLDING_DAYS) {
+    const annualized = calculateAnnualizedReturn(returnRate, holdingDays);
+    return annualized != null && annualized >= minReturnPct;
   }
-  return 100; // 默认为 100，不满足条件
+  return returnRate >= minReturnPct;
 };
 
-// 获取日期的各周期（日/周/月/季）RSI值
+/**
+ * 获取某日的各周期（日/周/月/季）RSI6 值
+ *
+ * 周/月/季均使用「周期初→当日」截断口径（消除未来函数）：
+ * - weeklyRSIMap / monthlyRSIMap 键为「日 K 日期 YYYY-MM-DD」，值为当日截断口径的周/月 RSI6
+ *   （由 calculateAsOfPeriodRSI6 逐日产出）
+ * - quarterlyRSIMap 键为「YYYY-MM」，值为当月「季初→当月」截断口径的季 RSI6
+ * 缺失时取 100（不满足任何买入条件），与旧实现的默认值保持一致
+ */
 export const getPeriodRSIValues = (
   dailyRSIData: KLineData, // 日K数据
-  weeklyRSIMap: Map<string, number>, // 周K RSI map映射
-  monthlyRSIMap: Map<string, number>, // 月K RSI map映射
-  quarterlyRSIMap: Map<string, number>, // 季K RSI map映射
+  weeklyRSIMap: Map<string, number>, // 当日截断口径周RSI6映射（键 YYYY-MM-DD）
+  monthlyRSIMap: Map<string, number>, // 当日截断口径月RSI6映射（键 YYYY-MM-DD）
+  quarterlyRSIMap: Map<string, number>, // 当月截断口径季RSI6映射（键 YYYY-MM）
 ) => {
   const dayDate = moment(dailyRSIData.日期);
   const dailyRSIValue = dailyRSIData['__RSI6__'];
 
-  const weeklyRSIValue = findMatchingPeriodRSI(weeklyRSIMap, weekDate =>
-    weekDate.year() === dayDate.year() && weekDate.week() === dayDate.week(),
-  );
+  const dayKey = dayDate.format('YYYY-MM-DD');
+  const dayMonthKey = dayDate.format('YYYY-MM');
 
-  const monthlyRSIValue = findMatchingPeriodRSI(monthlyRSIMap, monthDate =>
-    monthDate.year() === dayDate.year() && monthDate.month() === dayDate.month(),
-  );
-
-  const quarter = Math.floor((dayDate.month()) / 3) + 1;
-  const quarterlyRSIValue = findMatchingPeriodRSI(quarterlyRSIMap, quarterDate =>
-    quarterDate.year() === dayDate.year() && Math.floor((quarterDate.month()) / 3) + 1 === quarter,
-  );
+  const weeklyRSIValue = weeklyRSIMap.get(dayKey) ?? 100;
+  const monthlyRSIValue = monthlyRSIMap.get(dayKey) ?? 100;
+  const quarterlyRSIValue = quarterlyRSIMap.get(dayMonthKey) ?? 100;
 
   return { dailyRSIValue, weeklyRSIValue, monthlyRSIValue, quarterlyRSIValue };
 };
@@ -890,10 +1240,24 @@ export const computeRSIRecommendations = (params: {
   if (!dailyRSI || dailyRSI.length === 0) {
     return [];
   }
-  // 构建周期数据的映射，键为日期，值为对应的RSI6
-  const weeklyRSIMap = new Map(weeklyRSI.map(item => [moment(item.日期).format('YYYY-MM-DD'), item.__RSI6__]));
-  const monthlyRSIMap = new Map(monthlyRSI.map(item => [moment(item.日期).format('YYYY-MM-DD'), item.__RSI6__]));
-  const quarterlyRSIMap = new Map(quarterlyRSI.map(item => [moment(item.日期).format('YYYY-MM-DD'), item.__RSI6__]));
+  // 日→周、周→月 亦采用「周期初→当日」截断口径（消除未来函数）：
+  // 不再把周期内某一天直接匹配到周期末 K 线，而是逐日重算当天的周/月 RSI6（键为日 K 日期）
+  const weeklyRSIMap = new Map(
+    calculateAsOfPeriodRSI6(dailyRSI, weeklyRSI).map(item => [
+      moment(item.日期).format('YYYY-MM-DD'),
+      item.__RSI6__,
+    ]),
+  );
+  const monthlyRSIMap = new Map(
+    calculateAsOfPeriodRSI6(dailyRSI, monthlyRSI).map(item => [
+      moment(item.日期).format('YYYY-MM-DD'),
+      item.__RSI6__,
+    ]),
+  );
+  // 季RSI6 为「季初→当月」截断口径（与月 K 线一一对应）：键为 YYYY-MM
+  const quarterlyRSIMap = new Map(
+    quarterlyRSI.map(item => [moment(item.日期).format('YYYY-MM'), item.__RSI6__]),
+  );
 
   // 过滤日K数据并计算推荐级别
   const aaa =  dailyRSI.map(dailyRSIData => {
@@ -1152,33 +1516,140 @@ export const calculateHoldingReturnRate = (
   return Number((((sellClose - buyClose) / buyClose) * 100).toFixed(2));
 };
 
-/** RSI 预热点数：calculateRSI 前 rsiWarmup 个点为固定值 50（无统计意义），计算分位时剔除 */
-export const rsiWarmup = 6;
-
-/** 月&季 RSI6 共振买入级别规则：星级 → 历史分位阈值（月/季 RSI6 均需低于此分位） */
-export const MQ_LEVEL_RULES: { level: number; percentile: number }[] = [
-  { level: 5, percentile: 3 },
-  { level: 3, percentile: 5 },
-  { level: 1, percentile: 10 },
-];
-
-/** 月RSI6 卖出分位：月RSI6 突破该历史分位时满足卖出条件之一 */
-export const MONTHLY_RSI_SELL_PERCENTILE = 85;
-/** 季RSI6 卖出分位：季RSI6 突破该历史分位时满足卖出条件之一 */
-export const QUARTERLY_RSI_SELL_PERCENTILE = 85;
-
 // ============================================================
-// 单周期 RSI6 百分位策略（周 / 月，规则一致，仅周期与分位常量不同）
+// RSI 策略参数（统一配置见 @/config/appConfig 的 rsi 段）
+// 此处仅做本地解构，避免改动内部既有引用；对外请直接使用 appConfig。
 // ============================================================
+const rsiConfig = appConfig.rsi;
+const {
+  warmup: rsiWarmup,
+  asOfWindowMonths: RSI_ASOF_WINDOW_MONTHS,
+  minSampleCount: MQ_MIN_SAMPLE_MONTHS,
+  sellMinReturnPct: MQ_SELL_MIN_RETURN_PCT,
+  annualizeMinHoldingDays: RSI_ANNUALIZE_MIN_HOLDING_DAYS,
+} = rsiConfig;
+const {
+  levelRules: MQ_LEVEL_RULES,
+  monthlySellPercentile: MONTHLY_RSI_SELL_PERCENTILE,
+  quarterlySellPercentile: QUARTERLY_RSI_SELL_PERCENTILE,
+  sellMinHoldingDays: MQ_SELL_MIN_HOLDING_DAYS,
+  trancheCount: MQ_SELL_TRANCHE_COUNT,
+  trancheIntervalDays: MQ_SELL_TRANCHE_INTERVAL_DAYS,
+} = rsiConfig.monthlyQuarterly;
+const SINGLE_PERIOD_SELL_MIN_RETURN_PCT = rsiConfig.sellMinReturnPct;
+const SINGLE_PERIOD_MIN_SAMPLE_COUNT = rsiConfig.minSampleCount;
 
-/** 周RSI6 买入分位：周RSI6 触及（≤）该历史分位时建仓/加仓（可配置） */
-export const WEEKLY_RSI_BUY_PERCENTILE = 1;
-/** 周RSI6 卖出分位：周RSI6 触及（≥）该历史分位且收益率＞0 时卖出（可配置） */
-export const WEEKLY_RSI_SELL_PERCENTILE = 90;
-/** 月RSI6 买入分位：月RSI6 触及（≤）该历史分位时建仓/加仓（可配置） */
-export const MONTHLY_RSI_PCT_BUY_PERCENTILE = 3;
-/** 月RSI6 卖出分位：月RSI6 触及（≥）该历史分位且收益率＞0 时卖出（可配置） */
-export const MONTHLY_RSI_PCT_SELL_PERCENTILE = 90;
+
+/**
+ * 滚动窗口分位读取器（as-of）：
+ * 按时间顺序 push 当前样本，读取时只用窗口内「当期及之前」的样本（含当期），不含未来数据；
+ * 超出近 windowMonths 个月的旧样本会自动移出窗口，但至少保留 minKeep 个样本，
+ * 对应「历史不足 10 年但满 60 个月时用全部历史回测」。
+ */
+interface RollingPercentileReader {
+  /** 追加一个样本（保持内部有序，二分插入），date 为样本所属日期 */
+  push: (value: number, date: string) => void;
+  /** 读取当前窗口的分位值（两位小数，最近秩口径与 calculatePercentile 一致） */
+  read: (percentile: number) => number;
+  /** 当前窗口有效样本数 */
+  size: () => number;
+}
+
+const createRollingPercentileReader = (
+  minKeep = MQ_MIN_SAMPLE_MONTHS,
+  windowMonths = RSI_ASOF_WINDOW_MONTHS,
+): RollingPercentileReader => {
+  const sorted: number[] = [];
+  const queue: { value: number; time: number }[] = [];
+
+  /** 从有序数组中移除一个指定值（重复值任意移除一个即可） */
+  const removeValue = (value: number): void => {
+    let low = 0;
+    let high = sorted.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if (sorted[middle] < value) low = middle + 1;
+      else high = middle;
+    }
+    if (sorted[low] === value) sorted.splice(low, 1);
+  };
+
+  return {
+    push(value: number, date: string): void {
+      let low = 0;
+      let high = sorted.length;
+      while (low < high) {
+        const middle = (low + high) >> 1;
+        if (sorted[middle] < value) low = middle + 1;
+        else high = middle;
+      }
+      sorted.splice(low, 0, value);
+
+      const current = moment(date);
+      queue.push({ value, time: current.valueOf() });
+
+      // 窗口左界：当期往前 windowMonths 个月；只保留晚于左界的样本
+      const cutoff = current.clone().subtract(windowMonths, 'months').valueOf();
+      while (queue.length > minKeep && queue[0].time <= cutoff) {
+        const removed = queue.shift();
+        if (removed) removeValue(removed.value);
+      }
+    },
+    read(percentile: number): number {
+      const index = Math.ceil((percentile / 100) * sorted.length) - 1;
+      return Number(sorted[Math.max(0, index)].toFixed(2));
+    },
+    size(): number {
+      return sorted.length;
+    },
+  };
+};
+
+/** 读取当前窗口的买入分级阈值与卖出阈值（as-of 快照） */
+const readMonthlyQuarterlyThresholds = (
+  monthlyReader: RollingPercentileReader,
+  quarterlyReader: RollingPercentileReader,
+): {
+  thresholds: Record<number, { monthly: number; quarterly: number }>;
+  sellThresholds: { monthly: number; quarterly: number };
+} => {
+  const thresholds: Record<number, { monthly: number; quarterly: number }> = {};
+  for (const { level, monthlyPercentile, quarterlyPercentile } of MQ_LEVEL_RULES) {
+    thresholds[level] = {
+      monthly: monthlyReader.read(monthlyPercentile),
+      quarterly: quarterlyReader.read(quarterlyPercentile),
+    };
+  }
+  return {
+    thresholds,
+    sellThresholds: {
+      monthly: monthlyReader.read(MONTHLY_RSI_SELL_PERCENTILE),
+      quarterly: quarterlyReader.read(QUARTERLY_RSI_SELL_PERCENTILE),
+    },
+  };
+};
+
+/** 归一化分批次数（配置见 appConfig.rsi.monthlyQuarterly.trancheCount）：非法值兜底为 1，保证至少卖出一次 */
+export const getSellTrancheCount = (): number => Math.max(1, Math.floor(MQ_SELL_TRANCHE_COUNT));
+
+/** 归一化分批间隔（配置见 appConfig.rsi.monthlyQuarterly.trancheIntervalDays）：强制 > 1 天，避免多批落在同一交易日 */
+export const getSellTrancheIntervalDays = (): number =>
+  Math.max(2, Math.floor(MQ_SELL_TRANCHE_INTERVAL_DAYS));
+
+/** 分批卖出列名：如「第2批卖出收益率（T+7天）」，天数随间隔配置自动变化 */
+export const getSellTrancheColumnTitle = (index: number): string =>
+  `第${index}批卖出收益率（T+${(index - 1) * getSellTrancheIntervalDays()}天）`;
+
+/**
+ * 归一化最低持有天数（配置见 appConfig.rsi.monthlyQuarterly.sellMinHoldingDays）：非法值兜底为 1 天。
+ *
+ * 说明：持有未满该天数时，即使月/季 RSI6 同时触及卖出分位、收益率也达门槛也不卖出；
+ * 该值同时作为本策略「年化收益率」的计算门槛（未满则不计算，页面/导出展示为 --）；
+ * 仅作用于「月&季 RSI6 百分位策略」的 ★5 配对，周/月单周期策略不受影响。
+ */
+export const getMinSellHoldingDays = (): number =>
+  Math.max(1, Math.floor(MQ_SELL_MIN_HOLDING_DAYS));
+
 
 /** 单周期百分位策略持仓期间的重复买入（加仓）记录（仅标记，不参与卖出收益配对） */
 export interface SinglePeriodPercentileExtraBuy {
@@ -1211,6 +1682,8 @@ export interface SinglePeriodPercentileParams {
   sellPercentile: number;
   warmup?: number;
   closeValueType?: CloseValueType;
+  /** 产生信号前所需的最小有效样本数（默认 SINGLE_PERIOD_MIN_SAMPLE_COUNT） */
+  minSamples?: number;
 }
 
 /** 单周期百分位买卖阈值（买入/卖出分位对应的 RSI6 值） */
@@ -1225,10 +1698,14 @@ export interface PercentileThresholdPair {
  * 一次计算同时产出「买卖阈值」与「交易配对」，供表格、阈值参考线、规则文案复用同一份结果，
  * 避免调用方各自重算分位阈值导致口径漂移。
  *
- * 口径：剔除前 warmup 个预热点 → 按历史分位计算买入/卖出阈值 →
- * 空仓触及（≤）买入分位建仓；持仓期间触及（≤）即加仓；触及（≥）卖出分位且相对首次买入盈利时卖出。
+ * 口径（as-of 滚动窗口）：剔除前 warmup 个预热点后，每一期先把当期 RSI6 追加进窗口，
+ * 再用「当期及之前、近 RSI_ASOF_WINDOW_MONTHS 个月」的样本读取买入/卖出阈值（含当期自身），
+ * 不使用该期之后的数据；历史不足 10 年但满 60 个样本时使用全部历史；
+ * 有效样本不足 minSamples 时不产生信号；空仓触及（≤）买入分位建仓，
+ * 持仓期间触及（≤）即加仓，触及（≥）卖出分位且收益率达门槛时卖出。
  *
- * @returns { threshold, trades }；有效数值为空时返回 { threshold: null, trades: [] }
+ * @returns { threshold, trades }：threshold 为最新一期窗口快照（仅供图表水平参考线展示）；
+ *          有效数值为空时返回 { threshold: null, trades: [] }
  */
 export const analyzeSinglePeriodPercentile = (
   params: SinglePeriodPercentileParams,
@@ -1239,17 +1716,12 @@ export const analyzeSinglePeriodPercentile = (
     sellPercentile,
     warmup = rsiWarmup,
     closeValueType = 'price',
+    minSamples = SINGLE_PERIOD_MIN_SAMPLE_COUNT,
   } = params;
 
   const arr = (rsiData as RsiKLineData[]).slice(warmup);
-  const values = arr
-    .map((item) => item.__RSI6__)
-    .filter((value): value is number => typeof value === 'number');
-
-  if (!values.length) return { threshold: null, trades: [] };
-
-  const buyThreshold = roundPercentile(values, buyPercentile);
-  const sellThreshold = roundPercentile(values, sellPercentile);
+  // 近 RSI_ASOF_WINDOW_MONTHS 个月滚动窗口；历史不足 10 年时自然退化为全部历史
+  const reader = createRollingPercentileReader(minSamples);
 
   const trades: SinglePeriodPercentileTrade[] = [];
   let holding: {
@@ -1264,6 +1736,14 @@ export const analyzeSinglePeriodPercentile = (
     const rsi = item.__RSI6__;
     if (typeof rsi !== 'number') continue;
 
+    // 先入样本（含当期），再读取当期阈值：保证只使用当期及之前、近 10 年窗口内的数据
+    reader.push(rsi, item.日期);
+    // 有效样本不足时不产生任何买卖信号，避免早期分位阈值退化为窗口极值
+    if (reader.size() < minSamples) continue;
+
+    const buyThreshold = reader.read(buyPercentile);
+    const sellThreshold = reader.read(sellPercentile);
+
     if (!holding) {
       // 空仓期间 RSI6 触及（≤）买入分位时建仓
       if (rsi <= buyThreshold) {
@@ -1271,7 +1751,8 @@ export const analyzeSinglePeriodPercentile = (
           buyDate: item.日期,
           buyRsi: rsi,
           buyPrice: item.收盘,
-          buyTime: new Date(item.日期).getTime(),
+          // 用 moment 解析日期，兼容 YYYY-MM-DD / YYYYMMDD；new Date('YYYYMMDD') 会得到 Invalid Date
+          buyTime: moment(item.日期).valueOf(),
           extraBuys: [],
         };
       }
@@ -1287,13 +1768,16 @@ export const analyzeSinglePeriodPercentile = (
       });
     }
 
-    // 卖出只与第一次买入配对；超买但未盈利则继续持有
+    // 卖出只与第一次买入配对；满足 RSI 超买条件且收益率达门槛才平仓（按年化收益率判定，分界见 appConfig.rsi.annualizeMinHoldingDays）
     const returnRate = calculateHoldingReturnRate(holding.buyPrice, item.收盘, closeValueType);
-    if (rsi >= sellThreshold && returnRate > 0) {
-      const holdingDays = Math.max(
-        1,
-        Math.round((new Date(item.日期).getTime() - holding.buyTime) / (24 * 60 * 60 * 1000)),
-      );
+    const holdingDays = Math.max(
+      1,
+      Math.round((moment(item.日期).valueOf() - holding.buyTime) / (24 * 60 * 60 * 1000)),
+    );
+    if (
+      rsi >= sellThreshold &&
+      isPairSellReturnSatisfied(returnRate, holdingDays, SINGLE_PERIOD_SELL_MIN_RETURN_PCT)
+    ) {
       const tradeReturnRate = Number(returnRate.toFixed(2));
       trades.push({
         buyDate: holding.buyDate,
@@ -1305,7 +1789,9 @@ export const analyzeSinglePeriodPercentile = (
         holdingDays,
         returnRate: tradeReturnRate,
         annualizedReturn:
-          holdingDays >= 365 ? calculateAnnualizedReturn(tradeReturnRate, holdingDays) : null,
+          holdingDays >= RSI_ANNUALIZE_MIN_HOLDING_DAYS
+            ? calculateAnnualizedReturn(tradeReturnRate, holdingDays)
+            : null,
         status: '已平仓',
         extraBuys: holding.extraBuys,
       });
@@ -1330,7 +1816,17 @@ export const analyzeSinglePeriodPercentile = (
     });
   }
 
-  return { threshold: { buy: buyThreshold, sell: sellThreshold }, trades };
+  if (reader.size() === 0) return { threshold: null, trades: [] };
+
+  // 最新一期窗口快照（含最新一期自身），仅供图表水平参考线展示；
+  // 历史各期实际判定使用各自当期的 as-of 阈值，不回填、不重绘
+  return {
+    threshold: {
+      buy: reader.read(buyPercentile),
+      sell: reader.read(sellPercentile),
+    },
+    trades,
+  };
 };
 
 /**
@@ -1343,7 +1839,25 @@ export const computeSinglePeriodPercentileTrades = (
   params: SinglePeriodPercentileParams,
 ): SinglePeriodPercentileTrade[] => analyzeSinglePeriodPercentile(params).trades;
 
-/** 月+季 RSI6 共振买点（月/季 RSI6 同时跌破历史分位，带推荐级别） */
+/** 月&季 RSI6 ★5 单批卖出明细 */
+export interface SellTrancheDetail {
+  /** 批次序号，从 1 开始 */
+  index: number;
+  /** 目标卖出日（信号日 + (index-1) × 间隔天数，YYYY-MM-DD） */
+  targetDate: string;
+  /** 实际卖出日（>= 目标日且晚于上一批的首个交易日；无数据时不填） */
+  sellDate?: string;
+  /** 本批卖出价（与买入价同口径） */
+  sellPrice?: number;
+  /** 本批持有天数（买入日 → 实际卖出日） */
+  holdingDays?: number;
+  /** 本批收益率（%） */
+  returnRate?: number;
+  /** 是否已执行（后续行情数据不足时为 false） */
+  executed: boolean;
+}
+
+/** 月+季 RSI6 共振买点（月/季 RSI6 同时跌破「截至当月、近 10 年」的 as-of 滚动分位，带推荐级别） */
 export interface MonthlyQuarterlyPercentileBuyPoint {
   日期: string;
   收盘: number;
@@ -1351,34 +1865,86 @@ export interface MonthlyQuarterlyPercentileBuyPoint {
   quarterlyRsi: number;
   /** 推荐星级 1/3/5 */
   level: number;
-  /** 卖出日期（★5买点与卖点按时间顺序配对，未配对的为空） */
+  /** 卖出日期（★5买点与卖点按时间顺序配对，未配对的为空；分批卖出时为第 1 批信号日） */
   sellDate?: string;
   /** 卖出时点月RSI6 */
   sellMonthlyRsi?: number;
   /** 卖出时点季RSI6 */
   sellQuarterlyRsi?: number;
-  /** 卖出价（卖出月收盘价） */
+  /** 卖出价（卖出信号日收盘价） */
   sellPrice?: number;
-  /** 持有天数（卖出月 - 买入月，至少1天） */
+  /** 持有天数（买入月 - 首笔卖出信号日，至少1天） */
   holdingDays?: number;
-  /** 收益率（%） */
+  /** 平均收益率（%）：各批已执行卖出收益率的算术平均 */
   returnRate?: number;
   /** 年化收益率（%），calculateAnnualizedReturn 可能返回 null */
   annualizedReturn?: number | null;
+  /** 分批卖出明细（批次 = 1 时为单条，等同一次性卖出） */
+  sellTranches?: SellTrancheDetail[];
   /**
    * 最大回撤率（%，正值）：以买入价为基准，买入之后（已配对的至卖出日，未卖出则至最新交易日）
    * 低于买入价的最大跌幅；全程未跌破买入价时无值（展示为 -）
    */
   maxDrawdown?: number;
-  /** 最大回撤的日期（回撤最低点所在交易日） */
+  /** 最大回撤最低点日期（回撤最低点所在交易日） */
   maxDrawdownDate?: string;
   /** 最大回撤的收盘价（回撤最低点的收盘价） */
   maxDrawdownClose?: number;
   /** 买点到最大回撤最低点的天数（日历天） */
   daysToMaxDrawdown?: number;
-  /** Calmar 比率 = 年化收益率 / 最大回撤率（持有不足1年或无回撤时无值） */
+  /**
+   * 回本日期：最大回撤最低点之后、首个收盘价 ≥ 买入价的交易日（等于买入价即不亏钱）；
+   * 区间内一直未回本（含卖出时仍亏损、或持有到最新交易日仍在成本线下）时无值（展示为 -）
+   */
+  recoveryDate?: string;
+  /**
+   * 最大回本持有天数（日历天）：持有期内多次跌破买入价时，取「跌破 → 回本」最长一段的天数；
+   * 只统计已回本的连续水下区间，全程未跌破买入价或最后一段仍未回本且无其它已回本区间时无值（展示为 -）
+   */
+  maxRecoveryHoldingDays?: number;
+  /** Calmar 比率 = 年化收益率 / 最大回撤率（年化收益率为空或无回撤时无值） */
   calmarRatio?: number;
+  // ---- 「持有至今」信息：仅补充在尚未配对卖出的买点上，供「买入计划」导出使用 ----
+  /** 最新交易日日期（YYYY-MM-DD） */
+  latestDate?: string;
+  /** 最新交易日收盘值（与买入价同口径，用于计算持有至今收益率） */
+  latestClose?: number;
+  /** 持有至今天数（买入日 → 最新交易日，至少1天） */
+  holdingDaysToNow?: number;
+  /** 持有至今收益率（%，最新交易日 vs 买入价，可正可负） */
+  returnRateToNow?: number;
 }
+
+/**
+ * 为买点补充「当前价格」与（未卖出时的）「持有至今」信息
+ *
+ * - 所有买点：`latestDate` / `latestClose` = 最新交易日及其收盘值（导出「当前价格」列使用）；
+ * - 未配对卖出（无 sellDate）的买点另补：持有天数 = 买入日 → 最新交易日；
+ *   持有至今收益率 = 最新交易日收盘值 vs 买入价（可为负）。
+ *
+ * 已配对卖出的买点不补「持有至今」口径，避免与「卖出 vs 买入」的已实现口径混淆。
+ *
+ * @param points 买点明细（原地补充）
+ * @param latestDate 最新交易日日期
+ * @param latestClose 最新交易日收盘值
+ * @param closeValueType 收盘值语义（基金为 cumulativeReturn）
+ */
+export const fillHoldingToNow = (
+  points: MonthlyQuarterlyPercentileBuyPoint[],
+  latestDate: string,
+  latestClose: number,
+  closeValueType: CloseValueType = 'price',
+): void => {
+  const latestNorm = moment(latestDate).format('YYYY-MM-DD');
+  const latestCloseValue = Number(latestClose.toFixed(2));
+  points.forEach(point => {
+    point.latestDate = latestNorm;
+    point.latestClose = latestCloseValue;
+    if (point.sellDate) return;
+    point.holdingDaysToNow = Math.max(1, moment(latestNorm).diff(moment(point.日期), 'days'));
+    point.returnRateToNow = calculateHoldingReturnRate(point.收盘, latestClose, closeValueType);
+  });
+};
 
 /** 带 RSI6 字段的 K 线数据（calculateRSI 在原 K 线上追加 __RSI6__） */
 type RsiKLineData = KLineData & { __RSI6__?: number | null };
@@ -1408,31 +1974,162 @@ export interface MonthlyQuarterlyPercentileParams {
   monthlyRSI6Data: KLineData[];
   quarterlyRSI6Data: KLineData[];
   warmup?: number;
+  /**
+   * 卖出取价序列（日频或接口原始频率，需含 日期 / 收盘）：
+   * 分批卖出按「信号日 + n×间隔」取首个 >= 目标日的交易日收盘价；
+   * 缺省时退化为用月线 (monthlyRSI6Data) 取价
+   */
+  priceSeries?: KLineData[];
   /** 收盘值语义，决定收益率计算公式，默认 price */
   closeValueType?: CloseValueType;
 }
 
 /** 月&季 RSI6 百分位策略分析结果（阈值 + 卖点 + 买点，一次计算全部产出） */
 export interface MonthlyQuarterlyPercentileResult {
-  /** 各级别买入分位阈值：★5=3% / ★3=5% / ★1=10% */
+  /** 各级别买入分位阈值（as-of：最新月近 10 年窗口快照，取值见 appConfig.rsi.monthlyQuarterly.levelRules） */
   thresholds: Record<number, { monthly: number; quarterly: number }>;
-  /** 卖出分位阈值（月/季分别可配置，默认 97%） */
+  /** 卖出分位阈值（as-of：最新月近 10 年窗口快照，月/季分别可配置，见 appConfig.rsi.monthlyQuarterly） */
   sellThresholds: { monthly: number; quarterly: number };
-  /** 买点列表（含配对的卖出信息） */
+  /** 买点列表（含配对的卖出信息；每个买点按「当月及之前近 10 年」的滚动窗口阈值判定） */
   buyPoints: MonthlyQuarterlyPercentileBuyPoint[];
 }
+
+/** 日期归一化为 YYYY-MM-DD（字符串比较依赖该格式） */
+const toDateKey = (date: string): string => moment(date).format('YYYY-MM-DD');
+
+/** 日历天差（至少 1 天） */
+const diffCalendarDays = (from: string, to: string): number =>
+  Math.max(1, moment(to).diff(moment(from), 'days'));
+
+/** 按日期升序的序列中，二分查找首个 date >= target 的下标 */
+const findFirstDateIndex = (series: { date: string }[], target: string): number => {
+  let low = 0;
+  let high = series.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (series[middle].date < target) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+};
+
+/** 分批卖出构建入参 */
+export interface SellTrancheParams {
+  /** 买入日期 */
+  buyDate: string;
+  /** 买入价（与卖出价同口径） */
+  buyClose: number;
+  /** 卖出信号日 */
+  signalDate: string;
+  /** 卖出信号日收盘价 */
+  signalClose: number;
+  /** 后续批次取价序列（日频或接口原始频率）；缺省时后续批次标记未执行 */
+  priceSeries?: KLineData[];
+  /** 收盘值语义（基金为 cumulativeReturn） */
+  closeValueType?: CloseValueType;
+}
+
+/**
+ * 构建「月&季 RSI6 ★5 分批卖出」明细
+ *
+ * - 第 1 批固定为卖出信号当日（T+0），价格取信号日收盘价；
+ * - 第 i 批目标日 = 信号日 + (i-1) × 间隔天数，目标日非交易日时顺延到下一个交易日的收盘价，
+ *   且必须严格晚于上一批实际卖出日（避免数据稀疏时重复取价）；
+ * - 后续行情不足（目标日之后没有数据）时该批 `executed = false`，不参与平均收益率统计。
+ */
+export const buildSellTranches = (params: SellTrancheParams): SellTrancheDetail[] => {
+  const {
+    buyDate,
+    buyClose,
+    signalDate,
+    signalClose,
+    priceSeries,
+    closeValueType = 'price',
+  } = params;
+  const count = getSellTrancheCount();
+  const intervalDays = getSellTrancheIntervalDays();
+  const buyDateKey = toDateKey(buyDate);
+
+  // 归一化并按日期升序（二分查找依赖有序），过滤无效收盘值
+  const series = (priceSeries ?? [])
+    .map((item) => ({ date: toDateKey(item.日期), close: item.收盘 }))
+    .filter((item) => Number.isFinite(item.close))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const tranches: SellTrancheDetail[] = [];
+  let lastSellDate = '';
+
+  for (let index = 1; index <= count; index += 1) {
+    const targetDate = moment(signalDate)
+      .add((index - 1) * intervalDays, 'days')
+      .format('YYYY-MM-DD');
+
+    // 第 1 批：卖出信号当日
+    if (index === 1) {
+      lastSellDate = toDateKey(signalDate);
+      tranches.push({
+        index,
+        targetDate,
+        sellDate: lastSellDate,
+        sellPrice: Number(signalClose.toFixed(2)),
+        holdingDays: diffCalendarDays(buyDateKey, lastSellDate),
+        returnRate: calculateHoldingReturnRate(buyClose, signalClose, closeValueType),
+        executed: true,
+      });
+      continue;
+    }
+
+    // 目标日可能非交易日：顺延到首个 >= 目标日且严格晚于上一批的实际卖出日
+    let position = findFirstDateIndex(series, targetDate);
+    while (position < series.length && series[position].date <= lastSellDate) {
+      position += 1;
+    }
+    const candidate = series[position];
+    if (!candidate) {
+      tranches.push({ index, targetDate, executed: false });
+      continue;
+    }
+
+    lastSellDate = candidate.date;
+    tranches.push({
+      index,
+      targetDate,
+      sellDate: candidate.date,
+      sellPrice: Number(candidate.close.toFixed(2)),
+      holdingDays: diffCalendarDays(buyDateKey, candidate.date),
+      returnRate: calculateHoldingReturnRate(buyClose, candidate.close, closeValueType),
+      executed: true,
+    });
+  }
+
+  return tranches;
+};
+
+/** 平均收益率：仅统计已执行批次，保留两位小数；无已执行批次时返回 undefined */
+export const summarizeSellTranches = (tranches: SellTrancheDetail[]): number | undefined => {
+  const rates = tranches
+    .filter((tranche) => tranche.executed && tranche.returnRate != null)
+    .map((tranche) => tranche.returnRate as number);
+  if (!rates.length) return undefined;
+  return Number((rates.reduce((sum, rate) => sum + rate, 0) / rates.length).toFixed(2));
+};
 
 /**
  * 分析「月 & 季 RSI6 百分位策略」
  *
  * 策略口径：
- * - 买入：月RSI6 与 季RSI6 同时低于各自历史分位阈值，按分位严度分级（★5=3% / ★3=5% / ★1=10%）
- * - 季度对齐：每个月取其「所在自然季度」的季末 RSI6 ——
- *   1～3 月取 3 月最晚季末值、4～6 月取 6 月最晚、7～9 月取 9 月最晚、10～12 月取 12 月最晚，
- *   与季RSI6 vh（step-before）阶梯折线、shared tooltip 的季度查表完全同口径；
- *   仅当所在季度季末点尚不存在（当前未走完的季度）时，回退最近一个已完成季度
- * - 卖出：持仓中（★5买点）且 月RSI6 与 季RSI6 同时突破各自卖出分位阈值，
- *   并且卖出价高于买入价（盈利）时才平仓；卖出价 <= 买入价时继续持有
+ * - 买入：月RSI6 与 季RSI6 同时低于各自分位阈值，按分位严度分级（默认 ★5=2% / ★3=5% / ★1=10%，见 appConfig.rsi.monthlyQuarterly.levelRules）
+ * - 分位阈值 as-of：判定某月时，阈值只用「该月及之前近 RSI_ASOF_WINDOW_MONTHS 个月（默认 120 个月 = 10 年）」
+ *   的 RSI 样本（含当月），不使用该月之后的数据 → 历史买点可复现，不含未来数据；
+ *   历史不足 10 年但满 60 个月时使用全部历史；有效样本不足 MQ_MIN_SAMPLE_MONTHS（默认 60 个月）时不产生信号
+ * - 季度对齐：每个月取「季初→当月」截断口径的季 RSI6（见 calculateQuarterlyRSI6）——
+ *   1 月只用 1 月数据、2 月用 1～2 月数据 …… 不再用未来的季末（3 月）数据回填，
+ *   与季RSI6 折线、shared tooltip 的季度查表完全同口径（均按「年月」匹配）
+ * - 卖出：持仓中（★5买点）且 月RSI6 与 季RSI6 同时突破各自卖出分位阈值（同样按当月 as-of 窗口计算）、
+ *   持有满最低天数（见 MQ_SELL_MIN_HOLDING_DAYS，默认 365 天），
+ *   并且收益率达门槛（本策略卖出时均已满最低持有天数，故按年化收益率判定，见 MQ_SELL_MIN_RETURN_PCT）时触发卖出信号；
+ *   任一条件不满足则继续持有，等待后续同时满足条件的信号；
+ *   后续按 MQ_SELL_TRANCHE_COUNT / MQ_SELL_TRANCHE_INTERVAL_DAYS 分批卖出，各批收益率取平均
  * - 仅 ★5 买点参与卖出配对，顺序配对 ★5买点 → 卖点 → ★5买点 → 卖点 ...
  *
  * @returns 阈值与买点；月/季有效数值任一为空时返回 null
@@ -1440,10 +2137,17 @@ export interface MonthlyQuarterlyPercentileResult {
 export const analyzeMonthlyQuarterlyPercentile = (
   params: MonthlyQuarterlyPercentileParams,
 ): MonthlyQuarterlyPercentileResult | null => {
-  const { monthlyRSI6Data, quarterlyRSI6Data, warmup = rsiWarmup, closeValueType = 'price' } = params;
+  const {
+    monthlyRSI6Data,
+    quarterlyRSI6Data,
+    warmup = rsiWarmup,
+    priceSeries,
+    closeValueType = 'price',
+  } = params;
 
   const monthlyArr = (monthlyRSI6Data as RsiKLineData[]).slice(warmup);
-  const quarterlyArr = (quarterlyRSI6Data as RsiKLineData[]).slice(warmup);
+  // 季RSI6 为「季初→当月」截断口径序列（已按月产出并剔除预热段），无需再按 warmup 截断
+  const quarterlyArr = quarterlyRSI6Data as RsiKLineData[];
 
   const monthlyValues = monthlyArr
     .map((item) => item.__RSI6__)
@@ -1456,30 +2160,15 @@ export const analyzeMonthlyQuarterlyPercentile = (
     return null;
   }
 
-  // 按级别计算月/季 RSI6 买入分位阈值
-  const thresholds: Record<number, { monthly: number; quarterly: number }> = {};
-  for (const { level, percentile } of MQ_LEVEL_RULES) {
-    thresholds[level] = {
-      monthly: roundPercentile(monthlyValues, percentile),
-      quarterly: roundPercentile(quarterlyValues, percentile),
-    };
-  }
+  // as-of 滚动窗口读取器：按月顺序 push，读取时只含「当月及之前、近 10 年」的样本
+  const monthlyReader = createRollingPercentileReader(MQ_MIN_SAMPLE_MONTHS);
+  const quarterlyReader = createRollingPercentileReader(MQ_MIN_SAMPLE_MONTHS);
 
-  // 卖出分位阈值
-  const sellThresholds = {
-    monthly: roundPercentile(monthlyValues, MONTHLY_RSI_SELL_PERCENTILE),
-    quarterly: roundPercentile(quarterlyValues, QUARTERLY_RSI_SELL_PERCENTILE),
-  };
-
-  // 季末点按「所在自然季度」建表（与季RSI6 vh 折线、tooltip 查表同口径），
-  // 同一季度若存在多条则保留日期最晚的一条
-  const quarterlyByKey = new Map<string, RsiKLineData>();
+  // 季RSI6 与月 K 线一一对应：按「年月」建表（值为当月「季初→当月」截断口径的季 RSI6），
+  // 与季RSI6 折线、shared tooltip 查表同口径（均按年月匹配，天然不含未来函数）
+  const quarterlyByMonth = new Map<string, RsiKLineData>();
   for (const point of quarterlyArr) {
-    const key = getQuarterKey(point.日期);
-    const existed = quarterlyByKey.get(key);
-    if (!existed || point.日期 > existed.日期) {
-      quarterlyByKey.set(key, point);
-    }
+    quarterlyByMonth.set(moment(point.日期).format('YYYY-MM'), point);
   }
 
   const buyPoints: MonthlyQuarterlyPercentileBuyPoint[] = [];
@@ -1487,30 +2176,31 @@ export const analyzeMonthlyQuarterlyPercentile = (
   // 持仓状态机：顺序配对 ★5买点 → 卖点 → ★5买点 → 卖点 ...
   let holdingFiveStarBuy: MonthlyQuarterlyPercentileBuyPoint | null = null;
 
-  // 未完成季度回退用：最近一个 日期 <= 月日期 的已完成季度指针
-  let qIdx = 0;
   for (const m of monthlyArr) {
     const monthlyRsi = m.__RSI6__;
-    if (typeof monthlyRsi !== 'number') continue;
 
-    // 所在自然季度的季末 RSI6：1～3 月取 3 月最晚、4～6 月取 6 月最晚……
-    let currentQuarterly = quarterlyByKey.get(getQuarterKey(m.日期));
-    if (!currentQuarterly) {
-      // 所在季度季末点尚不存在（当前未走完的季度，或预热剔除后该季不可用）：
-      // 回退到最近一个已完成季度
-      while (
-        qIdx + 1 < quarterlyArr.length &&
-        quarterlyArr[qIdx + 1].日期 <= m.日期
-      ) {
-        qIdx += 1;
-      }
-      currentQuarterly = quarterlyArr[qIdx];
-      // 守卫：不存在日期 <= 当前月的有效季度点时必须跳过，
-      // 否则会把未来季度点错配给当前月，导致日期与 RSI 值错位
-      if (!currentQuarterly || currentQuarterly.日期 > m.日期) continue;
+    // 当月「季初→当月」截断口径的季 RSI6（当月无季值时不参与判定）
+    const currentQuarterly = quarterlyByMonth.get(moment(m.日期).format('YYYY-MM'));
+    const quarterlyRsi = currentQuarterly?.__RSI6__;
+
+    // 先入样本（含当月），再读取阈值：保证每个月只用当月及之前、近 10 年窗口内的数据
+    if (typeof monthlyRsi === 'number') monthlyReader.push(monthlyRsi, m.日期);
+    if (typeof quarterlyRsi === 'number') quarterlyReader.push(quarterlyRsi, m.日期);
+
+    if (typeof monthlyRsi !== 'number' || typeof quarterlyRsi !== 'number') continue;
+    // 有效月样本不足门槛时不产生任何买卖信号
+    if (
+      monthlyReader.size() < MQ_MIN_SAMPLE_MONTHS ||
+      quarterlyReader.size() < MQ_MIN_SAMPLE_MONTHS
+    ) {
+      continue;
     }
-    const quarterlyRsi = currentQuarterly.__RSI6__;
-    if (typeof quarterlyRsi !== 'number') continue;
+
+    // 当月 as-of 阈值快照（买入分级 + 卖出）
+    const { thresholds, sellThresholds } = readMonthlyQuarterlyThresholds(
+      monthlyReader,
+      quarterlyReader,
+    );
 
     // 从高到低匹配，取命中的最高级别（买点判断，RSI6 触及分位阈值 ≤ 即算命中）
     const hitRule = MQ_LEVEL_RULES.find(
@@ -1533,7 +2223,8 @@ export const analyzeMonthlyQuarterlyPercentile = (
       }
     }
 
-    // 卖出判断：持仓中且月/季 RSI6 同时触及（≥）卖出分位阈值，且卖出价必须高于买入价（盈利）时才平仓
+    // 卖出判断：持仓中且月/季 RSI6 同时触及（≥）卖出分位阈值、持有满最低天数、且收益率达门槛
+    // （按年化收益率判定，分界见 appConfig.rsi.annualizeMinHoldingDays）时才平仓；不满足则继续持有等待下一个满足条件的信号
     if (
       holdingFiveStarBuy &&
       monthlyRsi >= sellThresholds.monthly &&
@@ -1544,30 +2235,51 @@ export const analyzeMonthlyQuarterlyPercentile = (
         m.收盘,
         closeValueType,
       );
-      // 卖出价 <= 买入价时不卖出，继续持有等待下一个更高价格的卖出信号
-      if (returnRate > 0) {
-        const buyTime = new Date(holdingFiveStarBuy.日期).getTime();
-        const sellTime = new Date(m.日期).getTime();
-        const holdingDays = Math.max(
-          1,
-          Math.round((sellTime - buyTime) / (24 * 60 * 60 * 1000)),
-        );
+      // 用 moment 解析日期，兼容 YYYY-MM-DD / YYYYMMDD；new Date('YYYYMMDD') 会得到 Invalid Date
+      const buyTime = moment(holdingFiveStarBuy.日期).valueOf();
+      const sellTime = moment(m.日期).valueOf();
+      const holdingDays = Math.max(
+        1,
+        Math.round((sellTime - buyTime) / (24 * 60 * 60 * 1000)),
+      );
+      // 持有未满最低天数（默认 365 天 ≈ 满 1 年）时不卖出，继续持有等待后续信号
+      const holdingDaysMet = holdingDays >= getMinSellHoldingDays();
+      // 收益率未达门槛时（按年化收益率判定，分界见 appConfig.rsi.annualizeMinHoldingDays）不卖出，继续持有等待下一个满足条件的信号
+      if (holdingDaysMet && isPairSellReturnSatisfied(returnRate, holdingDays, MQ_SELL_MIN_RETURN_PCT)) {
+        // 卖出信号成立后按常量分批卖出：各批价格独立取数，收益率取已执行批次的平均
+        const sellTranches = buildSellTranches({
+          buyDate: holdingFiveStarBuy.日期,
+          buyClose: holdingFiveStarBuy.收盘,
+          signalDate: m.日期,
+          signalClose: m.收盘,
+          priceSeries: priceSeries ?? monthlyRSI6Data,
+          closeValueType,
+        });
+        const averageReturnRate = summarizeSellTranches(sellTranches) ?? returnRate;
+
         holdingFiveStarBuy.sellDate = m.日期;
         holdingFiveStarBuy.sellMonthlyRsi = monthlyRsi;
         holdingFiveStarBuy.sellQuarterlyRsi = quarterlyRsi;
         holdingFiveStarBuy.sellPrice = Number(m.收盘.toFixed(2));
+        holdingFiveStarBuy.sellTranches = sellTranches;
         holdingFiveStarBuy.holdingDays = holdingDays;
-        holdingFiveStarBuy.returnRate = returnRate;
-        // 持有不足1年（365天）不计算年化收益率，展示为 --
+        holdingFiveStarBuy.returnRate = averageReturnRate;
+        // 持有未满最低持有天数（默认 365 天）不计算年化收益率，展示为 --
         holdingFiveStarBuy.annualizedReturn =
-          holdingDays >= 365 ? calculateAnnualizedReturn(returnRate, holdingDays) : null;
+          holdingDays >= getMinSellHoldingDays()
+            ? calculateAnnualizedReturn(averageReturnRate, holdingDays)
+            : null;
         // 平仓后等待下一个★5买点
         holdingFiveStarBuy = null;
       }
     }
   }
 
-  return { thresholds, sellThresholds, buyPoints };
+  // 最新月近 10 年窗口快照（含最新月自身），供图表水平参考线展示；
+  // 月/季按年月对齐建表，正常情况下两个读取器均非空，此处兜底避免空窗口读取
+  if (monthlyReader.size() === 0 || quarterlyReader.size() === 0) return null;
+  const latest = readMonthlyQuarterlyThresholds(monthlyReader, quarterlyReader);
+  return { thresholds: latest.thresholds, sellThresholds: latest.sellThresholds, buyPoints };
 };
 
 /**
@@ -1586,21 +2298,15 @@ export const computeMonthlyQuarterlyPercentileBuyPoints = (
 // ============================================================
 
 /**
- * 近期买点高亮天数：距今天数在该值以内的买点日期会被特殊高亮，便于区分
- * 可配置，默认 100 天
- */
-export const RECENT_BUY_POINT_DAYS = 100;
-
-/**
  * 判断给定日期是否在「近期」（距今天数 <= days）
  * 按日历天比较（剥离时分秒），避免当天已过小时数导致边界偏差
  * @param dateStr 日期字符串（YYYY-MM-DD 或可被 Date 解析的格式）
- * @param days  近几天数，默认取 RECENT_BUY_POINT_DAYS
+ * @param days  近几天数，默认取 appConfig.rsi.recentBuyPointDays（默认 100 天）
  * @returns 是否为近期日期
  */
 export const isRecentDate = (
   dateStr: string | number | Date,
-  days: number = RECENT_BUY_POINT_DAYS,
+  days: number = appConfig.rsi.recentBuyPointDays,
 ): boolean => {
   if (!dateStr) return false;
   const target = new Date(dateStr);

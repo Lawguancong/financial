@@ -6,7 +6,8 @@ import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { numberSorter, createRangeFilter, createDateRangeFilter } from '@/utils/tableUtils';
 import type { IndexDetailData } from './detail';
-import { createRecommendationAnnotations, isRecentDate } from '@/utils/stockUtils';
+import { createRecommendationAnnotations, cleanCsindexHistory, isRecentDate } from '@/utils/stockUtils';
+import { appConfig } from '@/config/appConfig';
 import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
 import { computeBuyPoints } from '@/utils/buyPointWorker';
 import type { BuyPointResult } from '@/utils/buyPointCompute';
@@ -201,23 +202,22 @@ const Index: React.FC = () => {
 
   // 计算推荐买点（定量 + 百分位 + 月/周 RSI6 百分位策略）
   const fetchIndexDetailAndCalculate = async (symbol: string): Promise<BuyPointResult> => {
-    try {
-
-      const startDate = '19800101'; // 默认从1980年1月1日开始查询，并去除第一个日期的空值
-      const response = await apiClient.get(`/api/public/stock_zh_index_hist_csindex?symbol=${symbol}&start_date=${startDate}&end_date=${moment().format('YYYYMMDD')}`);
-      const data = response?.data || [];
-      const firstNonMultipleIndex = data.findIndex((item: IndexDetailData) => Number(item.收盘) % 100 !== 0);
-      const formatData = (0 < firstNonMultipleIndex && firstNonMultipleIndex < 10) ? data.slice(firstNonMultipleIndex - 1) : data;
-      const stockHistoryList = formatData?.map((item: IndexDetailData) => ({
+    // 从 A 股最早交易日开始查询，覆盖指数全部历史；接口在起始日早于首条真实数据时会补占位行，
+    // 由 cleanCsindexHistory 统一剔除，避免远期伪数据点参与指标计算
+    const startDate = appConfig.http.indexHistoryStartDate;
+    const response = await apiClient.get(`/api/public/stock_zh_index_hist_csindex?symbol=${symbol}&start_date=${startDate}&end_date=${moment().format('YYYYMMDD')}`);
+    const data = cleanCsindexHistory(response?.data as IndexDetailData[] | undefined, startDate);
+    const stockHistoryList = data
+      .map((item: IndexDetailData) => ({
         日期: item.日期,
         收盘: Number(item.收盘),
-      })) || [];
+      }))
+      .filter((item: { 收盘: number }) => Number.isFinite(item.收盘));
 
-      return computeBuyPoints({ type: 'index', rawData: stockHistoryList });
-    } catch (error) {
-      console.log('Error fetching index detail:', error);
-      return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '', mqBuyPoints: [] };
-    }
+    // 接口异常（空数据 / 无有效收盘价）需抛出，由批量编排统一重试并汇总提示
+    if (stockHistoryList.length === 0) throw new Error('接口返回空数据');
+
+    return computeBuyPoints({ type: 'index', rawData: stockHistoryList });
   };
 
 

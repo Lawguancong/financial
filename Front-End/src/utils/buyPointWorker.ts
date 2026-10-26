@@ -4,6 +4,7 @@ import type {
   BuyPointWorkerRequest,
   BuyPointWorkerResponse,
 } from '@/utils/buyPointCompute';
+import { appConfig } from '@/config/appConfig';
 
 /**
  * 买点计算 Worker 池客户端
@@ -13,8 +14,8 @@ import type {
  * 池大小受限，任务超出并发上限时进入等待队列，空闲 Worker 自动派发。
  */
 
-/** Worker 池上限（受限并发，避免一次性占满 CPU 核） */
-const MAX_WORKERS = 4;
+/** Worker 池上限（配置见 appConfig.worker.maxWorkers） */
+const MAX_WORKERS = appConfig.worker.maxWorkers;
 
 interface PoolWorker {
   worker: Worker;

@@ -185,28 +185,21 @@ const FuturesForeignQuotes: React.FC = () => {
 
   // 计算推荐买点（定量 + 百分位 + 月/周 RSI6 百分位策略）
   const fetchFuturesDetailAndCalculate = async (code: string): Promise<BuyPointResult> => {
-    try {
-      const response = await apiClient.get('/api/public/futures_foreign_hist', {
-        params: { symbol: code },
-      });
-      // 接口返回英文字段：date/open/high/low/close，此处映射为 KLineData 所需的中文字段
-      const stockHistoryList = (response?.data || [])
-        .map((item: Record<string, unknown>) => ({
-          日期: String(item.date).slice(0, 10),
-          收盘: Number(item.close),
-        }))
-        .filter((item: { 日期: string; 收盘: number }) => Number.isFinite(item.收盘));
+    const response = await apiClient.get('/api/public/futures_foreign_hist', {
+      params: { symbol: code },
+    });
+    // 接口返回英文字段：date/open/high/low/close，此处映射为 KLineData 所需的中文字段
+    const stockHistoryList = (response?.data || [])
+      .map((item: Record<string, unknown>) => ({
+        日期: String(item.date).slice(0, 10),
+        收盘: Number(item.close),
+      }))
+      .filter((item: { 日期: string; 收盘: number }) => Number.isFinite(item.收盘));
 
-      // 接口无数据时无分析意义，直接返回空结果（不覆盖已有买点）
-      if (stockHistoryList.length === 0) {
-        return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '', mqBuyPoints: [] };
-      }
+    // 接口异常（空数据 / 无有效收盘价）需抛出，由批量编排统一重试并汇总提示
+    if (stockHistoryList.length === 0) throw new Error('接口返回空数据');
 
-      return computeBuyPoints({ type: 'commodity', rawData: stockHistoryList });
-    } catch (error) {
-      console.log('Error fetching futures detail:', error);
-      return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '', mqBuyPoints: [] };
-    }
+    return computeBuyPoints({ type: 'commodity', rawData: stockHistoryList });
   };
 
   const columns = useMemo<ColumnsType<FuturesData>>(() => [

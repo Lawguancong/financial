@@ -13,6 +13,7 @@ import {
   ThunderboltOutlined,
   WarningOutlined,
 } from '@ant-design/icons';
+import { appConfig } from '@/config/appConfig';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -32,6 +33,14 @@ interface PeriodRow {
   scene: string;
   desc: string;
   color: string;
+}
+
+/** RSI 计算步骤（标准 Wilder 平滑） */
+interface CalcStep {
+  key: string;
+  step: string;
+  formula: string;
+  desc: string;
 }
 
 /** 具体适合的标的类型 */
@@ -117,6 +126,33 @@ const PERIODS: PeriodRow[] = [
     scene: '战略配置',
     desc: '约 1.5 年维度，极难触发，一旦出现多为历史级别的机会。',
     color: '#fa8c16',
+  },
+];
+
+const RSI_CALC_STEPS: CalcStep[] = [
+  {
+    key: '1',
+    step: '① 涨跌幅',
+    formula: 'Δ = 收盘ₜ − 收盘ₜ₋₁；涨幅 = max(Δ, 0)，跌幅 = max(−Δ, 0)',
+    desc: '逐根 K 线把价格变化拆成上涨与下跌两部分。',
+  },
+  {
+    key: '2',
+    step: '② 初始平均（第 7 根）',
+    formula: '平均涨幅 = 前 6 根涨幅之和 ÷ 6',
+    desc: '用简单平均确定递推起点，只此一次，之后不再使用简单平均。',
+  },
+  {
+    key: '3',
+    step: '③ Wilder 平滑（第 8 根起）',
+    formula: '平均涨幅ₜ = (平均涨幅ₜ₋₁ × 5 + 当期涨幅) ÷ 6',
+    desc: '每根按 1/6 权重递推，等价于 α = 1/6 的 Wilder RSI；平均跌幅同理。',
+  },
+  {
+    key: '4',
+    step: '④ 计算 RSI',
+    formula: 'RSI = 100 − 100 ÷ (1 + 平均涨幅 ÷ 平均跌幅)',
+    desc: '结果限制在 0～100 并保留 2 位小数；平均涨幅为 0 时 RSI = 0，平均跌幅为 0 时 RSI = 100。',
   },
 ];
 
@@ -452,6 +488,50 @@ const RsiKnowledgePage = () => {
           </Col>
         ))}
       </Row>
+
+      {/* RSI 计算方式 */}
+      <div style={{ marginTop: 36 }}>
+        <SectionTitle
+          icon={<ExperimentOutlined style={{ color: '#2f54eb' }} />}
+          title="RSI 计算方式"
+          desc="本平台所有周期的 RSI6 统一采用标准 Wilder 平滑（Wilder RSI），与 TA-Lib、通达信等主流行情软件口径一致，不是全程简单平均。"
+        />
+        <Row gutter={[16, 16]}>
+          {RSI_CALC_STEPS.map((item) => (
+            <Col xs={24} sm={12} key={item.key}>
+              <Card
+                variant="borderless"
+                style={{ background: '#f7f8fc', height: '100%' }}
+                styles={{ body: { padding: 18 } }}
+              >
+                <Tag color="processing" style={{ marginBottom: 10 }}>
+                  {item.step}
+                </Tag>
+                <Paragraph
+                  style={{
+                    margin: '0 0 8px',
+                    fontFamily: 'Menlo, Consolas, monospace',
+                    fontSize: 13,
+                    color: '#1f1f1f',
+                  }}
+                >
+                  {item.formula}
+                </Paragraph>
+                <Text type="secondary" style={{ fontSize: 13 }}>
+                  {item.desc}
+                </Text>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+        <Alert
+          style={{ marginTop: 16 }}
+          type="info"
+          showIcon
+          title="预热点说明"
+          description={`每个周期的前 ${appConfig.rsi.warmup} 根 K 线为预热点，固定显示 50，仅用于预热、没有统计意义；历史分位与买卖点判定都会剔除这 ${appConfig.rsi.warmup} 个点。`}
+        />
+      </div>
 
       {/* RSI6 指标周期 */}
       <div style={{ marginTop: 36 }}>

@@ -7,7 +7,7 @@ description: 用 G2 v5（@ant-design/plots 2.6.x 内置 @antv/g2 5.4.x）DualAxe
 
 在 financial 项目的金融图表中，常见形态是「日频主线（指数/收盘价）+ 周/月/季低频指标（如 RSI6）」的 DualAxes。低频指标在普通交易日没有数据点，直接用 shared tooltip 会漏值，把低频值前向填充到每日又会产生台阶式直线。本 skill 给出经过浏览器实测的标准做法。
 
-参考实现：`Front-End/src/component/RsiFilterMark.tsx`（主图「指数 · 买点标注」）。
+参考实现：`Front-End/src/components/RsiFilterMark.tsx`（主图「指数 · 买点标注」）。
 
 ## 版本前提（先核对，勿凭记忆写 API）
 
@@ -69,9 +69,11 @@ tooltip 补齐值的归属周期要和推荐级别计算 `getPeriodRSIValues`（
 | 周期 | 键（用 moment） |
 |------|----------------|
 | 日 | `format('YYYY-MM-DD')` |
-| 周 | `${date.year()}-${date.week()}` |
+| 周 | `${date.weekYear()}-${date.week()}`（**ISO weekYear**，不要用日历 `year()`） |
 | 月 | `format('YYYY-MM')` |
-| 季 | `${date.year()}-Q${date.quarter()}` |
+| 季 | `format('YYYY-MM')`（季 RSI6 已改为「季初→当月」**逐月序列**，按月对齐，不再用 `Q`） |
+
+> 周/季键在「RSI6 未来函数修复」中同步调整过：周从日历 `year()` 改为 `weekYear()`（跨年周否则会被拆成两个键、查表静默错值），季从 `${year}-Q${quarter}` 改为 `YYYY-MM`。
 
 构建 Map 时周/季用数组显式返回 `as const` 元组，避免 TS 推断成联合类型。
 
@@ -97,5 +99,6 @@ tooltip 补齐值的归属周期要和推荐级别计算 `getPeriodRSIValues`（
 - `items` 传单函数返回数组（tooltip 内容消失）。
 - 两个子图颜色配置不一致或硬编码 stroke（颜色割裂）。
 - 右轴子图保留默认 tooltip（周期末条目重复）。
-- 周键自创新格式（如 `isoWeek`）而项目计算用 `moment.week()`（数值错配）。
+- 周键用日历 `year()` 而非 `weekYear()`（跨年周会把同一自然周拆成两个键，查表静默错值）。
+- 季键用 `${year}-Q${quarter}` 而非 `YYYY-MM`（季 RSI6 已是与月 K 一一对应的逐月序列）。
 - 新增系列只改 tooltip 忘记加颜色常量，或加进了 domain 导致图上多出线。

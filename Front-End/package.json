@@ -8,11 +8,12 @@
     "preview": "vite preview",
     "build": "vite build",
     "build:check": "tsc -b && vite build",
+    "test": "tsx --tsconfig tsconfig.app.json --test test/*.test.ts",
     "lint": "eslint ."
   },
   "peerDependencies": {
-    "react": ">=16.8.4",
-    "react-dom": ">=16.8.4"
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   },
   "dependencies": {
     "@ant-design/charts": "^2.6.7",
@@ -38,6 +39,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "tsx": "^4.23.15",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.4"

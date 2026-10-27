@@ -10,7 +10,7 @@ const API_BASE_URL = `${import.meta.env.VITE_API_PORT}`;
 
 const apiClient = axios.create({
   baseURL: `${API_BASE_URL}`,
-  timeout: 120 * 1000, // 120秒超时
+  timeout: appConfig.http.timeoutMs, // 配置见 appConfig.http.timeoutMs（默认 120 秒）
   headers: {
     'Content-Type': 'application/json',
   },

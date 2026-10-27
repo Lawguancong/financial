@@ -8,6 +8,7 @@ import {
   calculateVolatility,
   calculateAnnualizedVolatility,
 } from '@/utils/stockUtils';
+import { appConfig } from '@/config/appConfig';
 
 interface IndexMetricsProps {
   data: KLineData[]; // 至少包含「日期」「收盘」字段的 K 线数据
@@ -19,13 +20,14 @@ interface IndexMetricsProps {
   closeValueType?: CloseValueType;
 }
 
-const dailySampleRate = 10; // 日频数据抽样步长（先算指标再抽样，仅影响展示密度，保证各系列日期对齐）
-
-// 日频判定阈值：相邻日期间隔中位数 ≤ 10 天即视为交易日日频数据
-const dailyGapThresholdDays = 10;
-// 波动率滚动窗口（按观测点数计）：日频 / 稀疏数据分别配置
-const dailyVolWindow = 20; // 日频约 1 个交易月
-const sparseVolWindow = 12; // 稀疏数据约 1 年（12 个观测点）
+/** 图表参数（配置见 appConfig.chart.indexMetrics） */
+const {
+  dailySampleRate,
+  dailyGapThresholdDays,
+  tradingDaysPerYear,
+  dailyVolWindow,
+  sparseVolWindow,
+} = appConfig.chart.indexMetrics;
 
 /**
  * 根据相邻日期的间隔中位数推断数据频率
@@ -95,6 +97,8 @@ const IndexMetrics: React.FC<IndexMetricsProps> = ({ data, closeValueType = 'pri
     const { gapDays, periodsPerYear } = detectFrequency(data);
     const isDaily = gapDays <= dailyGapThresholdDays;
     const volWindow = isDaily ? dailyVolWindow : sparseVolWindow;
+    // 年化系数：日频固定按 252 个交易日；稀疏数据按 365/间隔 推断（月频约 12、周频约 52）
+    const annualizationPeriods = isDaily ? tradingDaysPerYear : periodsPerYear;
 
     // 链式计算：先算回撤率 / 年化收益率，再叠加上滚动波动率并年化
     const enriched = calculateVolatility({
@@ -107,7 +111,7 @@ const IndexMetrics: React.FC<IndexMetricsProps> = ({ data, closeValueType = 'pri
       年化收益率: item.__年化收益率__ ?? null,
       回撤率: item.__最大回撤率__ ?? null,
       波动率: item.__波动率__ != null
-        ? Number(calculateAnnualizedVolatility(item.__波动率__, periodsPerYear).toFixed(2))
+        ? Number(calculateAnnualizedVolatility(item.__波动率__, annualizationPeriods).toFixed(2))
         : null,
     }));
 

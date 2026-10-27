@@ -3,7 +3,23 @@ import React, { useEffect, useState, useMemo } from 'react';
 import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { Tabs, Button } from 'antd';
-import { ReloadOutlined } from '@ant-design/icons';
+import { ReloadOutlined, InfoCircleOutlined } from '@ant-design/icons';
+
+// 链式计算指数图的说明文案样式（高亮信息条）
+const indexNoteStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+  marginBottom: '12px',
+  padding: '10px 14px',
+  borderRadius: '8px',
+  border: '1px solid rgba(24, 144, 255, 0.3)',
+  borderLeft: '3px solid #1890ff',
+  background: 'linear-gradient(90deg, rgba(24, 144, 255, 0.12) 0%, rgba(24, 144, 255, 0.03) 100%)',
+  color: '#46536b',
+  fontSize: '12.5px',
+  lineHeight: 1.8,
+};
 
 interface HousePriceData {
   日期: string;
@@ -21,6 +37,28 @@ interface ChartData {
   value: number;
 }
 
+// 由「环比」（上月=100）链式累乘还原「价格指数」：以首期已发布的定基值为锚点，
+// 逐月乘以（环比/100），可复现已发布的定基值并把它补全到最新月份。
+const buildPriceIndex = (
+  rows: HousePriceData[],
+  momKey: keyof HousePriceData,
+  baseKey: keyof HousePriceData,
+): ChartData[] => {
+  if (rows.length === 0) return [];
+  let level = Number(rows[0][baseKey]);
+  if (!Number.isFinite(level)) level = 100;
+  return rows.map((row, index) => {
+    if (index > 0) {
+      const mom = Number(row[momKey]);
+      if (Number.isFinite(mom)) level = level * (mom / 100);
+    }
+    return {
+      date: moment(row['日期']).format('YYYY-MM-DD'),
+      value: Number(level.toFixed(2)),
+    };
+  });
+};
+
 const NewHousePrice = () => {
   const [data, setData] = useState<HousePriceData[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -30,8 +68,6 @@ const NewHousePrice = () => {
   const fetchData = async () => {
     try {
       const response = await apiClient.get('/api/public/macro_china_new_house_price');
-      console.log('新房价指数 -> response', response);
-      
       setData(response?.data || []);
     } catch (error) {
       console.log('error', error);
@@ -58,7 +94,7 @@ const NewHousePrice = () => {
 
   const cityTabs = useMemo(() => {
     return cities.map(city => {
-      const cityData = data.filter(item => item['城市'] === city).sort((a, b) => 
+      const cityData = data.filter(item => item['城市'] === city).sort((a, b) =>
         new Date(a['日期']).getTime() - new Date(b['日期']).getTime()
       );
 
@@ -92,12 +128,61 @@ const NewHousePrice = () => {
         value: item['二手住宅价格指数-定基'],
       }));
 
+      const newIndexData = buildPriceIndex(
+        cityData,
+        '新建商品住宅价格指数-环比',
+        '新建商品住宅价格指数-定基',
+      );
+
+      const usedIndexData = buildPriceIndex(
+        cityData,
+        '二手住宅价格指数-环比',
+        '二手住宅价格指数-定基',
+      );
+
       return {
         key: city,
         label: city,
         children: (
           <div style={{ padding: '24px' }}>
             <h3 style={{ marginBottom: '24px' }}>{city} - 新建商品住宅价格指数</h3>
+            <div style={indexNoteStyle}>
+              <InfoCircleOutlined style={{ color: '#1890ff' }} />
+              <span>
+                数据说明：本图「价格指数」由
+                <b style={{ color: '#1890ff' }}>「新建商品住宅价格指数-环比」</b>
+                字段逐月链式累乘计算得出（以首期定基值为基点），
+                <b style={{ color: '#fa8c16' }}>并非接口直接提供的字段</b>
+                ，仅供趋势参考。
+              </span>
+            </div>
+            <div style={{ marginBottom: '32px' }}>
+              <Line
+                {...{
+                  title: {
+                    title: '新建商品住宅价格指数',
+                    subtitle: '由环比链式计算（定基口径，首期定基为基）',
+                  },
+                  data: newIndexData,
+                  xField: 'date',
+                  yField: 'value',
+                  shapeField: 'smooth',
+                  axis: {
+                    x: { title: '日期' },
+                    y: { title: '指数值' },
+                  },
+                  tooltip: {
+                    items: [
+                      {
+                        field: 'value',
+                        name: '价格指数',
+                        valueFormatter: (value: number) => `${value?.toFixed(2)}`,
+                      },
+                    ],
+                  },
+                }}
+              />
+            </div>
             <div style={{ marginBottom: '32px' }}>
               <Line
                 {...{
@@ -179,7 +264,45 @@ const NewHousePrice = () => {
                 }}
               />
             </div>
+
             <h3 style={{ marginBottom: '24px', marginTop: '48px' }}>{city} - 二手住宅价格指数</h3>
+            <div style={indexNoteStyle}>
+              <InfoCircleOutlined style={{ color: '#1890ff' }} />
+              <span>
+                数据说明：本图「价格指数」由
+                <b style={{ color: '#1890ff' }}>「二手住宅价格指数-环比」</b>
+                字段逐月链式累乘计算得出（以首期定基值为基点），
+                <b style={{ color: '#fa8c16' }}>并非接口直接提供的字段</b>
+                ，仅供趋势参考。
+              </span>
+            </div>
+            <div>
+              <Line
+                {...{
+                  title: {
+                    title: '二手住宅价格指数',
+                    subtitle: '由环比链式计算（定基口径，首期定基为基）',
+                  },
+                  data: usedIndexData,
+                  xField: 'date',
+                  yField: 'value',
+                  shapeField: 'smooth',
+                  axis: {
+                    x: { title: '日期' },
+                    y: { title: '指数值' },
+                  },
+                  tooltip: {
+                    items: [
+                      {
+                        field: 'value',
+                        name: '价格指数',
+                        valueFormatter: (value: number) => `${value?.toFixed(2)}`,
+                      },
+                    ],
+                  },
+                }}
+              />
+            </div>
             <div style={{ marginBottom: '32px' }}>
               <Line
                 {...{
@@ -261,6 +384,7 @@ const NewHousePrice = () => {
                 }}
               />
             </div>
+
           </div>
         ),
       };
@@ -272,7 +396,7 @@ const NewHousePrice = () => {
       key: '1',
       label: (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>新房价指数</span>
+          <span>新房/二手房价格指数</span>
           <Button
             icon={<ReloadOutlined />}
             size="small"

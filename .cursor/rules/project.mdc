@@ -1,0 +1,10 @@
+---
+description: 项目公共 AI 规范与技能索引（入口）
+alwaysApply: true
+---
+
+本项目的所有 AI 开发规范、目录说明、常用命令与技能索引统一维护在根目录 `AGENTS.md`。
+
+开始任何任务前，先完整读取 `AGENTS.md`；需要具体操作流程时，再按其中的索引读取 `.trae/skills/<skill>/SKILL.md`。
+
+请勿在本文件重复维护规则，避免多份规范漂移。

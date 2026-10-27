@@ -1,11 +1,40 @@
-import React, { useMemo, memo, useState } from 'react';
+import React, { useEffect, useMemo, memo, useState } from 'react';
 import { Line, DualAxes } from '@ant-design/plots';
-import { Card, Space, Table, Tag } from 'antd';
-import { RightOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { Button, Card, DatePicker, Space, Spin, Table, Tag, Tooltip } from 'antd';
+import { RightOutlined, InfoCircleOutlined, CalendarOutlined } from '@ant-design/icons';
 import moment from 'moment';
-import type { KLineData, RsiRecommendationRules, CloseValueType, MonthlyQuarterlyPercentileBuyPoint, SinglePeriodPercentileTrade } from '@/utils/stockUtils';
-import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations, analyzeSinglePeriodPercentile, analyzeMonthlyQuarterlyPercentile, getQuarterKey, roundPercentile, rsiWarmup, MQ_LEVEL_RULES, MONTHLY_RSI_SELL_PERCENTILE, QUARTERLY_RSI_SELL_PERCENTILE, WEEKLY_RSI_BUY_PERCENTILE, WEEKLY_RSI_SELL_PERCENTILE, MONTHLY_RSI_PCT_BUY_PERCENTILE, MONTHLY_RSI_PCT_SELL_PERCENTILE, stockRsiRecommendationRules, indexRsiRecommendationRules, fundRsiRecommendationRules, rsiPeriodLabelMap } from '@/utils/stockUtils';
-import { convertToMonthlyData } from '@/pages/fund/cn/open/detail/constants';
+import dayjs from 'dayjs';
+import type { Dayjs } from 'dayjs';
+import type { KLineData, RsiRecommendationRules, MonthlyQuarterlyPercentileBuyPoint, SinglePeriodPercentileTrade } from '@/utils/stockUtils';
+import { createRecommendationAnnotations, roundPercentile, getSellTrancheCount, getSellTrancheColumnTitle, getSellTrancheIntervalDays, stockRsiRecommendationRules, indexRsiRecommendationRules, fundRsiRecommendationRules, rsiPeriodLabelMap } from '@/utils/stockUtils';
+import { appConfig } from '@/config/appConfig';
+import { createRsiDetailWorker } from '@/utils/rsiDetailWorker';
+import type { RsiBuyPointRow, RsiDetailResult, RsiFieldKey } from '@/utils/rsiDetailCompute';
+
+// RSI 策略参数统一取自 @/config/appConfig（此处仅做本地别名，保持下方 JSX/计算引用简洁）
+const {
+  warmup: rsiWarmup,
+  asOfWindowMonths: RSI_ASOF_WINDOW_MONTHS,
+  minSampleCount: MQ_MIN_SAMPLE_MONTHS,
+  sellMinReturnPct: MQ_SELL_MIN_RETURN_PCT,
+  monthlyQuarterly: {
+    levelRules: MQ_LEVEL_RULES,
+    monthlySellPercentile: MONTHLY_RSI_SELL_PERCENTILE,
+    quarterlySellPercentile: QUARTERLY_RSI_SELL_PERCENTILE,
+    sellMinHoldingDays: MQ_SELL_MIN_HOLDING_DAYS,
+  },
+  singlePeriod: { weekly: WEEKLY_RSI_CONFIG, monthly: MONTHLY_RSI_CONFIG },
+} = appConfig.rsi;
+const SINGLE_PERIOD_SELL_MIN_RETURN_PCT = appConfig.rsi.sellMinReturnPct;
+/** 年化口径分界（天）：持有满该天数按年化收益率判定，不足按区间收益率 */
+const RSI_ANNUALIZE_MIN_HOLDING_DAYS = appConfig.rsi.annualizeMinHoldingDays;
+const SINGLE_PERIOD_MIN_SAMPLE_COUNT = appConfig.rsi.minSampleCount;
+const WEEKLY_RSI_BUY_PERCENTILE = WEEKLY_RSI_CONFIG.buyPercentile;
+const WEEKLY_RSI_SELL_PERCENTILE = WEEKLY_RSI_CONFIG.sellPercentile;
+const MONTHLY_RSI_PCT_BUY_PERCENTILE = MONTHLY_RSI_CONFIG.buyPercentile;
+const MONTHLY_RSI_PCT_SELL_PERCENTILE = MONTHLY_RSI_CONFIG.sellPercentile;
+/** as-of 窗口折算年数（仅用于文案展示，实际口径仍按月数配置） */
+const RSI_ASOF_WINDOW_YEARS = RSI_ASOF_WINDOW_MONTHS / 12;
 
 interface RsiFilterMarkProps {
   data: KLineData[]; // data数据格式参考KLineData
@@ -82,13 +111,6 @@ const CollapsibleCard: React.FC<CollapsibleCardProps> = ({
   );
 };
 
-// 周期 RSI 字段名（与 stockUtils 中返回的字段保持一致）
-type RsiFieldKey =
-  | '__daily__RSI6__'
-  | '__weekly__RSI6__'
-  | '__monthly__RSI6__'
-  | '__quarterly__RSI6__';
-
 type RsiPeriodKey = 'daily' | 'weekly' | 'monthly' | 'quarterly';
 
 interface RsiPeriodMeta {
@@ -102,23 +124,18 @@ interface RsiPeriodMeta {
   color: string;
 }
 
-// 单行数据：日期 + 收盘价 + 各周期 RSI6 + 推荐级别（null 表示非买点）
-type ChartRow = KLineData & {
-  __recommendationLevel__: number | null;
-} & Record<RsiFieldKey, number | null>;
-
-// 过滤后的买点数据行（推荐级别必不为 null）
-type BuyPointRow = ChartRow & { __recommendationLevel__: number };
+// 周期 RSI 字段名与推荐买点类型由 Worker 计算内核统一提供
+// （RsiBuyPointRow / RsiChartRow 定义见 @/utils/rsiDetailCompute）
 
 // 百分位买卖阈值（周、月 RSI6 策略各自独立的买入/卖出阈值）
 interface PercentileThresholds {
   /** 周RSI6 买入阈值：跌破该值建仓（对应 WEEKLY_RSI_BUY_PERCENTILE 分位） */
   weeklyBuyThreshold: number;
-  /** 周RSI6 卖出阈值：突破该值且盈利时卖出（对应 WEEKLY_RSI_SELL_PERCENTILE 分位） */
+  /** 周RSI6 卖出阈值：突破该值且收益率达门槛时卖出（对应 WEEKLY_RSI_SELL_PERCENTILE 分位） */
   weeklySellThreshold: number;
   /** 月RSI6 买入阈值：触及（≤）该值建仓/加仓（对应 MONTHLY_RSI_PCT_BUY_PERCENTILE 分位） */
   monthlyBuyThreshold: number;
-  /** 月RSI6 卖出阈值：触及（≥）该值且盈利时卖出（对应 MONTHLY_RSI_PCT_SELL_PERCENTILE 分位） */
+  /** 月RSI6 卖出阈值：触及（≥）该值且收益率达门槛时卖出（对应 MONTHLY_RSI_PCT_SELL_PERCENTILE 分位） */
   monthlySellThreshold: number;
 }
 
@@ -241,27 +258,8 @@ const mainChartRsiPeriods = rsiPeriods.filter(
   ({ periodKey }) => periodKey === 'monthly' || periodKey === 'quarterly',
 );
 
-/**
- * DualAxes 右轴 RSI6 折线形状：
- * 季RSI6 不做光滑处理，使用 'vh'（step-before：两个相邻季末点之间的水平段取「后一个」季末值，
- * 即 1～3 月的横线显示 3 月季末值、4～6 月显示 6 月季末值，呈连跨横线/阶梯线）；
- * 月RSI6 保持 'smooth' 光滑曲线。单周期 Line 走势图不使用此映射，保持原样。
- */
-const rsiLineShapeOf = (periodKey: RsiPeriodKey): 'smooth' | 'vh' =>
-  periodKey === 'quarterly' ? 'vh' : 'smooth';
-
 /** 主图折线（指数/收盘价）颜色：折线、左轴标题、图例、tooltip 统一使用 */
 const mainColor = '#ff0033';
-
-/** RSI 超买超卖状态枚举 */
-type RsiStatus = 'overbought' | 'oversold' | 'normal';
-
-/** 超买 / 超卖 / 中性 状态对应的标签文本与 Tag 配色（卡片主色仍使用各周期折线色） */
-const rsiStatusMeta: Record<RsiStatus, { text: string; tagColor: string }> = {
-  overbought: { text: '超买', tagColor: 'red' },
-  oversold: { text: '超卖', tagColor: 'green' },
-  normal: { text: '中性', tagColor: 'default' },
-};
 
 /**
  * 将 #RRGGBB / #RRGGBBAA 十六进制颜色转为指定透明度的 rgba 字符串
@@ -276,8 +274,8 @@ const withAlpha = (hex: string, alpha: number) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-/** calculatePeriodRSI 的返回值类型：{ dailyRSI, weeklyRSI, monthlyRSI, quarterlyRSI } */
-type PeriodRSIMap = ReturnType<typeof calculatePeriodRSI>;
+/** 详情 Worker 返回的日/周/月/季 RSI6 K 线 */
+type PeriodRSIMap = RsiDetailResult['periodRSI'];
 /** 带 RSI6 字段的 K 线数据（calculateRSI 在原 K 线上追加 __RSI6__） */
 type RsiKLineData = KLineData & { __RSI6__?: number | null };
 
@@ -302,21 +300,36 @@ const getRsiArray = (
   warmup: number = rsiWarmup,
 ): RsiKLineData[] => map[rsiDataKeyOf(periodKey)].slice(warmup) as RsiKLineData[];
 
+/** 历史分位参考的 RSI6 数据点（含日期时间戳，便于按窗口筛选） */
+interface RsiPoint {
+  date: string;
+  value: number;
+  /** 日期时间戳（毫秒），用于「近 N 年」窗口过滤 */
+  time: number;
+}
+
 /**
- * 取某周期剔除预热后的有效 RSI6 数值数组（仅保留 number 类型值）
+ * 取某周期剔除预热后的有效 RSI6 数据点（日期 + 数值）
  * 用于历史分位计算、当前值分位位置统计等
  * @param map 同 getRsiArray
  * @param periodKey 周期键
  * @param warmup 预热点数，默认 rsiWarmup
  */
-const getRsiValues = (
+const getRsiPoints = (
   map: PeriodRSIMap,
   periodKey: RsiPeriodKey,
   warmup: number = rsiWarmup,
-): number[] =>
-  getRsiArray(map, periodKey, warmup)
-    .map((item) => item.__RSI6__)
-    .filter((value): value is number => typeof value === 'number');
+): RsiPoint[] =>
+  getRsiArray(map, periodKey, warmup).reduce<RsiPoint[]>((points, item) => {
+    if (typeof item.__RSI6__ === 'number') {
+      points.push({
+        date: item.日期,
+        value: item.__RSI6__,
+        time: moment(item.日期).valueOf(),
+      });
+    }
+    return points;
+  }, []);
 
 /**
  * 构建百分位策略图表标注：第一次买入（绿●）/ 重复买入加仓点（橙▲）/ 卖点（蓝●），
@@ -400,16 +413,58 @@ const toRsiLineData = (arr: RsiKLineData[], label: string) =>
 const buildTooltipMap = (arr: RsiKLineData[], keyFn: (dateStr: string) => string) =>
   new Map(arr.map((item) => [keyFn(item.日期), item.__RSI6__]));
 
+/** 历史分位参考窗口键：全历史 / 近10年 / 近5年 / 近3年 */
+type RsiWindowKey = 'full' | '10y' | '5y' | '3y';
+
+/**
+ * 历史分位参考窗口定义：全历史 + 近10/5/3年。
+ * 「近 N 年」以样本最后一个数据点回推（而非当前自然日），保证与 as-of 分位口径一致；数据跨度不足 N 年时该窗口不展示。
+ */
+const RSI_WINDOW_DEFS: { key: RsiWindowKey; label: string; years: number | null }[] =
+  appConfig.chart.rsiPercentileWindows;
+
+/** 历史分位参考展示的分位列（升序），由 appConfig 统一配置 */
+const RSI_PERCENTILE_REFS: number[] = appConfig.chart.rsiPercentileRefs;
+
+/** 分位参考表格的列模板：窗口 + N 个分位 + 位置（一屏内自适应，不横向滚动） */
+const RSI_PERCENTILE_GRID_TEMPLATE = `44px repeat(${RSI_PERCENTILE_REFS.length}, 1fr) 1fr`;
+
+/** 分位列口径说明（hover 浮层）：RSI6 采用 Wilder 平滑；最近秩法直接取样本，不做插值 */
+const RSI_PERCENTILE_TIP =
+  'RSI6 口径：标准 Wilder 平滑（Wilder RSI，首期简单平均播种、之后按 1/6 权重递推）；分位阈值：窗口内样本升序排列后取第 ceil(分位% × 样本数) 个样本的 RSI6 值（最近秩法，不插值）。';
+
+/** 位置列口径说明：按离散样本计数得到的经验分位，与分位列的名义刻度可能有差异 */
+const RSI_POSITION_TIP =
+  '位置：当前 RSI6 在窗口内的经验分位 = 「≤ 当前值的样本数 ÷ 样本总数」。分位列按最近秩取整、不插值，样本较少时两者刻度会不同，如 116 个样本时 2% 取到第 3 个样本，其经验分位为 3/116 ≈ 2.6%。';
+
+/**
+ * 周期卡片网格列数：
+ * - 4 个周期 → 2 列（上下 2 行、每行 2 个）
+ * - 3 个 → 3 列（一行铺满）
+ * - 2 个 → 2 列；1 个 → 1 列
+ */
+const resolveRsiCardColumns = (count: number) => (count >= 4 ? 2 : Math.max(1, count));
+
+/** 单个窗口的分位与位置 */
+interface RsiWindowStat {
+  key: RsiWindowKey;
+  label: string;
+  /** 各分位值，顺序与 appConfig.chart.rsiPercentileRefs 一致；无样本时为 null */
+  percentiles: (number | null)[];
+  /** 当前值在该窗口中的历史分位位置（0~100） */
+  position: number | null;
+  /** 窗口内有效样本数 */
+  sampleCount: number;
+}
+
 // 单周期 RSI 分位统计
 interface RsiStat {
   label: string;
   /** 与该周期折线一致的主题色 */
   color: string;
   current: number | null;
-  p10: number | null;
-  p90: number | null;
-  position: number | null;
-  status: RsiStatus;
+  /** 全历史 + 近10/5/3年各窗口统计（数据不足的窗口不出现） */
+  windows: RsiWindowStat[];
 }
 
 /** 将日期字符串转为 Date 对象（图表 xField 映射用） */
@@ -558,6 +613,10 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
   // 主图系列名称：指数场景显示"指数"，基金场景显示"累计收益率"，股票场景保留"收盘价"
   const mainName = type === 'index' ? '指数' : type === 'fund' ? '累计收益率' : '收盘价';
 
+  // 月&季 RSI6 ★5 分批卖出：批次 = 1 时不展示分批列
+  const sellTrancheCount = getSellTrancheCount();
+  const sellTrancheIntervalDays = getSellTrancheIntervalDays();
+
   // 可见周期：未指定时展示全部四周期；指定后仅展示传入的周期
   const visibleRsiPeriods = visiblePeriods
     ? rsiPeriods.filter(({ periodKey }) => visiblePeriods.includes(periodKey))
@@ -566,26 +625,111 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
   const showWeekly = visiblePeriodKeySet.has('weekly');
   const showDaily = visiblePeriodKeySet.has('daily');
 
+  /** 样本区间（受控，null = 未选择，使用全部数据）；支持只选开始或只选结束，选择后先裁剪数据再送 Worker 计算 */
+  const [sampleRange, setSampleRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+  const hasSampleRange = Boolean(sampleRange?.[0] || sampleRange?.[1]);
+
+  /** 数据自身日期边界：开始不得早于最早日期，结束不得晚于最晚日期 */
+  const dataDateBounds = useMemo(() => {
+    if (!data?.length) return null;
+    let min = Infinity;
+    let max = -Infinity;
+    data.forEach((item) => {
+      const t = moment(item.日期).valueOf();
+      if (!Number.isFinite(t)) return;
+      if (t < min) min = t;
+      if (t > max) max = t;
+    });
+    return Number.isFinite(min) && Number.isFinite(max) ? { min, max } : null;
+  }, [data]);
+
+  /**
+   * 区间内的样本数据（含首尾两日），后续 RSI / 分位 / 买卖点均基于该数据重算。
+   * 支持单边区间：只选开始 → 该日期及之后全部数据；只选结束 → 该日期及之前全部数据。
+   */
+  const filteredData = useMemo(() => {
+    const start = sampleRange?.[0];
+    const end = sampleRange?.[1];
+    if (!data?.length || (!start && !end)) return data;
+    const startMs = start ? start.startOf('day').valueOf() : -Infinity;
+    const endMs = end ? end.endOf('day').valueOf() : Infinity;
+    return data.filter((item) => {
+      const t = moment(item.日期).valueOf();
+      return t >= startMs && t <= endMs;
+    });
+  }, [data, sampleRange]);
+
+  /** 区间内样本摘要：样本点数与首尾日期，用于高亮条上直观展示当前样本规模 */
+  const sampleRangeStats = useMemo(() => {
+    if (!filteredData?.length) return null;
+    const first = filteredData[0]?.日期;
+    const last = filteredData[filteredData.length - 1]?.日期;
+    const format = (value?: string) => (value && moment(value).isValid() ? moment(value).format('YYYY-MM-DD') : '--');
+    return { count: filteredData.length, first: format(first), last: format(last) };
+  }, [filteredData]);
+
+  /** 只清除开始日期，保留结束日期（变为「结束日期及之前」的单边区间） */
+  const clearSampleStart = () => {
+    setSampleRange((prev) => (prev?.[1] ? [null, prev[1]] : null));
+  };
+
+  /** 只清除结束日期，保留开始日期（变为「开始日期及之后」的单边区间） */
+  const clearSampleEnd = () => {
+    setSampleRange((prev) => (prev?.[0] ? [prev[0], null] : null));
+  };
+
+  console.log('样本区间数据 filteredData', filteredData);
+
+  // 数据内容签名：父组件重建等值数组时不重复计算；
+  // 签名变化时立即判定为未就绪（loading），避免旧图表短暂闪现
+  const dataSignature = useMemo(
+    () =>
+      `${type}|${filteredData?.length ?? 0}|${filteredData?.[0]?.日期 ?? ''}|${filteredData?.[filteredData.length - 1]?.日期 ?? ''}|${filteredData?.[0]?.收盘 ?? ''}`,
+    [filteredData, type],
+  );
+
+  // 计算结果与数据签名绑定：签名不一致视为未就绪；
+  // Worker 失败时仍记录签名（result=null），避免永久 loading
+  const [detail, setDetail] = useState<{ signature: string; result: RsiDetailResult | null } | null>(null);
+
+  useEffect(() => {
+    if (!filteredData?.length) {
+      return;
+    }
+    // 每个 RsiFilterMark 实例独占 1 个 Worker；数据变化时终止旧 Worker，最新数据优先
+    const client = createRsiDetailWorker();
+    let cancelled = false;
+    client
+      .compute({ type, rawData: filteredData })
+      .then((result) => {
+        if (!cancelled) setDetail({ signature: dataSignature, result });
+      })
+      .catch(() => {
+        if (!cancelled) setDetail({ signature: dataSignature, result: null });
+      });
+    return () => {
+      cancelled = true;
+      client.terminate();
+    };
+  }, [dataSignature, filteredData, type]);
+
+  const matchedResult = detail && detail.signature === dataSignature ? detail.result : null;
+  const isLoading = Boolean(filteredData?.length) && (!detail || detail.signature !== dataSignature);
+
   const {
     buyPointList,
     mainChartConfig,
     rsiLineConfigs,
     rsiStats,
-    percentileThresholds,
     percentileTrades,
     percentileChartConfig,
     monthlyPercentileTrades,
     monthlyPercentileChartConfig,
     monthlyQuarterlyBuyList,
-    monthlyQuarterlyThresholds,
-    monthlyQuarterlySellThresholds,
     monthlyQuarterlyChartConfig,
   } = useMemo(() => {
-    // 收盘值语义：基金为累计收益率（%，可为负），股票/指数为价格/指数
-    const closeValueType: CloseValueType = type === 'fund' ? 'cumulativeReturn' : 'price';
-
     const emptyResult = {
-      buyPointList: [] as BuyPointRow[],
+      buyPointList: [] as RsiBuyPointRow[],
       mainChartConfig: {} as Record<string, unknown>,
       rsiLineConfigs: {} as Record<RsiPeriodKey, Record<string, unknown>>,
       rsiStats: [] as RsiStat[],
@@ -600,40 +744,36 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
       monthlyQuarterlyChartConfig: {} as Record<string, unknown>,
     };
 
-    if (!data?.length) {
+    if (!matchedResult) {
       return emptyResult;
     }
 
-    // 1) 计算日/周/月/季 K 线的 RSI6 值
-    const periodRSIMap = calculatePeriodRSI(data);
+    // Worker 已完成 RSI6 / 推荐级别 / 百分位配对等重计算，这里只消费纯数据并构造图表配置
+    const {
+      mainChartData,
+      buyPointList,
+      periodRSI: periodRSIMap,
+      weeklyThreshold,
+      weeklyTrades,
+      monthlyThreshold,
+      monthlyTrades,
+      mqBuyPoints: monthlyQuarterlyBuyList,
+      mqThresholds: monthlyQuarterlyThresholds,
+      mqSellThresholds: monthlyQuarterlySellThresholds,
+    } = matchedResult;
 
-    // 2) 合并为带推荐级别的图表数据（按标的类型 stock/index 选择推荐级别口径）
-    const chartData = computeRSIRecommendations(periodRSIMap, type) as ChartRow[];
-
-    // 3) 过滤出推荐买点
-    let buyPointList = chartData.filter(
-      (row): row is BuyPointRow => row.__recommendationLevel__ != null,
-    );
-
-    if (type === 'index' || type === 'fund') {
-      // 过滤初 每月最晚（最新）的一条记录，用于指数/基金推荐级别
-      // 以“月”为单位，避免太多推荐买点
-      buyPointList = convertToMonthlyData(buyPointList);
-    }
-
-    // 4) 生成买点标注
+    // 生成买点标注
     const annotations = createRecommendationAnnotations(buyPointList);
 
-    // 5) 构造主图 DualAxes：左轴指数/收盘价折线 + 买点标注，右轴各周期 RSI6
     // 左轴数据（指数/收盘价）
-    const mainData = chartData.map((item) => ({
-      date: item.日期,
+    const mainData = mainChartData.map((item) => ({
+      date: item.date,
       label: mainName,
-      value: item.收盘,
+      value: item.value,
     }));
-    // 右轴数据（仅月/季 RSI6）：取月K/季K 的实际数据点（月末/季末），
+    // 右轴数据（仅月/季 RSI6）：取月 K / 季 RSI6 的实际数据点（每月一个点），
     // 不按日重复填充，避免月内数值恒定造成“平台式直线”；
-    // 月RSI6 用 smooth 光滑曲线，季RSI6 不光滑（vh 阶梯：1～3 月横线取 3 月季末值，依此类推）
+    // 季RSI6 为「季初→当月」截断口径的按月序列，与月RSI6 一样使用 smooth 光滑曲线
     const rsiLongData = mainChartRsiPeriods.flatMap((periodMeta) =>
       toRsiLineData(periodRSIMap[rsiDataKeyOf(periodMeta.periodKey)] as RsiKLineData[], periodMeta.label),
     );
@@ -642,9 +782,10 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
     const colorDomain = [mainName, ...mainChartRsiPeriods.map(({ label }) => label)];
     const colorRange = [mainColor, ...mainChartRsiPeriods.map(({ color }) => color)];
 
-    // tooltip 查表：日 RSI 按日精确匹配；周/月/季 RSI 只有周期末数据点，
-    // shared tooltip 按相同日期匹配会漏掉，故按年周/年月/年季补齐对应周期值。
-    // 周匹配口径与 stockUtils.getPeriodRSIValues 一致（year + week）。
+    // tooltip 查表：日 RSI 按日精确匹配；周 RSI 按年周补齐；月/季 RSI 按月补齐。
+    // 周匹配口径与 aggregateKLineByPeriod 的周分组键一致（ISO weekYear + week）：
+    // 必须用 weekYear 而非日历 year，否则跨年周（如 2014-12-29~2015-01-02）的周末点
+    // 与 hover 日期分属两个键，tooltip 会查不到周 RSI6
     const dailyTooltipMap = buildTooltipMap(
       periodRSIMap.dailyRSI as RsiKLineData[],
       (d) => moment(d).format('YYYY-MM-DD'),
@@ -653,27 +794,21 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
       periodRSIMap.weeklyRSI as RsiKLineData[],
       (d) => {
         const date = moment(d);
-        return `${date.year()}-${date.week()}`;
+        return `${date.weekYear()}-${date.week()}`;
       },
     );
     const monthlyTooltipMap = buildTooltipMap(
       periodRSIMap.monthlyRSI as RsiKLineData[],
       (d) => moment(d).format('YYYY-MM'),
     );
-    // 季RSI6 tooltip 按「自然季度」对齐：hover 日期在 1～3 月取当年 3 月最晚的季末RSI6，
-    // 4～6 月取 6 月最晚、7～9 月取 9 月最晚、10～12 月取 12 月最晚；
-    // 与右轴季RSI6 折线的 vh（step-before）阶梯归属、月&季策略表格对齐三方一致（getQuarterKey）
-    const quarterlyTooltipMap = new Map<string, RsiKLineData>();
-    for (const point of periodRSIMap.quarterlyRSI as RsiKLineData[]) {
-      const key = getQuarterKey(point.日期);
-      const existed = quarterlyTooltipMap.get(key);
-      // 同一季度理论上只有一个季末点，若存在多条则保留日期最晚的一条
-      if (!existed || point.日期 > existed.日期) {
-        quarterlyTooltipMap.set(key, point);
-      }
-    }
+    // 季RSI6 tooltip 按「年月」对齐：hover 到某天时取该月「季初→当月」截断口径的季 RSI6，
+    // 与季RSI6 折线、月&季策略表格同口径（均按年月匹配，天然不含未来函数）
+    const quarterlyTooltipMap = buildTooltipMap(
+      periodRSIMap.quarterlyRSI as RsiKLineData[],
+      (d) => moment(d).format('YYYY-MM'),
+    );
     const getQuarterlyRsi = (dateStr: string): number | null | undefined =>
-      quarterlyTooltipMap.get(getQuarterKey(dateStr))?.__RSI6__;
+      quarterlyTooltipMap.get(moment(dateStr).format('YYYY-MM'));
     const formatTooltipValue = (value: number | null | undefined) =>
       typeof value === 'number' && !Number.isNaN(value) ? value.toFixed(2) : '--';
 
@@ -730,7 +865,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
                     return {
                       name: weeklyPeriodMeta.label,
                       color: weeklyPeriodMeta.color,
-                      value: formatTooltipValue(weeklyTooltipMap.get(`${date.year()}-${date.week()}`)),
+                      value: formatTooltipValue(weeklyTooltipMap.get(`${date.weekYear()}-${date.week()}`)),
                     };
                   },
                 ]
@@ -759,10 +894,10 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
             // 独立 scale：RSI 折线整体下移与指数错开（domain 0～200，不挂轴、不裁剪）
             y: { id: 'mainRsiYShift', domain: [0, 200] },
             color: { domain: colorDomain, range: colorRange },
-            // 按系列映射折线形状：月RSI6 光滑，季RSI6 阶梯横线（不光滑）
+            // 按系列映射折线形状：月/季 RSI6 均为按月产出的连续序列，统一使用光滑曲线（'smooth'）
             shape: {
               domain: mainChartRsiPeriods.map(({ label }) => label),
-              range: mainChartRsiPeriods.map(({ periodKey }) => rsiLineShapeOf(periodKey)),
+              range: mainChartRsiPeriods.map(() => 'smooth'),
             },
           },
           axis: false,
@@ -780,69 +915,63 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
       return configs;
     }, {} as Record<RsiPeriodKey, Record<string, unknown>>);
 
-    // 7) 各周期 RSI6 当前值、历史 10%/90% 分位、超买超卖状态（仅可见周期）
+    // 7) 各周期 RSI6 当前值、全历史 / 近10年 / 近5年 / 近3年 的各分位（appConfig.chart.rsiPercentileRefs）与位置（仅可见周期）
+    // 窗口以样本最后一个数据点回推；数据跨度不足 N 年的窗口不展示（无有效样本时同样跳过）
     const rsiStats: RsiStat[] = visibleRsiPeriods.map(({ label, color, periodKey }) => {
       // 剔除前 rsiWarmup 个预热点（固定值 50），避免干扰分位
-      const values = getRsiValues(periodRSIMap, periodKey);
+      const points = getRsiPoints(periodRSIMap, periodKey);
 
-      if (!values.length) {
-        return { label, color, current: null, p10: null, p90: null, position: null, status: 'normal' };
+      if (!points.length) {
+        return { label, color, current: null, windows: [] };
       }
 
-      const current = Number(values[values.length - 1].toFixed(2));
-      const p10 = roundPercentile(values, 10);
-      const p90 = roundPercentile(values, 90);
-      // 当前值在历史序列中的分位位置（0~100）
-      const position = Number(((values.filter((v) => v <= current).length / values.length) * 100).toFixed(1));
-      const status: RsiStatus = current >= p90 ? 'overbought' : current <= p10 ? 'oversold' : 'normal';
+      const current = Number(points[points.length - 1].value.toFixed(2));
+      const historyStartMs = points[0].time;
+      // 窗口锚点取样本最后一个数据点，而非当前自然日：选择样本区间后「近10年」与 as-of 分位口径一致
+      const anchorMs = points[points.length - 1].time;
 
-      return { label, color, current, p10, p90, position, status };
+      const windows = RSI_WINDOW_DEFS.reduce<RsiWindowStat[]>((list, def) => {
+        let values: number[];
+        if (def.years == null) {
+          values = points.map((point) => point.value);
+        } else {
+          const cutoffMs = moment(anchorMs).subtract(def.years, 'years').valueOf();
+          // 数据跨度不足 N 年：该窗口不展示
+          if (historyStartMs > cutoffMs) return list;
+          values = points.filter((point) => point.time >= cutoffMs).map((point) => point.value);
+        }
+        if (!values.length) return list;
+
+        const percentiles = RSI_PERCENTILE_REFS.map((percentile) =>
+          roundPercentile(values, percentile),
+        );
+        // 当前值在该窗口序列中的分位位置（0~100）
+        const position = Number(
+          ((values.filter((value) => value <= current).length / values.length) * 100).toFixed(1),
+        );
+
+        list.push({ key: def.key, label: def.label, percentiles, position, sampleCount: values.length });
+        return list;
+      }, []);
+
+      return { label, color, current, windows };
     });
 
-    // 8) 百分位买卖配对：周RSI6 / 月RSI6 各自独立配对
-    // analyzer 一次计算同时产出买卖阈值与交易配对，阈值直接供参考线/规则文案复用，不重复算分位
-    // 口径一致：触及（≤）买入分位建仓/加仓，触及（≥）卖出分位且相对第一次买入盈利时卖出
-    const weeklyAnalysis = analyzeSinglePeriodPercentile({
-      rsiData: periodRSIMap.weeklyRSI,
-      buyPercentile: WEEKLY_RSI_BUY_PERCENTILE,
-      sellPercentile: WEEKLY_RSI_SELL_PERCENTILE,
-      closeValueType,
-    });
-    const monthlyAnalysis = analyzeSinglePeriodPercentile({
-      rsiData: periodRSIMap.monthlyRSI,
-      buyPercentile: MONTHLY_RSI_PCT_BUY_PERCENTILE,
-      sellPercentile: MONTHLY_RSI_PCT_SELL_PERCENTILE,
-      closeValueType,
-    });
-
-    const percentileTrades: SinglePeriodPercentileTrade[] = weeklyAnalysis.trades;
-    const monthlyPercentileTrades: SinglePeriodPercentileTrade[] = monthlyAnalysis.trades;
+    // 8) 周/月 RSI6 百分位策略：Worker 已产出买卖阈值与交易配对
+    const percentileTrades: SinglePeriodPercentileTrade[] = weeklyTrades;
+    const monthlyPercentileTrades: SinglePeriodPercentileTrade[] = monthlyTrades;
 
     const percentileThresholds: PercentileThresholds | null =
-      weeklyAnalysis.threshold || monthlyAnalysis.threshold
+      weeklyThreshold || monthlyThreshold
         ? {
-          weeklyBuyThreshold: weeklyAnalysis.threshold?.buy ?? Number.NaN,
-          weeklySellThreshold: weeklyAnalysis.threshold?.sell ?? Number.NaN,
-          monthlyBuyThreshold: monthlyAnalysis.threshold?.buy ?? Number.NaN,
-          monthlySellThreshold: monthlyAnalysis.threshold?.sell ?? Number.NaN,
+          weeklyBuyThreshold: weeklyThreshold?.buy ?? Number.NaN,
+          weeklySellThreshold: weeklyThreshold?.sell ?? Number.NaN,
+          monthlyBuyThreshold: monthlyThreshold?.buy ?? Number.NaN,
+          monthlySellThreshold: monthlyThreshold?.sell ?? Number.NaN,
         }
         : null;
 
-    // 9) 月+季 RSI6 共振买点：月RSI6 与 季RSI6 同时跌破历史分位，按分位严度分级（★5/★3/★1）
-    // analyzer 内部按「所在自然季度」对齐季末 RSI6（1～3 月取 3 月最晚…），
-    // 与季RSI6 vh 阶梯折线、tooltip 查表同口径；阈值/卖点/买点一次全部产出
-    const mqAnalysis = analyzeMonthlyQuarterlyPercentile({
-      monthlyRSI6Data: periodRSIMap.monthlyRSI,
-      quarterlyRSI6Data: periodRSIMap.quarterlyRSI,
-      closeValueType,
-    });
-    const monthlyQuarterlyBuyList: MonthlyQuarterlyPercentileBuyPoint[] =
-      mqAnalysis?.buyPoints ?? [];
-    const monthlyQuarterlyThresholds: Record<number, { monthly: number; quarterly: number }> | null =
-      mqAnalysis?.thresholds ?? null;
-    // 卖出阈值：月RSI6 ≥ 该值 且 季RSI6 ≥ 该值 时视为可卖出点（与★5买点顺序配对）
-    const monthlyQuarterlySellThresholds: { monthly: number; quarterly: number } | null =
-      mqAnalysis?.sellThresholds ?? null;
+    // 9) 月+季 RSI6 共振买点/买入阈值/卖出阈值已由 Worker 产出（monthlyQuarterlyBuyList 等）
 
     // 10) 百分位买卖标注图：左轴收盘价/指数折线 + 右轴周RSI6阈值参考线，叠加买点/卖点标注
     // 与主图一致：周RSI6 不单独绘制折线，仅通过左轴 tooltip 展示数值
@@ -932,7 +1061,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
                 return {
                   name: weeklyPeriodMeta.label,
                   color: weeklyPeriodMeta.color,
-                  value: formatTooltipValue(weeklyTooltipMap.get(`${date.year()}-${date.week()}`)),
+                  value: formatTooltipValue(weeklyTooltipMap.get(`${date.weekYear()}-${date.week()}`)),
                 };
               },
             ],
@@ -1121,6 +1250,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
     const mqColorRange = [mainColor, monthlyPeriodMeta.color, quarterlyPeriodMeta.color];
 
     // 月/季 RSI6 ★1 级（10% 分位）水平参考线（mqRsiY 0～100 真实口径）；不展示右轴刻度尺
+    // 注意：阈值为 as-of 滚动口径，本线仅表示「最新月」的 ★1 阈值，历史各月阈值不同
     const mqLevel1 = MQ_LEVEL_RULES.find(({ level }) => level === 1)!;
     const mqThresholdLineYMarks = monthlyQuarterlyThresholds
       ? [
@@ -1206,10 +1336,10 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
             // 独立 scale：折线整体下移与指数错开（domain 0～200，不挂轴、不裁剪）
             y: { id: 'mqRsiYShift', domain: [0, 200] },
             color: { domain: mqColorDomain, range: mqColorRange },
-            // 按系列映射折线形状：月RSI6 光滑，季RSI6 阶梯横线（不光滑）
+            // 按系列映射折线形状：月/季 RSI6 均为按月产出的连续序列，统一使用光滑曲线（'smooth'）
             shape: {
               domain: [monthlyPeriodMeta.label, quarterlyPeriodMeta.label],
-              range: [rsiLineShapeOf('monthly'), rsiLineShapeOf('quarterly')],
+              range: ['smooth', 'smooth'],
             },
           },
           axis: false,
@@ -1221,7 +1351,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
     };
 
     return { buyPointList, mainChartConfig, rsiLineConfigs, rsiStats, percentileThresholds, percentileTrades, percentileChartConfig, monthlyPercentileTrades, monthlyPercentileChartConfig, monthlyQuarterlyBuyList, monthlyQuarterlyThresholds, monthlyQuarterlySellThresholds, monthlyQuarterlyChartConfig };
-  }, [data, type, mainName, visibleRsiPeriods, showDaily, showWeekly]);
+  }, [matchedResult, mainName, visibleRsiPeriods, showDaily, showWeekly]);
 
   // 百分位交易表格数据：每笔配对交易扁平化为「首次买入 + N 笔加仓」多行，
   // 卖出/持有天数/收益率/年化/状态只在首次买入行展示并跨行合并，加仓行只显示买入信息。
@@ -1520,13 +1650,24 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
         render: (value: number | undefined) => (value != null ? value : '--'),
       },
       {
-        title: '收益率',
+        title: '平均收益率',
         dataIndex: 'returnRate',
         key: 'returnRate',
         align: 'right' as const,
         width: 100,
         render: renderPercent,
       },
+      // 分批卖出各批收益率（批次 = 1 时不生成列）：未执行批次展示 --
+      ...Array.from({ length: sellTrancheCount > 1 ? sellTrancheCount : 0 }, (_, index) => ({
+        title: getSellTrancheColumnTitle(index + 1),
+        key: `sellTranche-${index}`,
+        align: 'right' as const,
+        width: 120,
+        render: (_: unknown, row: MonthlyQuarterlyPercentileBuyPoint) => {
+          const tranche = row.sellTranches?.[index];
+          return renderPercent(tranche?.executed ? (tranche.returnRate ?? null) : null);
+        },
+      })),
       {
         title: '年化收益率',
         dataIndex: 'annualizedReturn',
@@ -1536,15 +1677,157 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
         render: renderPercent,
       },
     ],
-    [mainName],
+    [mainName, sellTrancheCount],
   );
 
-  if (!data?.length) {
-    return <div>暂无数据</div>;
+  /** 样本区间控件：空数据状态下也保留，便于用户重新选择区间 */
+  const sampleRangeControl = (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        padding: '10px 14px',
+        borderRadius: 10,
+        background: hasSampleRange
+          ? `linear-gradient(90deg, ${withAlpha('#722ed1', 0.09)} 0%, ${withAlpha('#1890ff', 0.05)} 100%)`
+          : 'linear-gradient(90deg, #fafbfc 0%, #f2f5f9 100%)',
+        border: `1px solid ${hasSampleRange ? withAlpha('#722ed1', 0.3) : '#e6eaf1'}`,
+        boxShadow: hasSampleRange ? `0 2px 10px ${withAlpha('#722ed1', 0.08)}` : 'none',
+        transition: 'background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease',
+      }}
+    >
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 28,
+              height: 28,
+              borderRadius: 8,
+              fontSize: 14,
+              color: hasSampleRange ? '#fff' : '#8c8c8c',
+              background: hasSampleRange
+                ? 'linear-gradient(135deg, #722ed1 0%, #1890ff 100%)'
+                : '#eceff4',
+              boxShadow: hasSampleRange ? `0 2px 6px ${withAlpha('#722ed1', 0.25)}` : 'none',
+            }}
+          >
+            <CalendarOutlined />
+          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: '#262626' }}>
+              样本区间
+              <Tag
+                color={hasSampleRange ? 'purple' : undefined}
+                style={{ marginInlineEnd: 0, fontSize: 11, lineHeight: '18px' }}
+              >
+                {hasSampleRange ? '已启用' : '全部数据'}
+              </Tag>
+            </span>
+            <span style={{ fontSize: 11.5, color: '#8c8c8c', whiteSpace: 'nowrap' }}>
+              {sampleRangeStats
+                ? `${sampleRangeStats.count.toLocaleString()} 个样本点 · ${sampleRangeStats.first} ~ ${sampleRangeStats.last}`
+                : '暂无可用样本'}
+            </span>
+          </div>
+        </div>
+        <div style={{ flex: '1 1 auto', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <DatePicker.RangePicker
+            allowClear
+            allowEmpty={[true, true]}
+            size="small"
+            value={sampleRange}
+            placeholder={['开始日期', '结束日期']}
+            style={{ width: 280 }}
+            onChange={(dates) => setSampleRange(dates ?? null)}
+            disabledDate={(current) => {
+              if (!current || !dataDateBounds) return false;
+              return (
+                current.isBefore(dayjs(dataDateBounds.min), 'day') ||
+                current.isAfter(dayjs(dataDateBounds.max), 'day')
+              );
+            }}
+          />
+          <Button
+            type="link"
+            size="small"
+            disabled={!sampleRange?.[0]}
+            onClick={clearSampleStart}
+            style={{ padding: 0, fontSize: 12 }}
+          >
+            清除开始
+          </Button>
+          <Button
+            type="link"
+            size="small"
+            disabled={!sampleRange?.[1]}
+            onClick={clearSampleEnd}
+            style={{ padding: 0, fontSize: 12 }}
+          >
+            清除结束
+          </Button>
+        </div>
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          gap: 6,
+          paddingTop: 8,
+          borderTop: `1px dashed ${withAlpha('#722ed1', 0.18)}`,
+          fontSize: 12,
+          lineHeight: 1.7,
+          color: '#5c6b82',
+        }}
+      >
+        <InfoCircleOutlined style={{ color: '#722ed1', marginTop: 3 }} />
+        <span>
+          选择区间后执行<span style={{ color: '#262626', fontWeight: 600 }}>「先筛选样本，再重新计算」</span>：先按区间裁剪数据，
+          <span style={{ color: '#1890ff', fontWeight: 600 }}>再基于筛选结果重算 RSI6、历史分位与买卖点</span>
+          （不使用区间外数据，避免未来信息干扰）；可用于对比标的在不同年份的策略表现。支持三种区间：
+          <span style={{ color: '#722ed1', fontWeight: 600 }}>同时选择开始与结束</span>（按所选闭区间裁剪）、
+          <span style={{ color: '#722ed1', fontWeight: 600 }}>只选开始</span>（该日期及之后）或
+          <span style={{ color: '#722ed1', fontWeight: 600 }}>只选结束</span>（该日期及之前）的单边区间。
+        </span>
+      </div>
+    </div>
+  );
+
+  if (!filteredData?.length) {
+    return (
+      <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+        {sampleRangeControl}
+        <div>{hasSampleRange ? '所选样本区间内暂无数据，请调整日期范围' : '暂无数据'}</div>
+      </Space>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 12,
+          padding: '48px 0',
+          borderRadius: 8,
+          background: 'linear-gradient(180deg, #fafbfc 0%, #f0f2f5 100%)',
+          border: '1px solid #e8e8e8',
+        }}
+      >
+        <Spin size="large" />
+        <span style={{ fontSize: 13, color: '#8c8c8c' }}>RSI6 多周期指标与买卖点计算中，请稍候…</span>
+      </div>
+    );
   }
 
   return (
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+      {sampleRangeControl}
       <div
         style={{
           display: 'flex',
@@ -1578,24 +1861,28 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
         bodyStyle={{ padding: '12px 14px' }}
       >
         <CollapsibleCard title="各周期 RSI6 · 历史分位参考">
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: `repeat(${resolveRsiCardColumns(rsiStats.length)}, minmax(0, 1fr))`,
+              gap: 8,
+            }}
+          >
             {rsiStats.map((stat) => {
-              const meta = rsiStatusMeta[stat.status];
               return (
                 <div
                   key={stat.label}
                   style={{
-                    flex: '1 1 150px',
-                    minWidth: 150,
-                    padding: '10px 14px',
+                    minWidth: 0,
+                    padding: '8px 10px',
                     borderRadius: 8,
                     background: withAlpha(stat.color, 0.06),
                     border: `1px solid ${withAlpha(stat.color, 0.25)}`,
                     borderLeft: `3px solid ${stat.color}`,
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ fontSize: 13, color: '#595959', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ fontSize: 14, color: '#595959', display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span
                         style={{
                           display: 'inline-block',
@@ -1608,9 +1895,6 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
                       />
                       {stat.label.replace('RSI', 'K · RSI')}
                     </span>
-                    <Tag color={meta.tagColor} style={{ marginInlineEnd: 0 }}>
-                      {meta.text}
-                    </Tag>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                     <span
@@ -1624,18 +1908,79 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
                     >
                       {stat.current ?? '--'}
                     </span>
-                    <span style={{ fontSize: 12, color: '#8c8c8c' }}>
-                      当前{stat.position != null ? ` · 位置 ${stat.position}%` : ''}
+                  </div>
+                  {/* 各窗口分位参考：全历史 / 近10年 / 近5年 / 近3年（数据跨度不足的窗口不展示） */}
+                  <div
+                    style={{
+                      marginTop: 8,
+                      display: 'grid',
+                      gridTemplateColumns: RSI_PERCENTILE_GRID_TEMPLATE,
+                      columnGap: 4,
+                      fontSize: 11,
+                      color: '#8c8c8c',
+                      fontVariantNumeric: 'tabular-nums',
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    <span>窗口</span>
+                    {RSI_PERCENTILE_REFS.map((percentile) => (
+                      <Tooltip key={percentile} title={RSI_PERCENTILE_TIP}>
+                        <span
+                          style={{
+                            textAlign: 'right',
+                            whiteSpace: 'nowrap',
+                            cursor: 'help',
+                            textDecoration: 'underline dotted rgba(0, 0, 0, 0.25)',
+                          }}
+                        >
+                          {percentile}%
+                        </span>
+                      </Tooltip>
+                    ))}
+                    <span
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'flex-end',
+                        gap: 2,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      位置
+                      <Tooltip title={RSI_POSITION_TIP}>
+                        <InfoCircleOutlined style={{ fontSize: 10, color: '#bfbfbf', cursor: 'help' }} />
+                      </Tooltip>
                     </span>
                   </div>
-                  <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 2 }}>
-                    <span>
-                      10%分位 <b style={{ color: '#595959', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{stat.p10 ?? '--'}</b>
-                    </span>
-                    <span style={{ marginLeft: 12 }}>
-                      90%分位 <b style={{ color: '#595959', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{stat.p90 ?? '--'}</b>
-                    </span>
-                  </div>
+                  {stat.windows.map((win, index) => (
+                    <div
+                      key={win.key}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: RSI_PERCENTILE_GRID_TEMPLATE,
+                        columnGap: 4,
+                        fontSize: 12,
+                        padding: '3px 0',
+                        borderTop: `1px ${index === 0 ? 'solid' : 'dashed'} ${withAlpha(stat.color, index === 0 ? 0.25 : 0.12)}`,
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
+                      <span style={{ color: index === 0 ? '#595959' : '#8c8c8c', fontWeight: index === 0 ? 600 : 400, whiteSpace: 'nowrap' }}>
+                        {win.label}
+                      </span>
+                      {win.percentiles.map((value, colIndex) => (
+                        <span
+                          key={RSI_PERCENTILE_REFS[colIndex]}
+                          style={{ textAlign: 'right', color: '#595959', fontWeight: 600, whiteSpace: 'nowrap' }}
+                        >
+                          {value != null ? value.toFixed(2) : '--'}
+                        </span>
+                      ))}
+                      <span style={{ textAlign: 'right', color: '#595959', whiteSpace: 'nowrap' }}>
+                        {win.position != null ? `${win.position}%` : '--'}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               );
             })}
@@ -1715,35 +2060,51 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
               borderBottom: '1px solid #f0f0f0',
             }}
           >
-            规则：月RSI6 与 季RSI6 同时触及（≤）对应历史分位时记为买点，按分位严度分级（星级越高共振越强）。
-            {MQ_LEVEL_RULES.map(({ level, percentile }) => (
+            规则：月RSI6 与 季RSI6 同时触及（≤）对应「截至当月、近 {RSI_ASOF_WINDOW_MONTHS} 个月（约 {RSI_ASOF_WINDOW_YEARS} 年，可配置）」的滚动分位时记为买点，按分位严度分级（星级越高共振越强）。
+            {MQ_LEVEL_RULES.map(({ level, monthlyPercentile, quarterlyPercentile }) => (
               <div key={level}>
                 <span style={{ color: '#ffd700', fontWeight: 700 }}>{'★'.repeat(level)}</span>：月RSI6{' '}
-                <span style={{ color: monthlyRsiColor, fontWeight: 600 }}>
-                  ≤ {monthlyQuarterlyThresholds?.[level].monthly.toFixed(2)}
-                </span>
-                （历史{percentile}%分位）且 季RSI6{' '}
-                <span style={{ color: quarterlyRsiColor, fontWeight: 600 }}>
-                  ≤ {monthlyQuarterlyThresholds?.[level].quarterly.toFixed(2)}
-                </span>
-                （历史{percentile}%分位）
+                <span style={{ color: monthlyRsiColor, fontWeight: 600 }}>≤ {monthlyPercentile}% 分位</span>
+                且 季RSI6{' '}
+                <span style={{ color: quarterlyRsiColor, fontWeight: 600 }}>≤ {quarterlyPercentile}% 分位</span>
+                <span style={{ color: '#8c8c8c' }}>（均按近 {RSI_ASOF_WINDOW_YEARS} 年滚动分位）</span>
               </div>
             ))}
             <div style={{ color: '#595959' }}>
-              按月扫描，季度值取当月「所在自然季度」的季末 RSI6：1～3 月取 3 月最晚、4～6 月取 6 月最晚、7～9 月取 9 月最晚、10～12 月取 12 月最晚，与图中季RSI6 阶梯线一致；同一月份满足多个级别时取最高星级展示。
+              按月扫描，季度值取当月「季初→当月」截断口径的季 RSI6（1 月只用 1 月数据、2 月用 1～2 月数据，不使用未来的季末数据回填，与图中季RSI6 折线一致）；同一月份满足多个级别时取最高星级展示。
+            </div>
+            <div style={{ color: '#595959' }}>
+              as-of 口径：判定某月时，分位阈值只用该月及之前、近{' '}
+              <span style={{ fontWeight: 600 }}>{RSI_ASOF_WINDOW_MONTHS} 个月</span>（约 {RSI_ASOF_WINDOW_YEARS} 年，可配置）的月/季 RSI6 样本滚动计算（含当月），
+              不使用该月之后的数据；历史不足 {RSI_ASOF_WINDOW_YEARS} 年但满 {MQ_MIN_SAMPLE_MONTHS} 个月时使用全部历史；月、季两个窗口均满{' '}
+              <span style={{ fontWeight: 600 }}>{MQ_MIN_SAMPLE_MONTHS} 个</span>有效样本（受季序列滞后影响，约 6.5 年历史）后才开始产生买卖信号；
+              上文只展示分位秩，历史各月按各自的滚动阈值判定；图中月/季水平虚线仅表示最新月的 ★1 阈值。
             </div>
             <div style={{ marginTop: 4 }}>
               卖出规则：月RSI6{' '}
               <span style={{ color: monthlyRsiColor, fontWeight: 600 }}>
-                ≥ {monthlyQuarterlySellThresholds?.monthly.toFixed(2)}
+                ≥ {MONTHLY_RSI_SELL_PERCENTILE}% 分位
               </span>
-              （历史{MONTHLY_RSI_SELL_PERCENTILE}%分位）且 季RSI6{' '}
+              且 季RSI6{' '}
               <span style={{ color: quarterlyRsiColor, fontWeight: 600 }}>
-                ≥ {monthlyQuarterlySellThresholds?.quarterly.toFixed(2)}
+                ≥ {QUARTERLY_RSI_SELL_PERCENTILE}% 分位
               </span>
-              （历史{QUARTERLY_RSI_SELL_PERCENTILE}%分位）时视为可卖出点。
+              （均按截至当月、近 {RSI_ASOF_WINDOW_YEARS} 年的滚动分位）、且持有满{' '}
+              <span style={{ fontWeight: 600 }}>{MQ_SELL_MIN_HOLDING_DAYS} 天</span>（约 1 年，可配置）、
+              且收益率达门槛（该天数之后按年化收益率{' '}
+              <span style={{ fontWeight: 600 }}>≥ {MQ_SELL_MIN_RETURN_PCT}%</span>）时视为可卖出点；
               <span style={{ color: '#595959' }}>
-                ★5买点与卖点按时间顺序配对（★5买→卖→★5买→卖…），配对后计算持有天数、收益率与年化收益率；★1/★3买点及未配对的★5买点卖出列留空。
+                持有未满 {MQ_SELL_MIN_HOLDING_DAYS} 天或收益率未达门槛均不卖出、继续持有，
+                等待下一次同时满足「RSI 超买 + 持有满期 + 收益率门槛」的信号（阈值可配置）。
+              </span>
+              <span style={{ color: '#595959' }}>
+                触发卖出信号后{sellTrancheCount > 1
+                  ? `分 ${sellTrancheCount} 批卖出，每批间隔 ${sellTrancheIntervalDays} 天（第 1 批为信号当日，目标日非交易日顺延至下一交易日收盘）；各批收益率分别按「本批卖出价 vs 买入价」计算，取算术平均作为「平均收益率」`
+                  : '一次性卖出（当前批次配置为 1）'}
+                ；持有天数与年化收益率仍按首笔卖出信号日计算。
+              </span>
+              <span style={{ color: '#595959' }}>
+                ★5买点与卖点按时间顺序配对（★5买→卖→★5买→卖…）；★1/★3买点及未配对的★5买点卖出列留空。
               </span>
             </div>
           </div>
@@ -1754,7 +2115,7 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
             pagination={false}
             size="middle"
             bordered
-            scroll={{ x: 1260 }}
+            scroll={{ x: 1260 + (sellTrancheCount > 1 ? sellTrancheCount * 120 : 0) }}
           />
         </CollapsibleCard>
         <CollapsibleCard
@@ -1872,18 +2233,26 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
           >
             规则：空仓时月RSI6{' '}
             <span style={{ color: monthlyRsiColor, fontWeight: 600 }}>
-              ≤ {percentileThresholds?.monthlyBuyThreshold.toFixed(2)}
+              ≤ {MONTHLY_RSI_PCT_BUY_PERCENTILE}% 分位
             </span>
-            （历史{MONTHLY_RSI_PCT_BUY_PERCENTILE}%分位）第一次买入建仓；
+            （截至当月、近 {RSI_ASOF_WINDOW_YEARS} 年滚动）第一次买入建仓；
             <span style={{ color: '#595959' }}>持仓期间每月月RSI6 触及（≤）该分位即重复买入（加仓），表格中逐笔列出全部买入</span>
             ；月RSI6{' '}
             <span style={{ color: monthlyRsiColor, fontWeight: 600 }}>
-              ≥ {percentileThresholds?.monthlySellThreshold.toFixed(2)}
+              ≥ {MONTHLY_RSI_PCT_SELL_PERCENTILE}% 分位
             </span>
-            （历史{MONTHLY_RSI_PCT_SELL_PERCENTILE}%分位）且卖出价高于
-            <span style={{ color: '#595959' }}>第一次买入价</span>（收益率＞0）时卖出，
+            （截至当月、近 {RSI_ASOF_WINDOW_YEARS} 年滚动）且相对
+            <span style={{ color: '#595959' }}>第一次买入价</span>的收益率达门槛（持有满 {RSI_ANNUALIZE_MIN_HOLDING_DAYS} 天按年化收益率{' '}
+            <span style={{ fontWeight: 600 }}>≥ {SINGLE_PERIOD_SELL_MIN_RETURN_PCT}%</span>、不足按区间收益率{' '}
+            <span style={{ fontWeight: 600 }}>≥ {SINGLE_PERIOD_SELL_MIN_RETURN_PCT}%</span>）时卖出，
             <span style={{ color: '#595959' }}>持有天数、收益率与年化收益率仅按「卖出 − 第一次买入」配对计算，加仓行不展示收益；卖出必有对应的在先买入</span>
-            ；超买但未盈利（收益率≤0）时不卖出，继续持有等待下一次信号；末尾未卖出记为“持仓中”。
+            ；超买但收益率未达门槛时不卖出，继续持有等待下一次满足「RSI 超买 + 收益率门槛」的信号（阈值可配置）；末尾未卖出记为“持仓中”。
+            <div style={{ color: '#595959' }}>
+              as-of 口径：每一期只用当期及之前、近{' '}
+              <span style={{ fontWeight: 600 }}>{RSI_ASOF_WINDOW_MONTHS} 个月</span>（约 {RSI_ASOF_WINDOW_YEARS} 年，可配置）的月RSI6 样本滚动计算分位阈值；
+              历史不足 {RSI_ASOF_WINDOW_YEARS} 年但满 <span style={{ fontWeight: 600 }}>{SINGLE_PERIOD_MIN_SAMPLE_COUNT} 个</span>有效样本时使用全部历史，满该样本数后才开始产生信号；
+              图中水平虚线仅表示最新一期的阈值。
+            </div>
           </div>
           <Table
             dataSource={monthlyPercentileTradeRows}
@@ -1955,18 +2324,26 @@ const RsiFilterMark: React.FC<RsiFilterMarkProps> = ({ data, type, visiblePeriod
             >
               规则：空仓时周RSI6{' '}
               <span style={{ color: weeklyRsiColor, fontWeight: 600 }}>
-                ≤ {percentileThresholds?.weeklyBuyThreshold.toFixed(2)}
+                ≤ {WEEKLY_RSI_BUY_PERCENTILE}% 分位
               </span>
-              （历史{WEEKLY_RSI_BUY_PERCENTILE}%分位）第一次买入建仓；
+              （截至当周、近 {RSI_ASOF_WINDOW_YEARS} 年滚动）第一次买入建仓；
               <span style={{ color: '#595959' }}>持仓期间每一周周RSI6 触及（≤）该分位即重复买入（加仓），表格中逐笔列出全部买入</span>
               ；周RSI6{' '}
               <span style={{ color: weeklyRsiColor, fontWeight: 600 }}>
-                ≥ {percentileThresholds?.weeklySellThreshold.toFixed(2)}
+                ≥ {WEEKLY_RSI_SELL_PERCENTILE}% 分位
               </span>
-              （历史{WEEKLY_RSI_SELL_PERCENTILE}%分位）且卖出价高于
-              <span style={{ color: '#595959' }}>第一次买入价</span>（收益率＞0）时卖出，
+              （截至当周、近 {RSI_ASOF_WINDOW_YEARS} 年滚动）且相对
+              <span style={{ color: '#595959' }}>第一次买入价</span>的收益率达门槛（持有满 {RSI_ANNUALIZE_MIN_HOLDING_DAYS} 天按年化收益率{' '}
+              <span style={{ fontWeight: 600 }}>≥ {SINGLE_PERIOD_SELL_MIN_RETURN_PCT}%</span>、不足按区间收益率{' '}
+              <span style={{ fontWeight: 600 }}>≥ {SINGLE_PERIOD_SELL_MIN_RETURN_PCT}%</span>）时卖出，
               <span style={{ color: '#595959' }}>持有天数、收益率与年化收益率仅按「卖出 − 第一次买入」配对计算，加仓行不展示收益；卖出必有对应的在先买入</span>
-              ；超买但未盈利（收益率≤0）时不卖出，继续持有等待下一次信号；末尾未卖出记为“持仓中”。
+              ；超买但收益率未达门槛时不卖出，继续持有等待下一次满足「RSI 超买 + 收益率门槛」的信号（阈值可配置）；末尾未卖出记为“持仓中”。
+              <div style={{ color: '#595959' }}>
+                as-of 口径：每一期只用当期及之前、近{' '}
+                <span style={{ fontWeight: 600 }}>{RSI_ASOF_WINDOW_MONTHS} 个月</span>（约 {RSI_ASOF_WINDOW_YEARS} 年，可配置）的周RSI6 样本滚动计算分位阈值；
+                历史不足 {RSI_ASOF_WINDOW_YEARS} 年但满 <span style={{ fontWeight: 600 }}>{SINGLE_PERIOD_MIN_SAMPLE_COUNT} 个</span>有效样本时使用全部历史，满该样本数后才开始产生信号；
+                图中水平虚线仅表示最新一期的阈值。
+              </div>
             </div>
             <Table
               dataSource={percentileTradeRows}

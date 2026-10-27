@@ -6,9 +6,13 @@ import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { numberSorter, createRangeFilter, createDateRangeFilter } from '@/utils/tableUtils';
 import type { IndexDetailData } from './detail';
-import { computeRSIRecommendations, calculatePeriodRSI, createRecommendationAnnotations, computeMonthlyQuarterlyPercentileBuyPoints, computeSinglePeriodPercentileTrades, WEEKLY_RSI_BUY_PERCENTILE, WEEKLY_RSI_SELL_PERCENTILE, MONTHLY_RSI_PCT_BUY_PERCENTILE, MONTHLY_RSI_PCT_SELL_PERCENTILE, isRecentDate } from '@/utils/stockUtils';
+import { createRecommendationAnnotations, cleanCsindexHistory, isRecentDate } from '@/utils/stockUtils';
+import { appConfig } from '@/config/appConfig';
 import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
-import { convertToMonthlyData } from '@/pages/fund/cn/open/detail/constants';
+import { computeBuyPoints } from '@/utils/buyPointWorker';
+import type { BuyPointResult } from '@/utils/buyPointCompute';
+import { BuyPointActionGroup } from '@/components/BuyPointActionGroup';
+import { exportBuyPlan, exportBuySellReport } from '@/utils/buySellReportExport';
 
 
 
@@ -168,68 +172,52 @@ const Index: React.FC = () => {
     }
   };
 
+  /** 导出「买入&卖出报告」：仅导出已完成买卖配对的 ★5 信号 */
+  const handleExportBuySellReport = () =>
+    exportBuySellReport<IndexData>({
+      targets: selectedRows,
+      getCode: item => String(item['指数代码']),
+      getName: item => item['指数简称'] || String(item['指数代码']),
+      getKey: item => String(item['指数代码']),
+      fetchPoints: async item => (await fetchIndexDetailAndCalculate(String(item['指数代码']))).mqBuyPoints,
+      emptyWarn: '请选择指数',
+      itemLabel: '指数',
+      filePrefix: 'A股指数',
+    });
+
+  /** 导出「买入计划」：仅导出尚未卖出的 ★5 买入信号 */
+  const handleExportBuyPlan = () =>
+    exportBuyPlan<IndexData>({
+      targets: selectedRows,
+      getCode: item => String(item['指数代码']),
+      getName: item => item['指数简称'] || String(item['指数代码']),
+      getKey: item => String(item['指数代码']),
+      fetchPoints: async item => (await fetchIndexDetailAndCalculate(String(item['指数代码']))).mqBuyPoints,
+      emptyWarn: '请选择指数',
+      itemLabel: '指数',
+      filePrefix: 'A股指数',
+    });
+
   console.log('11111 selectedIndices', selectedIndices)
 
   // 计算推荐买点（定量 + 百分位 + 月/周 RSI6 百分位策略）
-  const fetchIndexDetailAndCalculate = async (symbol: string): Promise<{ quantitative: string; percentile: string; monthlyPercentile: string; weeklyPercentile: string }> => {
-    try {
-
-      const startDate = '19800101'; // 默认从1980年1月1日开始查询，并去除第一个日期的空值
-      const response = await apiClient.get(`/api/public/stock_zh_index_hist_csindex?symbol=${symbol}&start_date=${startDate}&end_date=${moment().format('YYYYMMDD')}`);
-      const data = response?.data || [];
-      const firstNonMultipleIndex = data.findIndex((item: IndexDetailData) => Number(item.收盘) % 100 !== 0);
-      const formatData = (0 < firstNonMultipleIndex && firstNonMultipleIndex < 10) ? data.slice(firstNonMultipleIndex - 1) : data;
-      const stockHistoryList = formatData?.map((item: IndexDetailData) => ({
+  const fetchIndexDetailAndCalculate = async (symbol: string): Promise<BuyPointResult> => {
+    // 从 A 股最早交易日开始查询，覆盖指数全部历史；接口在起始日早于首条真实数据时会补占位行，
+    // 由 cleanCsindexHistory 统一剔除，避免远期伪数据点参与指标计算
+    const startDate = appConfig.http.indexHistoryStartDate;
+    const response = await apiClient.get(`/api/public/stock_zh_index_hist_csindex?symbol=${symbol}&start_date=${startDate}&end_date=${moment().format('YYYYMMDD')}`);
+    const data = cleanCsindexHistory(response?.data as IndexDetailData[] | undefined, startDate);
+    const stockHistoryList = data
+      .map((item: IndexDetailData) => ({
         日期: item.日期,
         收盘: Number(item.收盘),
-      })) || [];
+      }))
+      .filter((item: { 收盘: number }) => Number.isFinite(item.收盘));
 
-      // 1) 计算日/周/月/季 K 线的 RSI6 值
-      const periodRSIMap = calculatePeriodRSI(stockHistoryList);
+    // 接口异常（空数据 / 无有效收盘价）需抛出，由批量编排统一重试并汇总提示
+    if (stockHistoryList.length === 0) throw new Error('接口返回空数据');
 
-      // 2) 合并为带推荐级别的图表数据
-      const chartData = computeRSIRecommendations(periodRSIMap, 'index') as any[];
-
-      // 3) 过滤出推荐买点
-      const buyPointList = chartData.filter(
-        (row): row is any => row.__recommendationLevel__ != null,
-      );
-
-      // 4) 过滤 每月最晚（最新）的一条记录
-      const chartDataMonthly = convertToMonthlyData(buyPointList);
-
-      // 定量买点日期
-      const quantitative = chartDataMonthly?.reverse()?.map(item => moment(item['日期'])?.format('YYYY-MM-DD'))?.join(',') || '';
-
-      // 5) 百分位策略买点（月&季 RSI6 共振）
-      const percentileBuyPoints = computeMonthlyQuarterlyPercentileBuyPoints({
-        monthlyRSI6Data: periodRSIMap.monthlyRSI,
-        quarterlyRSI6Data: periodRSIMap.quarterlyRSI,
-        closeValueType: 'price',
-      });
-      const percentile = percentileBuyPoints.map(p => moment(p.日期).format('YYYY-MM-DD')).join(',');
-
-      // 6) 月RSI6 百分位策略（月单周期，买入分位 3%）：取每笔配对的第一次买入日期
-      const monthlyPercentile = computeSinglePeriodPercentileTrades({
-        rsiData: periodRSIMap.monthlyRSI,
-        buyPercentile: MONTHLY_RSI_PCT_BUY_PERCENTILE,
-        sellPercentile: MONTHLY_RSI_PCT_SELL_PERCENTILE,
-        closeValueType: 'price',
-      }).map(t => moment(t.buyDate).format('YYYY-MM-DD')).join(',');
-
-      // 7) 周RSI6 百分位策略（周单周期，买入分位 1%）：取每笔配对的第一次买入日期
-      const weeklyPercentile = computeSinglePeriodPercentileTrades({
-        rsiData: periodRSIMap.weeklyRSI,
-        buyPercentile: WEEKLY_RSI_BUY_PERCENTILE,
-        sellPercentile: WEEKLY_RSI_SELL_PERCENTILE,
-        closeValueType: 'price',
-      }).map(t => moment(t.buyDate).format('YYYY-MM-DD')).join(',');
-
-      return { quantitative, percentile, monthlyPercentile, weeklyPercentile };
-    } catch (error) {
-      console.log('Error fetching index detail:', error);
-      return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '' };
-    }
+    return computeBuyPoints({ type: 'index', rawData: stockHistoryList });
   };
 
 
@@ -989,55 +977,12 @@ const Index: React.FC = () => {
     const list = getGroupIndices(groupKey);
     return (
       <>
-        <div
-          onClick={handleCalculateRecommendation}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            padding: '8px 20px',
-            background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
-            borderRadius: '25px',
-            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-            boxShadow: '0 8px 25px rgba(56, 239, 125, 0.5), 0 0 0 3px rgba(56, 239, 125, 0.2)',
-            cursor: 'pointer',
-            transform: 'scale(1.02)',
-            border: '2px solid transparent',
-            overflow: 'hidden',
-            position: 'relative'
-          }}
-        >
-          <div
-            style={{
-              width: '24px',
-              height: '24px',
-              borderRadius: '50%',
-              background: 'rgba(255,255,255,0.9)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all 0.3s ease',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-            }}
-          >
-            <span style={{ fontSize: '14px', fontWeight: 'bold' }}>
-              ✓
-            </span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{
-              fontWeight: 'bold', color: '#fff', fontSize: '14px',
-              textShadow: '0 1px 2px rgba(0,0,0,0.2)'
-            }}>
-              计算推荐买点
-            </span>
-            <span style={{
-              color: 'rgba(255,255,255,0.85)', fontSize: '11px', marginTop: '2px'
-            }}>
-              启用后将计算RSI指标
-            </span>
-          </div>
-        </div>
+        <BuyPointActionGroup
+          onCalculate={handleCalculateRecommendation}
+          onExportReport={handleExportBuySellReport}
+          onExportPlan={handleExportBuyPlan}
+          itemLabel="指数"
+        />
         <Table
           rowSelection={{
             selectedRowKeys,

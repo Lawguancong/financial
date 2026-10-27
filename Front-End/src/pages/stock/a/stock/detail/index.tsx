@@ -4,13 +4,14 @@ import type { RadioChangeEvent } from 'antd/es/radio';
 import apiClient from '@/utils/axios';
 import { useSearchParams } from 'react-router-dom';
 import moment from 'moment';
+import DailyReturnAnalysis from '@/components/DailyReturnAnalysis';
 
 // 懒加载组件，按需加载
 const PriceAndTurnover = React.lazy(() => import('./components/PriceAndTurnover'));
 const RsiFilterMark = React.lazy(() => import('../../../../../components/RsiFilterMark'));
+const MacdFilterMark = React.lazy(() => import('../../../../../components/MacdFilterMark'));
 const PriceAvg = React.lazy(() => import('./components/PriceAvg'));
 const ThreeConsecutiveRisesComponent = React.lazy(() => import('./components/ThreeConsecutiveRises'));
-const RsiPeriods = React.lazy(() => import('./components/RsiPeriods'));
 const Valuation = React.lazy(() => import('./components/Valuation'));
 const PeerComparison = React.lazy(() => import('./components/PeerComparison'));
 
@@ -54,7 +55,7 @@ const titleStyle: React.CSSProperties = { margin: 0 };
 const StockDetail: React.FC = () => {
   // const [symbolInfo, setSymbolInfo] = useState<Record<string, string>>({});
   const [rawData, setRawData] = useState<StockDetailData[]>([]);
-  const [activeTab, setActiveTab] = useState<string>('rsi-filter');
+  const [activeTab, setActiveTab] = useState<string>('macd-filter');
 
   const [searchParams] = useSearchParams();
   const symbol = searchParams.get('symbol') || '';
@@ -110,10 +111,21 @@ const StockDetail: React.FC = () => {
     </Suspense>
   ), []);
 
-
   const rsiFilterMarkComponent = useMemo(() => (
     <Suspense fallback={<ComponentFallback />}>
       <RsiFilterMark data={rawData} type="stock" />
+    </Suspense>
+  ), [rawData]);
+
+  const macdFilterMarkComponent = useMemo(() => (
+    <Suspense fallback={<ComponentFallback />}>
+      <MacdFilterMark data={rawData} />
+    </Suspense>
+  ), [rawData]);
+
+  const dailyReturnAnalysisComponent = useMemo(() => (
+    <Suspense fallback={<ComponentFallback />}>
+      <DailyReturnAnalysis data={rawData} />
     </Suspense>
   ), [rawData]);
 
@@ -167,6 +179,26 @@ const StockDetail: React.FC = () => {
           </Card>
       ),
     },
+    {
+      key: 'macd-filter',
+      label: 'MACD 技术指标',
+      children: (
+        <Card style={cardStyle}>
+          <Title level={5}>MACD 技术指标</Title>
+          {macdFilterMarkComponent}
+        </Card>
+      ),
+    },
+    {
+      key: 'daily-return-analysis',
+      label: '日涨跌幅分析',
+      children: (
+        <Card style={cardStyle}>
+          <Title level={5}>日涨跌幅分析</Title>
+          {dailyReturnAnalysisComponent}
+        </Card>
+      ),
+    },
     // {
     //   key: 'price-line-avg',
     //   label: '均线 技术指标(todo 待实验)',
@@ -197,7 +229,7 @@ const StockDetail: React.FC = () => {
     //     </Card>
     //   ),
     // },
-  ], [priceAndTurnoverComponent, rsiFilterMarkComponent, priceAvgComponent, valuationComponent, peerComparisonComponent]);
+  ], [priceAndTurnoverComponent, rsiFilterMarkComponent, macdFilterMarkComponent, dailyReturnAnalysisComponent, priceAvgComponent, valuationComponent, peerComparisonComponent]);
 
   return (
     <div style={pageStyle}>

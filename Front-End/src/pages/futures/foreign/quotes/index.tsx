@@ -4,20 +4,12 @@ import type { MenuProps } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { PlusOutlined, EditOutlined, CloseOutlined, CheckOutlined, ReloadOutlined } from '@ant-design/icons';
 import apiClient from '@/utils/axios';
-import moment from 'moment';
-import {
-  computeRSIRecommendations,
-  calculatePeriodRSI,
-  computeMonthlyQuarterlyPercentileBuyPoints,
-  computeSinglePeriodPercentileTrades,
-  WEEKLY_RSI_BUY_PERCENTILE,
-  WEEKLY_RSI_SELL_PERCENTILE,
-  MONTHLY_RSI_PCT_BUY_PERCENTILE,
-  MONTHLY_RSI_PCT_SELL_PERCENTILE,
-  isRecentDate,
-} from '@/utils/stockUtils';
+import { isRecentDate } from '@/utils/stockUtils';
 import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
-import { convertToMonthlyData } from '@/pages/fund/cn/open/detail/constants';
+import { computeBuyPoints } from '@/utils/buyPointWorker';
+import type { BuyPointResult } from '@/utils/buyPointCompute';
+import { BuyPointActionGroup } from '@/components/BuyPointActionGroup';
+import { exportBuyPlan, exportBuySellReport } from '@/utils/buySellReportExport';
 
 const { Link } = Typography;
 const { TabPane } = Tabs;
@@ -165,68 +157,49 @@ const FuturesForeignQuotes: React.FC = () => {
     }
   };
 
+  /** 导出「买入&卖出报告」：仅导出已完成买卖配对的 ★5 信号 */
+  const handleExportBuySellReport = () =>
+    exportBuySellReport<FuturesData>({
+      targets: selectedRows,
+      getCode: item => String(item.code),
+      getName: item => item.symbol || String(item.code),
+      getKey: item => String(item.code),
+      fetchPoints: async item => (await fetchFuturesDetailAndCalculate(String(item.code))).mqBuyPoints,
+      emptyWarn: '请选择期货品种',
+      itemLabel: '期货品种',
+      filePrefix: '外盘期货',
+    });
+
+  /** 导出「买入计划」：仅导出尚未卖出的 ★5 买入信号 */
+  const handleExportBuyPlan = () =>
+    exportBuyPlan<FuturesData>({
+      targets: selectedRows,
+      getCode: item => String(item.code),
+      getName: item => item.symbol || String(item.code),
+      getKey: item => String(item.code),
+      fetchPoints: async item => (await fetchFuturesDetailAndCalculate(String(item.code))).mqBuyPoints,
+      emptyWarn: '请选择期货品种',
+      itemLabel: '期货品种',
+      filePrefix: '外盘期货',
+    });
+
   // 计算推荐买点（定量 + 百分位 + 月/周 RSI6 百分位策略）
-  const fetchFuturesDetailAndCalculate = async (code: string): Promise<{ quantitative: string; percentile: string; monthlyPercentile: string; weeklyPercentile: string }> => {
-    try {
-      const response = await apiClient.get('/api/public/futures_foreign_hist', {
-        params: { symbol: code },
-      });
-      // 接口返回英文字段：date/open/high/low/close，此处映射为 KLineData 所需的中文字段
-      const stockHistoryList = (response?.data || [])
-        .map((item: Record<string, unknown>) => ({
-          日期: String(item.date).slice(0, 10),
-          收盘: Number(item.close),
-        }))
-        .filter((item: { 日期: string; 收盘: number }) => Number.isFinite(item.收盘));
+  const fetchFuturesDetailAndCalculate = async (code: string): Promise<BuyPointResult> => {
+    const response = await apiClient.get('/api/public/futures_foreign_hist', {
+      params: { symbol: code },
+    });
+    // 接口返回英文字段：date/open/high/low/close，此处映射为 KLineData 所需的中文字段
+    const stockHistoryList = (response?.data || [])
+      .map((item: Record<string, unknown>) => ({
+        日期: String(item.date).slice(0, 10),
+        收盘: Number(item.close),
+      }))
+      .filter((item: { 日期: string; 收盘: number }) => Number.isFinite(item.收盘));
 
-      // 接口无数据时无分析意义，直接返回空结果（不覆盖已有买点）
-      if (stockHistoryList.length === 0) {
-        return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '' };
-      }
+    // 接口异常（空数据 / 无有效收盘价）需抛出，由批量编排统一重试并汇总提示
+    if (stockHistoryList.length === 0) throw new Error('接口返回空数据');
 
-      // 1) 计算日/周/月/季 K 线的 RSI6 值
-      const periodRSIMap = calculatePeriodRSI(stockHistoryList);
-
-      // 2) 合并为带推荐级别的图表数据（外盘期货按大宗商品口径，与详情页 RsiFilterMark 保持一致）
-      const chartData = computeRSIRecommendations(periodRSIMap, 'commodity') as any[]; // eslint-disable-line @typescript-eslint/no-explicit-any
-
-      // 3) 过滤出推荐买点，并取每月最晚（最新）的一条记录
-      const buyPointList = chartData.filter(
-        (row): row is any => row.__recommendationLevel__ != null, // eslint-disable-line @typescript-eslint/no-explicit-any
-      );
-      const quantitative = convertToMonthlyData(buyPointList)
-        .reverse()
-        .map(item => moment(item['日期']).format('YYYY-MM-DD'))
-        .join(',');
-
-      // 4) 百分位策略买点（月&季 RSI6 共振）
-      const percentile = computeMonthlyQuarterlyPercentileBuyPoints({
-        monthlyRSI6Data: periodRSIMap.monthlyRSI,
-        quarterlyRSI6Data: periodRSIMap.quarterlyRSI,
-        closeValueType: 'price',
-      }).map(p => moment(p.日期).format('YYYY-MM-DD')).join(',');
-
-      // 5) 月RSI6 百分位策略（月单周期，买入分位 3%）：取每笔配对的第一次买入日期
-      const monthlyPercentile = computeSinglePeriodPercentileTrades({
-        rsiData: periodRSIMap.monthlyRSI,
-        buyPercentile: MONTHLY_RSI_PCT_BUY_PERCENTILE,
-        sellPercentile: MONTHLY_RSI_PCT_SELL_PERCENTILE,
-        closeValueType: 'price',
-      }).map(t => moment(t.buyDate).format('YYYY-MM-DD')).join(',');
-
-      // 6) 周RSI6 百分位策略（周单周期，买入分位 1%）：取每笔配对的第一次买入日期
-      const weeklyPercentile = computeSinglePeriodPercentileTrades({
-        rsiData: periodRSIMap.weeklyRSI,
-        buyPercentile: WEEKLY_RSI_BUY_PERCENTILE,
-        sellPercentile: WEEKLY_RSI_SELL_PERCENTILE,
-        closeValueType: 'price',
-      }).map(t => moment(t.buyDate).format('YYYY-MM-DD')).join(',');
-
-      return { quantitative, percentile, monthlyPercentile, weeklyPercentile };
-    } catch (error) {
-      console.log('Error fetching futures detail:', error);
-      return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '' };
-    }
+    return computeBuyPoints({ type: 'commodity', rawData: stockHistoryList });
   };
 
   const columns = useMemo<ColumnsType<FuturesData>>(() => [
@@ -791,49 +764,12 @@ const FuturesForeignQuotes: React.FC = () => {
     const list = getGroupFutures(groupKey);
     return (
       <>
-        <div
-          onClick={handleCalculateRecommendation}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            padding: '8px 20px',
-            background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
-            borderRadius: '25px',
-            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-            boxShadow: '0 8px 25px rgba(56, 239, 125, 0.5), 0 0 0 3px rgba(56, 239, 125, 0.2)',
-            cursor: 'pointer',
-            transform: 'scale(1.02)',
-            border: '2px solid transparent',
-            overflow: 'hidden',
-            position: 'relative',
-            marginBottom: 12,
-          }}
-        >
-          <div
-            style={{
-              width: '24px',
-              height: '24px',
-              borderRadius: '50%',
-              background: 'rgba(255,255,255,0.9)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all 0.3s ease',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-            }}
-          >
-            <span style={{ fontSize: '14px', fontWeight: 'bold' }}>✓</span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontWeight: 'bold', color: '#fff', fontSize: '14px', textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>
-              计算推荐买点
-            </span>
-            <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: '11px', marginTop: '2px' }}>
-              启用后将计算RSI指标
-            </span>
-          </div>
-        </div>
+        <BuyPointActionGroup
+          onCalculate={handleCalculateRecommendation}
+          onExportReport={handleExportBuySellReport}
+          onExportPlan={handleExportBuyPlan}
+          itemLabel="期货品种"
+        />
         <Table
           rowSelection={{
             selectedRowKeys,

@@ -1,20 +1,12 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Table, Button, Typography } from 'antd';
 import apiClient from '@/utils/axios';
-import moment from 'moment';
-import {
-  computeRSIRecommendations,
-  calculatePeriodRSI,
-  computeMonthlyQuarterlyPercentileBuyPoints,
-  computeSinglePeriodPercentileTrades,
-  WEEKLY_RSI_BUY_PERCENTILE,
-  WEEKLY_RSI_SELL_PERCENTILE,
-  MONTHLY_RSI_PCT_BUY_PERCENTILE,
-  MONTHLY_RSI_PCT_SELL_PERCENTILE,
-  isRecentDate,
-} from '@/utils/stockUtils';
+import { isRecentDate } from '@/utils/stockUtils';
 import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
-import { convertToMonthlyData } from '@/pages/fund/cn/open/detail/constants';
+import { computeBuyPoints } from '@/utils/buyPointWorker';
+import type { BuyPointResult } from '@/utils/buyPointCompute';
+import { BuyPointActionGroup } from '@/components/BuyPointActionGroup';
+import { exportBuyPlan, exportBuySellReport } from '@/utils/buySellReportExport';
 
 const { Link } = Typography;
 
@@ -73,7 +65,6 @@ const renderBuyPointTags = (normalStyle: React.CSSProperties) => (value: string)
 const Index: React.FC = () => {
   const [data, setData] = useState<CommodityIndexData[]>([]);
   const [loading, setLoading] = useState(false);
-  const [calculating, setCalculating] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [selectedRows, setSelectedRows] = useState<CommodityIndexData[]>([]);
   // 买点结果持久化缓存：品种 -> 四类买点（刷新页面/重进后回填，避免重复计算）
@@ -166,112 +157,93 @@ const Index: React.FC = () => {
   // 计算单个品种的四类推荐买点（定量 + 百分位 + 月/周 RSI6 百分位策略）
   const fetchCommodityAndCalculate = async (
     symbol: string,
-  ): Promise<{ quantitative: string; percentile: string; monthlyPercentile: string; weeklyPercentile: string }> => {
-    try {
-      const response = await apiClient.get('/api/public/spot_hist_sge', {
-        params: { symbol },
-      });
-      const stockHistoryList =
-        (response?.data || [])
-          .map((item: Record<string, unknown>) => ({
-            日期: String(item.date).slice(0, 10),
-            收盘: Number(item.close),
-          }))
-          .filter((item: { 日期: string; 收盘: number }) => Number.isFinite(item.收盘)) ?? [];
+  ): Promise<BuyPointResult> => {
+    const response = await apiClient.get('/api/public/spot_hist_sge', {
+      params: { symbol },
+    });
+    const stockHistoryList =
+      (response?.data || [])
+        .map((item: Record<string, unknown>) => ({
+          日期: String(item.date).slice(0, 10),
+          收盘: Number(item.close),
+        }))
+        .filter((item: { 日期: string; 收盘: number }) => Number.isFinite(item.收盘)) ?? [];
 
-      // 接口无数据或收盘价全为 0 时无分析意义，直接跳过 RSI/买点计算（结果为空，也不写入缓存）
-      const hasValidPrice = stockHistoryList.length > 0
-        && stockHistoryList.some((item: { 日期: string; 收盘: number }) => item.收盘 !== 0);
-      if (!hasValidPrice) {
-        console.warn(`品种【${symbol}】历史收盘价全为 0 或无数据，跳过买点计算`);
-        return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '' };
-      }
-
-      // 1) 计算日/周/月/季 K 线的 RSI6 值
-      const periodRSIMap = calculatePeriodRSI(stockHistoryList);
-
-      // 2) 合并为带推荐级别的数据，过滤出推荐买点并取每月最晚一条
-      const chartData = computeRSIRecommendations(periodRSIMap, 'commodity');
-      const buyPointList = chartData.filter(row => row.__recommendationLevel__ != null);
-      const quantitative = convertToMonthlyData(buyPointList)
-        .reverse()
-        .map(item => moment(item['日期']).format('YYYY-MM-DD'))
-        .join(',');
-
-      // 3) 百分位策略买点（月&季 RSI6 共振）
-      const percentile = computeMonthlyQuarterlyPercentileBuyPoints({
-        monthlyRSI6Data: periodRSIMap.monthlyRSI,
-        quarterlyRSI6Data: periodRSIMap.quarterlyRSI,
-        closeValueType: 'price',
-      }).map(p => moment(p.日期).format('YYYY-MM-DD')).join(',');
-
-      // 4) 月RSI6 百分位策略（月单周期，买入分位 3%）：取每笔配对的第一次买入日期
-      const monthlyPercentile = computeSinglePeriodPercentileTrades({
-        rsiData: periodRSIMap.monthlyRSI,
-        buyPercentile: MONTHLY_RSI_PCT_BUY_PERCENTILE,
-        sellPercentile: MONTHLY_RSI_PCT_SELL_PERCENTILE,
-        closeValueType: 'price',
-      }).map(t => moment(t.buyDate).format('YYYY-MM-DD')).join(',');
-
-      // 5) 周RSI6 百分位策略（周单周期，买入分位 1%）：取每笔配对的第一次买入日期
-      const weeklyPercentile = computeSinglePeriodPercentileTrades({
-        rsiData: periodRSIMap.weeklyRSI,
-        buyPercentile: WEEKLY_RSI_BUY_PERCENTILE,
-        sellPercentile: WEEKLY_RSI_SELL_PERCENTILE,
-        closeValueType: 'price',
-      }).map(t => moment(t.buyDate).format('YYYY-MM-DD')).join(',');
-
-      return { quantitative, percentile, monthlyPercentile, weeklyPercentile };
-    } catch (error) {
-      console.log('Error fetching commodity detail:', error);
-      return { quantitative: '', percentile: '', monthlyPercentile: '', weeklyPercentile: '' };
+    // 接口无数据或收盘价全为 0 时无法计算，抛出后由批量编排统一重试并汇总提示
+    const hasValidPrice = stockHistoryList.length > 0
+      && stockHistoryList.some((item: { 日期: string; 收盘: number }) => item.收盘 !== 0);
+    if (!hasValidPrice) {
+      throw new Error('接口无数据或收盘价全为 0');
     }
+
+    return computeBuyPoints({ type: 'commodity', rawData: stockHistoryList });
   };
 
   // 仅对勾选的品种批量计算买点，逐行回填
   const handleCalculateRecommendation = async () => {
-    setCalculating(true);
     // 基于当前缓存累积本次结果，批量结束后一次性持久化（避免逐只频繁写 localStorage）
     const nextCache: Record<string, CommodityBuyPointCache> = { ...buyPointCache };
-    try {
-      await runRecommendationBatchCalculation({
-        targets: selectedRows,
-        getKey: item => String(item['品种']),
-        getName: item => item['中文名'] || String(item['品种']),
-        emptyWarn: '请勾选需要计算买点的品种',
-        fetchBuyPoints: item => fetchCommodityAndCalculate(String(item['品种'])),
-        onItemDone: (item, result) => {
-          // 空结果不覆盖已有缓存
-          const entry: CommodityBuyPointCache = {
-            ...(nextCache[item.品种] ?? {}),
-          };
-          if (result.quantitative) entry.__推荐买点定量__ = result.quantitative;
-          if (result.percentile) entry.__推荐买点百分位__ = result.percentile;
-          if (result.monthlyPercentile) entry.__月RSI6百分位__ = result.monthlyPercentile;
-          if (result.weeklyPercentile) entry.__周RSI6百分位__ = result.weeklyPercentile;
-          nextCache[item.品种] = entry;
+    await runRecommendationBatchCalculation({
+      targets: selectedRows,
+      getKey: item => String(item['品种']),
+      getName: item => item['中文名'] || String(item['品种']),
+      emptyWarn: '请勾选需要计算买点的品种',
+      fetchBuyPoints: item => fetchCommodityAndCalculate(String(item['品种'])),
+      onItemDone: (item, result) => {
+        // 空结果不覆盖已有缓存
+        const entry: CommodityBuyPointCache = {
+          ...(nextCache[item.品种] ?? {}),
+        };
+        if (result.quantitative) entry.__推荐买点定量__ = result.quantitative;
+        if (result.percentile) entry.__推荐买点百分位__ = result.percentile;
+        if (result.monthlyPercentile) entry.__月RSI6百分位__ = result.monthlyPercentile;
+        if (result.weeklyPercentile) entry.__周RSI6百分位__ = result.weeklyPercentile;
+        nextCache[item.品种] = entry;
 
-          setData(prev =>
-            prev.map(row =>
-              row.品种 === item.品种
-                ? {
-                  ...row,
-                  __推荐买点定量__: entry.__推荐买点定量__ ?? row.__推荐买点定量__,
-                  __推荐买点百分位__: entry.__推荐买点百分位__ ?? row.__推荐买点百分位__,
-                  __月RSI6百分位__: entry.__月RSI6百分位__ ?? row.__月RSI6百分位__,
-                  __周RSI6百分位__: entry.__周RSI6百分位__ ?? row.__周RSI6百分位__,
-                }
-                : row,
-            ),
-          );
-        },
-      });
-      setBuyPointCache(nextCache);
-      saveBuyPointCache(nextCache);
-    } finally {
-      setCalculating(false);
-    }
+        setData(prev =>
+          prev.map(row =>
+            row.品种 === item.品种
+              ? {
+                ...row,
+                __推荐买点定量__: entry.__推荐买点定量__ ?? row.__推荐买点定量__,
+                __推荐买点百分位__: entry.__推荐买点百分位__ ?? row.__推荐买点百分位__,
+                __月RSI6百分位__: entry.__月RSI6百分位__ ?? row.__月RSI6百分位__,
+                __周RSI6百分位__: entry.__周RSI6百分位__ ?? row.__周RSI6百分位__,
+              }
+              : row,
+          ),
+        );
+      },
+    });
+    setBuyPointCache(nextCache);
+    saveBuyPointCache(nextCache);
   };
+
+  /** 导出「买入&卖出报告」：仅导出已完成买卖配对的 ★5 信号 */
+  const handleExportBuySellReport = () =>
+    exportBuySellReport<CommodityIndexData>({
+      targets: selectedRows,
+      getCode: item => String(item['品种']),
+      getName: item => item['中文名'] || String(item['品种']),
+      getKey: item => String(item['品种']),
+      fetchPoints: async item => (await fetchCommodityAndCalculate(String(item['品种']))).mqBuyPoints,
+      emptyWarn: '请勾选需要导出的品种',
+      itemLabel: '品种',
+      filePrefix: '大宗商品',
+    });
+
+  /** 导出「买入计划」：仅导出尚未卖出的 ★5 买入信号 */
+  const handleExportBuyPlan = () =>
+    exportBuyPlan<CommodityIndexData>({
+      targets: selectedRows,
+      getCode: item => String(item['品种']),
+      getName: item => item['中文名'] || String(item['品种']),
+      getKey: item => String(item['品种']),
+      fetchPoints: async item => (await fetchCommodityAndCalculate(String(item['品种']))).mqBuyPoints,
+      emptyWarn: '请勾选需要导出的品种',
+      itemLabel: '品种',
+      filePrefix: '大宗商品',
+    });
 
   const columns = useMemo(() => [
     {
@@ -356,15 +328,13 @@ const Index: React.FC = () => {
 
   return (
     <div style={{ padding: '24px' }}>
+      <BuyPointActionGroup
+        onCalculate={handleCalculateRecommendation}
+        onExportReport={handleExportBuySellReport}
+        onExportPlan={handleExportBuyPlan}
+        itemLabel="品种"
+      />
       <div style={{ marginBottom: '16px', textAlign: 'right' }}>
-        <Button
-          type="primary"
-          onClick={handleCalculateRecommendation}
-          loading={calculating}
-          style={{ marginRight: 12 }}
-        >
-          计算勾选品种买点（已选 {selectedRows.length} 个）
-        </Button>
         <Button type="default" onClick={() => fetchData()} loading={loading}>
           刷新数据
         </Button>

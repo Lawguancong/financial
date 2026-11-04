@@ -1,18 +1,25 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { Table, Typography, Input, Button, Tabs, Select, message, Dropdown, Modal, Popconfirm } from 'antd';
+import { Table, Typography, Input, Button, Tabs, Select, message, Dropdown, Modal, Popconfirm, Tooltip } from 'antd';
 import type { MenuProps } from 'antd';
-import { PlusOutlined, EditOutlined, CloseOutlined, CheckOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, CloseOutlined, CheckOutlined, QuestionCircleOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import apiClient from '@/utils/axios';
 import moment from 'moment';
 import { numberSorter, createRangeFilter, createDateRangeFilter } from '@/utils/tableUtils';
 import type { IndexDetailData } from './detail';
-import { createRecommendationAnnotations, cleanCsindexHistory, isRecentDate } from '@/utils/stockUtils';
+import { createRecommendationAnnotations, cleanCsindexHistory, isRecentDate, mergeIndexSpotLists, normalizeIndexCode, normalizeSinaIndexDailyRows } from '@/utils/stockUtils';
+import type { SinaIndexSpotRow, SinaIndexDailyRow, IndexSpotSource } from '@/utils/stockUtils';
 import { appConfig } from '@/config/appConfig';
 import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
 import { computeBuyPoints } from '@/utils/buyPointWorker';
-import type { BuyPointResult } from '@/utils/buyPointCompute';
+import type { BuyPointKLineItem, BuyPointResult } from '@/utils/buyPointCompute';
 import { BuyPointActionGroup } from '@/components/BuyPointActionGroup';
-import { exportBuyPlan, exportBuySellReport } from '@/utils/buySellReportExport';
+import {
+  exportBuyPlan,
+  exportBuySellReport,
+  exportRecommendationBuyPoints,
+} from '@/utils/buySellReportExport';
+import type { BuySellReportItem } from '@/utils/buySellReportExport';
+import { exportMacdBarMarker } from '@/utils/macdBarMarkerExport';
 
 
 
@@ -36,22 +43,32 @@ const CUSTOM_INDICES_STORAGE_KEY = 'IndexPage-customIndices';
 interface IndexData {
   指数代码: string;
   指数简称: string;
-  指数全称: string;
-  发布时间: string;
-  基日: string;
-  基点: number;
-  指数类别: string;
-  指数系列: string;
-  资产类别: string;
-  指数币种: string;
-  样本数量: number;
-  最新收盘: number;
-  近一个月收益率: number;
-  合作指数: string;
-  跟踪产品: string;
-  指数合规: string;
-  指数热点: string | null;
+  指数全称?: string;
+  发布时间?: string;
+  基日?: string;
+  基点?: number;
+  指数类别?: string;
+  指数系列?: string;
+  资产类别?: string;
+  指数币种?: string;
+  样本数量?: number;
+  最新收盘?: number;
+  近一个月收益率?: number;
+  合作指数?: string;
+  跟踪产品?: string;
+  指数合规?: string;
+  指数热点?: string | null;
   指数年化率?: number;
+  /** 数据源标记：新浪行情的详情与买点计算需走 stock_zh_index_daily */
+  数据源?: IndexSpotSource;
+  涨跌额?: number;
+  涨跌幅?: number;
+  昨收?: number;
+  今开?: number;
+  最高?: number;
+  最低?: number;
+  成交量?: number;
+  成交额?: number;
   __推荐买点定量__?: string;
   __推荐买点百分位__?: string;
   __月RSI6百分位__?: string;
@@ -97,6 +114,61 @@ const renderBuyPointTags = (normalStyle: React.CSSProperties) => (value: string)
   );
 };
 
+/**
+ * 可选数值渲染：新浪行情字段在中证行缺失时展示「-」，避免出现空单元格
+ */
+const renderOptionalNumber = (value?: number | null) => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return <span style={{ color: '#999' }}>-</span>;
+  }
+  return Number(value).toLocaleString('zh-CN', { maximumFractionDigits: 4 });
+};
+
+/** 涨跌额渲染：红涨绿跌，缺失展示「-」 */
+const renderChangeAmount = (value?: number | null) => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return <span style={{ color: '#999' }}>-</span>;
+  }
+  const num = Number(value);
+  return (
+    <span style={{ color: num >= 0 ? '#cf1322' : '#389e0d', fontWeight: 'bold' }}>
+      {num >= 0 ? '+' : ''}{num.toFixed(2)}
+    </span>
+  );
+};
+
+/** 涨跌幅渲染：红涨绿跌并带 %，缺失展示「-」 */
+const renderChangePercent = (value?: number | null) => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return <span style={{ color: '#999' }}>-</span>;
+  }
+  const num = Number(value);
+  return (
+    <span style={{ color: num >= 0 ? '#cf1322' : '#389e0d', fontWeight: 'bold' }}>
+      {num >= 0 ? '+' : ''}{num.toFixed(2)}%
+    </span>
+  );
+};
+
+/** 数据源展示配色：中证灰、中证+新浪金、新浪橙（说明文案与表格单元格共用） */
+const DATA_SOURCE_STYLES: Record<IndexSpotSource, { color: string; background: string; border: string }> = {
+  中证: { color: '#595959', background: '#fafafa', border: '#d9d9d9' },
+  '中证+新浪': { color: '#d46b08', background: '#fff7e6', border: '#ffd591' },
+  新浪: { color: '#fa541c', background: '#fff2e8', border: '#ffbb96' },
+};
+
+/** 数据源标签样式（说明区与表格「数据源」列保持一致） */
+const dataSourceBadgeStyle = (source: IndexSpotSource): React.CSSProperties => ({
+  display: 'inline-block',
+  padding: '0 8px',
+  borderRadius: 10,
+  fontSize: 12,
+  fontWeight: 600,
+  lineHeight: '20px',
+  ...DATA_SOURCE_STYLES[source],
+  border: `1px solid ${DATA_SOURCE_STYLES[source].border}`,
+});
+
 const Index: React.FC = () => {
   const [data, setData] = useState<IndexData[]>([]);
   const [loading, setLoading] = useState(false);
@@ -131,13 +203,18 @@ const Index: React.FC = () => {
   const handleCalculateRecommendation = async () => {
     // 仅收集结果，全部计算完成后再一次性更新表格与缓存
     const resultMap = new Map<string, { quantitative: string; percentile: string; monthlyPercentile: string; weeklyPercentile: string }>();
-    await runRecommendationBatchCalculation({
+    // 收集本次计算结果，供计算完成后自动导出「推荐买点」Excel（不重复取数）
+    const exportItems: BuySellReportItem[] = [];
+    const batchResult = await runRecommendationBatchCalculation({
       targets: selectedRows,
       getKey: item => String(item['指数代码']),
       getName: item => item['指数简称'] || String(item['指数代码']),
       emptyWarn: '请选择指数',
-      fetchBuyPoints: item => fetchIndexDetailAndCalculate(String(item['指数代码'])),
+      fetchBuyPoints: item => fetchIndexDetailAndCalculate(item),
       onItemDone: (item, result) => {
+        const code = String(item['指数代码']);
+        const name = item['指数简称'] || code;
+        result.mqBuyPoints.forEach(point => exportItems.push({ code, name, point }));
         resultMap.set(String(item['指数代码']), result);
       },
     });
@@ -158,10 +235,21 @@ const Index: React.FC = () => {
           : item;
       });
 
+    // 计算完成后自动导出「推荐买点」Excel（★1/★3/★5 全部买入信号）；
+    // 在写回表格之后执行，避免导出异常影响买点回填
+    const exportBuyPoints = () =>
+      exportRecommendationBuyPoints({
+        items: exportItems,
+        itemLabel: '指数',
+        filePrefix: 'A股指数',
+        failureCount: batchResult.failures.length,
+      });
+
     if (activeTab === SELECTED_TAB_KEY) {
       const latest = applyResults(selectedIndicesRef.current);
       setSelectedIndices(latest);
       saveSelectedIndices(latest);
+      exportBuyPoints();
       return;
     }
 
@@ -169,6 +257,7 @@ const Index: React.FC = () => {
     const isCustomTab = customTabs.some(t => t.key === activeTab);
     if (isCustomTab) {
       saveGroupIndices(activeTab, prev => applyResults(prev));
+      exportBuyPoints();
     }
   };
 
@@ -179,7 +268,7 @@ const Index: React.FC = () => {
       getCode: item => String(item['指数代码']),
       getName: item => item['指数简称'] || String(item['指数代码']),
       getKey: item => String(item['指数代码']),
-      fetchPoints: async item => (await fetchIndexDetailAndCalculate(String(item['指数代码']))).mqBuyPoints,
+      fetchPoints: async item => (await fetchIndexDetailAndCalculate(item)).mqBuyPoints,
       emptyWarn: '请选择指数',
       itemLabel: '指数',
       filePrefix: 'A股指数',
@@ -192,7 +281,20 @@ const Index: React.FC = () => {
       getCode: item => String(item['指数代码']),
       getName: item => item['指数简称'] || String(item['指数代码']),
       getKey: item => String(item['指数代码']),
-      fetchPoints: async item => (await fetchIndexDetailAndCalculate(String(item['指数代码']))).mqBuyPoints,
+      fetchPoints: async item => (await fetchIndexDetailAndCalculate(item)).mqBuyPoints,
+      emptyWarn: '请选择指数',
+      itemLabel: '指数',
+      filePrefix: 'A股指数',
+    });
+
+  /** 导出「最低 MACD 柱下一周期月K标记」：月K标记 + 持有/回撤指标 */
+  const handleExportMacdBarMarker = () =>
+    exportMacdBarMarker<IndexData>({
+      targets: selectedRows,
+      getCode: item => String(item['指数代码']),
+      getName: item => item['指数简称'] || String(item['指数代码']),
+      getKey: item => String(item['指数代码']),
+      fetchDailyData: item => fetchIndexDailyData(item),
       emptyWarn: '请选择指数',
       itemLabel: '指数',
       filePrefix: 'A股指数',
@@ -200,8 +302,19 @@ const Index: React.FC = () => {
 
   console.log('11111 selectedIndices', selectedIndices)
 
-  // 计算推荐买点（定量 + 百分位 + 月/周 RSI6 百分位策略）
-  const fetchIndexDetailAndCalculate = async (symbol: string): Promise<BuyPointResult> => {
+  // 取指数日K「日期 + 收盘」序列（买点计算与 MACD 月K标记导出共用）
+  // 中证指数走 stock_zh_index_hist_csindex（6 位代码）；新浪指数走 stock_zh_index_daily（必须带 sh/sz 前缀）
+  const fetchIndexDailyData = async (index: IndexData): Promise<BuyPointKLineItem[]> => {
+    const symbol = String(index['指数代码']);
+    if (index['数据源'] === '新浪') {
+      const response = await apiClient.get(`/api/public/stock_zh_index_daily?symbol=${encodeURIComponent(symbol)}`);
+      const stockHistoryList = normalizeSinaIndexDailyRows(response?.data as SinaIndexDailyRow[] | undefined);
+
+      // 接口异常（空数据 / 无有效收盘价）需抛出，由批量编排统一重试并汇总提示
+      if (stockHistoryList.length === 0) throw new Error('接口返回空数据');
+      return stockHistoryList;
+    }
+
     // 从 A 股最早交易日开始查询，覆盖指数全部历史；接口在起始日早于首条真实数据时会补占位行，
     // 由 cleanCsindexHistory 统一剔除，避免远期伪数据点参与指标计算
     const startDate = appConfig.http.indexHistoryStartDate;
@@ -212,13 +325,15 @@ const Index: React.FC = () => {
         日期: item.日期,
         收盘: Number(item.收盘),
       }))
-      .filter((item: { 收盘: number }) => Number.isFinite(item.收盘));
+      .filter((item: { 日期: string; 收盘: number }) => Number.isFinite(item.收盘));
 
     // 接口异常（空数据 / 无有效收盘价）需抛出，由批量编排统一重试并汇总提示
     if (stockHistoryList.length === 0) throw new Error('接口返回空数据');
-
-    return computeBuyPoints({ type: 'index', rawData: stockHistoryList });
+    return stockHistoryList;
   };
+
+  const fetchIndexDetailAndCalculate = async (index: IndexData): Promise<BuyPointResult> =>
+    computeBuyPoints({ type: 'index', rawData: await fetchIndexDailyData(index) });
 
 
 
@@ -228,12 +343,21 @@ const Index: React.FC = () => {
       .sort();
   };
 
+  /** 打开指数详情：新浪指数需带 source=sina 与名称，详情页改走 stock_zh_index_daily */
+  const openIndexDetail = (record: IndexData) => {
+    const code = encodeURIComponent(String(record['指数代码'] || ''));
+    const extra = record['数据源'] === '新浪'
+      ? `&source=sina&name=${encodeURIComponent(record['指数简称'] || '')}`
+      : '';
+    window.open(`/stock/a/index/detail?code=${code}${extra}`);
+  };
+
   const columns = useMemo(() => [
     {
       title: '指数代码',
       dataIndex: '指数代码',
       key: '指数代码',
-      width: 60,
+      width: 70,
       // fixed: 'left' as const,
       sorter: stringSorter('指数代码'),
       filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }: { setSelectedKeys: (keys: React.Key[]) => void; selectedKeys: React.Key[]; confirm: () => void; clearFilters: () => void }) => (
@@ -280,7 +404,7 @@ const Index: React.FC = () => {
       title: '指数简称',
       dataIndex: '指数简称',
       key: '指数简称',
-      width: 60,
+      width: 70,
       // fixed: 'left' as const,
       sorter: stringSorter('指数简称'),
       filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }: { setSelectedKeys: (keys: React.Key[]) => void; selectedKeys: React.Key[]; confirm: () => void; clearFilters: () => void }) => (
@@ -325,7 +449,7 @@ const Index: React.FC = () => {
       },
       render: (name: string, record: IndexData) => (
         <Link
-          onClick={() => window.open(`/stock/a/index/detail?code=${record['指数代码']}`)}
+          onClick={() => openIndexDetail(record)}
           style={{ cursor: 'pointer', color: '#1890ff' }}
         >
           {name}
@@ -333,7 +457,30 @@ const Index: React.FC = () => {
       ),
     },
     {
-      title: '推荐买点（百分位）',
+      title: (
+        <span>
+          数据源
+          <Tooltip title="中证：仅中证指数列表；中证+新浪：两接口同码合并，指数基础字段取中证、涨跌行情取新浪；新浪：仅新浪行情，详情与买点计算走新浪日线接口">
+            <QuestionCircleOutlined style={{ marginLeft: 4, color: '#8c8c8c', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+      ),
+      dataIndex: '数据源',
+      key: '数据源',
+      width: 90,
+      sorter: stringSorter('数据源'),
+      filters: [
+        { text: '中证', value: '中证' },
+        { text: '中证+新浪', value: '中证+新浪' },
+        { text: '新浪', value: '新浪' },
+      ],
+      onFilter: (value: React.Key, record: IndexData) => (record['数据源'] || '中证') === value,
+      render: (value?: IndexSpotSource) => (
+        <span style={dataSourceBadgeStyle(value || '中证')}>{value || '中证'}</span>
+      ),
+    },
+    {
+      title: '季&月RSI6百分位策略',
       dataIndex: '__推荐买点百分位__',
       key: '__推荐买点百分位__',
       width: 90,
@@ -377,7 +524,7 @@ const Index: React.FC = () => {
       },
     },
     {
-      title: '推荐买点（定量）',
+      title: '季&月RSI6 定量策略',
       dataIndex: '__推荐买点定量__',
       key: '__推荐买点定量__',
       width: 90,
@@ -455,7 +602,7 @@ const Index: React.FC = () => {
     //   title: '发布时间',
     //   dataIndex: '发布时间',
     //   key: '发布时间',
-    //   width: 60,
+    //   width: 70,
     //   ...createDateRangeFilter('发布时间'),
     //   sorter: stringSorter('发布时间'),
     //   render: (text: string) => text ? moment(text).format('YYYY-MM-DD') : '',
@@ -464,7 +611,7 @@ const Index: React.FC = () => {
       title: '指数类别',
       dataIndex: '指数类别',
       key: '指数类别',
-      width: 60,
+      width: 70,
       sorter: stringSorter('指数类别'),
       filters: getUniqueValues(data, '指数类别').map(value => ({ text: value, value })),
       onFilter: (value: React.Key, record: IndexData) => record['指数类别']?.includes(value as string),
@@ -473,22 +620,88 @@ const Index: React.FC = () => {
       title: '基点',
       dataIndex: '基点',
       key: '基点',
-      width: 60,
+      width: 70,
       sorter: stringSorter('基点'),
     },
     {
       title: '样本数量',
       dataIndex: '样本数量',
       key: '样本数量',
-      width: 60,
+      width: 70,
       sorter: stringSorter('样本数量'),
     },
     {
       title: '最新收盘',
       dataIndex: '最新收盘',
       key: '最新收盘',
-      width: 60,
-      sorter: stringSorter('最新收盘'),
+      width: 80,
+      sorter: numberSorter('最新收盘'),
+      render: renderOptionalNumber,
+    },
+    // 新浪行情补充列（stock_zh_index_spot_sina）：中证行没有这些字段，显示「-」
+    {
+      title: '涨跌额',
+      dataIndex: '涨跌额',
+      key: '涨跌额',
+      width: 80,
+      sorter: numberSorter('涨跌额'),
+      render: renderChangeAmount,
+    },
+    {
+      title: '涨跌幅',
+      dataIndex: '涨跌幅',
+      key: '涨跌幅',
+      width: 80,
+      sorter: numberSorter('涨跌幅'),
+      render: renderChangePercent,
+    },
+    {
+      title: '昨收',
+      dataIndex: '昨收',
+      key: '昨收',
+      width: 80,
+      sorter: numberSorter('昨收'),
+      render: renderOptionalNumber,
+    },
+    {
+      title: '今开',
+      dataIndex: '今开',
+      key: '今开',
+      width: 80,
+      sorter: numberSorter('今开'),
+      render: renderOptionalNumber,
+    },
+    {
+      title: '最高',
+      dataIndex: '最高',
+      key: '最高',
+      width: 80,
+      sorter: numberSorter('最高'),
+      render: renderOptionalNumber,
+    },
+    {
+      title: '最低',
+      dataIndex: '最低',
+      key: '最低',
+      width: 80,
+      sorter: numberSorter('最低'),
+      render: renderOptionalNumber,
+    },
+    {
+      title: '成交量',
+      dataIndex: '成交量',
+      key: '成交量',
+      width: 110,
+      sorter: numberSorter('成交量'),
+      render: renderOptionalNumber,
+    },
+    {
+      title: '成交额',
+      dataIndex: '成交额',
+      key: '成交额',
+      width: 120,
+      sorter: numberSorter('成交额'),
+      render: renderOptionalNumber,
     },
     // {
     //   title: '指数年化率',
@@ -597,9 +810,27 @@ const Index: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get('/api/public/index_csindex_all');
-      console.log('指数列表 -> response', response);
-      let newData = (response?.data || []).map((item: IndexData) => {
+      // 中证指数列表为主数据；新浪股票指数行情作为补充（失败时仍展示中证列表）
+      const [csindexResult, sinaResult] = await Promise.allSettled([
+        apiClient.get('/api/public/index_csindex_all'),
+        apiClient.get('/api/public/stock_zh_index_spot_sina'),
+      ]);
+      if (csindexResult.status === 'rejected') {
+        console.log('中证指数列表获取失败', csindexResult.reason);
+      }
+      if (sinaResult.status === 'rejected') {
+        console.log('新浪股票指数行情获取失败，仅展示中证指数', sinaResult.reason);
+      }
+
+      const csindexRows: IndexData[] = csindexResult.status === 'fulfilled'
+        ? ((csindexResult.value?.data || []) as IndexData[])
+        : [];
+      const sinaRows: SinaIndexSpotRow[] = sinaResult.status === 'fulfilled'
+        ? ((sinaResult.value?.data || []) as SinaIndexSpotRow[])
+        : [];
+
+      // 中证行先算指数年化率；新浪行无基点/发布时间，年化率为空
+      const rowsWithAnnualReturn = csindexRows.map((item) => {
         if (!item['发布时间'] || !item['最新收盘'] || !item['基点'] || item['基点'] === 0) {
           return { ...item, '指数年化率': undefined };
         }
@@ -611,8 +842,11 @@ const Index: React.FC = () => {
         return { ...item, '指数年化率': annualReturn * 100 };
       });
 
+      // 同码（去 sh/sz 前缀）以中证行为准，新浪行情只补齐涨跌额/涨跌幅等字段；新浪独有指数追加到尾部
+      let newData: IndexData[] = mergeIndexSpotLists(rowsWithAnnualReturn, sinaRows);
+
       if (excludedNames.length > 0) {
-        newData = newData.filter((item: any) => {
+        newData = newData.filter((item) => {
           const indexNameShortName = String(item['指数简称'] || '').toLowerCase();
           return !excludedNames.some(excludedName =>
             indexNameShortName.includes(excludedName.toLowerCase())
@@ -623,13 +857,22 @@ const Index: React.FC = () => {
       setData(newData);
 
       // 用新数据刷新自选与所有自定义分组（保留买点字段）
+      // 匹配优先用完整代码（新浪 sh/sz 前缀），回退到去前缀同码（兼容旧自选里的中证/新浪重复行）
+      const findFreshIndex = (freshList: IndexData[], oldItem: IndexData): IndexData | undefined => {
+        const exact = freshList.find(f => f['指数代码'] === oldItem['指数代码']);
+        if (exact) return exact;
+        const normalized = normalizeIndexCode(oldItem['指数代码']);
+        return normalized
+          ? freshList.find(f => normalizeIndexCode(f['指数代码']) === normalized)
+          : undefined;
+      };
+
       const mergeFreshIndices = (oldList: IndexData[], freshList: IndexData[]): IndexData[] => {
         return oldList.map(oldItem => {
-          const matched = freshList.find(f => f['指数代码'] === oldItem['指数代码']);
+          const matched = findFreshIndex(freshList, oldItem);
           if (!matched) return oldItem;
           return {
             ...matched,
-            '指数代码': oldItem['指数代码'],
             __推荐买点定量__: oldItem.__推荐买点定量__,
             __推荐买点百分位__: oldItem.__推荐买点百分位__,
             __月RSI6百分位__: oldItem.__月RSI6百分位__,
@@ -981,6 +1224,7 @@ const Index: React.FC = () => {
           onCalculate={handleCalculateRecommendation}
           onExportReport={handleExportBuySellReport}
           onExportPlan={handleExportBuyPlan}
+          onExportMacdBarMarker={handleExportMacdBarMarker}
           itemLabel="指数"
         />
         <Table
@@ -991,7 +1235,7 @@ const Index: React.FC = () => {
           columns={columns}
           dataSource={list}
           rowKey="指数代码"
-          scroll={{ x: 2400, y: 'calc(100vh - 350px)' }}
+          scroll={{ x: 3000, y: 'calc(100vh - 350px)' }}
           pagination={false}
         />
       </>
@@ -1035,12 +1279,43 @@ const Index: React.FC = () => {
               搜索
             </Button>
           </div>
+          <div style={{
+            marginBottom: 12,
+            padding: '10px 12px',
+            borderRadius: 8,
+            border: '1px solid #e6f4ff',
+            background: 'linear-gradient(90deg, #f0f7ff 0%, #fafcff 60%, #ffffff 100%)',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: '8px 20px',
+            fontSize: 12,
+            lineHeight: '20px',
+            color: '#595959',
+          }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, color: '#1f3b57' }}>
+              <InfoCircleOutlined style={{ color: '#1890ff' }} />
+              数据源说明
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span style={dataSourceBadgeStyle('中证')}>中证</span>
+              仅中证指数列表
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span style={dataSourceBadgeStyle('中证+新浪')}>中证+新浪</span>
+              两接口同码合并：指数基础字段取中证、涨跌行情取新浪
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span style={dataSourceBadgeStyle('新浪')}>新浪</span>
+              仅新浪行情，详情与买点计算走新浪日线接口
+            </span>
+          </div>
           <Table
             columns={columns?.filter(c => c.key !== '__推荐买点定量__' && c.key !== '__推荐买点百分位__' && c.key !== '__月RSI6百分位__' && c.key !== '__周RSI6百分位__') || []}
             dataSource={data}
             loading={loading}
             rowKey="指数代码"
-            scroll={{ x: 2000, y: 'calc(100vh - 350px)' }}
+            scroll={{ x: 2400, y: 'calc(100vh - 350px)' }}
             pagination={{
               ...pagination,
               showSizeChanger: true,

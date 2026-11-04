@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, Popover } from 'antd';
 import moment from 'moment';
-import { CalculatorOutlined, FileExcelOutlined, InfoCircleOutlined, RiseOutlined } from '@ant-design/icons';
+import { CalculatorOutlined, FileExcelOutlined, InfoCircleOutlined, LineChartOutlined, RiseOutlined } from '@ant-design/icons';
 import { getSellTrancheCount, getSellTrancheIntervalDays } from '@/utils/stockUtils';
 import { appConfig } from '@/config/appConfig';
 
@@ -24,14 +24,18 @@ const formatMqLevelPct = (rule: { monthlyPercentile: number; quarterlyPercentile
     : `月${rule.monthlyPercentile}%/季${rule.quarterlyPercentile}%`;
 /** as-of 窗口折算年数（仅用于文案展示，实际口径仍按月数配置） */
 const RSI_ASOF_WINDOW_YEARS = RSI_ASOF_WINDOW_MONTHS / 12;
+/** 月K 最低 MACD 柱标记口径（与详情页 MacdFilterMark 共用配置） */
+const MACD_PARAMS = appConfig.chart.macd.macdParams;
+const MACD_MONTHLY_WINDOW = appConfig.chart.macd.peakWindows.monthly;
+const MACD_MIN_MONTHLY_BARS = appConfig.chart.macd.minMonthlyBars;
 
 
 /**
- * 「计算推荐买点 / 导出买入&卖出报告 / 导出买入计划」三按钮 公共组件
+ * 「计算推荐买点 / 导出买入&卖出报告 / 导出买入计划 / 最低 MACD 柱月K标记」四按钮 公共组件
  *
- * 三个按钮单行等宽排列；各按钮右侧 info 图标，鼠标悬停（或键盘聚焦）时以浮层展示完整规则文案，
- * 不再常驻占用页面高度。个股 / 指数 / 大宗商品 / 外盘期货 / 基金 各页面统一复用。
- * 各页面只需把三个动作回调传入即可。
+ * 前三个按钮单行等宽排列，第四个按钮在下方占满整行；各按钮右侧 info 图标，鼠标悬停（或键盘聚焦）
+ * 时以浮层展示完整规则文案，不再常驻占用页面高度。个股 / 指数 / 大宗商品 / 外盘期货 / 基金
+ * 各页面统一复用。各页面只需把四个动作回调传入即可。
  */
 
 /**
@@ -263,8 +267,12 @@ export interface BuyPointActionGroupProps {
   onExportReport: () => void;
   /** 导出「买入计划」Excel */
   onExportPlan: () => void;
+  /** 导出「最低 MACD 柱下一周期月K标记」Excel */
+  onExportMacdBarMarker: () => void;
   /** 标的名词，用于规则文案（默认「股票」） */
   itemLabel?: string;
+  /** 价格线名称：基金为「累计收益率」，其余「收盘价」 */
+  priceLineName?: string;
   /** 是否包含「周 RSI6 百分位策略」说明（基金无周线数据，传 false） */
   showWeeklyStrategy?: boolean;
 }
@@ -277,7 +285,9 @@ export const BuyPointActionGroup: React.FC<BuyPointActionGroupProps> = ({
   onCalculate,
   onExportReport,
   onExportPlan,
+  onExportMacdBarMarker,
   itemLabel = '股票',
+  priceLineName = '收盘价',
   showWeeklyStrategy = true,
 }) => {
   // 月&季 RSI6 ★5 分批卖出配置（文案随常量自动同步）
@@ -315,13 +325,14 @@ export const BuyPointActionGroup: React.FC<BuyPointActionGroupProps> = ({
       display: 'grid',
       gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
       columnGap: 12,
+      rowGap: 12,
       marginBottom: 12,
     }}
   >
     <ActionButton
       icon={<CalculatorOutlined />}
       title="计算推荐买点"
-      subtitle="启用后将计算RSI指标"
+      subtitle="启用后将计算RSI指标并自动导出Excel"
       gradient="linear-gradient(135deg, #11998e 0%, #38ef7d 100%)"
       glow="rgba(56, 239, 125, 0.45)"
       iconColor="#0f9b8e"
@@ -332,11 +343,11 @@ export const BuyPointActionGroup: React.FC<BuyPointActionGroupProps> = ({
           <br />
           <b>RSI6 口径</b>：标准 Wilder 平滑（Wilder RSI），与 TA-Lib、通达信等行情软件一致。
           <br />
-          ① <b>推荐买点（定量）</b>：
+          ① <b>季&月RSI6 定量策略</b>：
           {showWeeklyStrategy
             ? '按日 / 周 / 月 / 季 RSI6 阈值组合判定推荐级别；'
             : '按月度 / 季度 RSI6 阈值组合判定推荐级别；'}
-          ② <b>推荐买点（百分位）</b>：月 RSI6 与季 RSI6 同时跌破「截至当月、近 {RSI_ASOF_WINDOW_MONTHS} 个月（约 {RSI_ASOF_WINDOW_YEARS} 年）」的 as-of 滚动分位（★5 ≤{formatMqLevelPct(MQ_LEVEL_5)} / ★3 ≤{formatMqLevelPct(MQ_LEVEL_3)} / ★1 ≤{formatMqLevelPct(MQ_LEVEL_1)}，只用当月及之前 {RSI_ASOF_WINDOW_YEARS} 年内的样本计算；历史不足 {RSI_ASOF_WINDOW_YEARS} 年但满 {MQ_MIN_SAMPLE_MONTHS} 个月时使用全部历史；月/季样本均满 {MQ_MIN_SAMPLE_MONTHS} 个月后才产生信号）；
+          ② <b>季&月RSI6百分位策略</b>：月 RSI6 与季 RSI6 同时跌破「截至当月、近 {RSI_ASOF_WINDOW_MONTHS} 个月（约 {RSI_ASOF_WINDOW_YEARS} 年）」的 as-of 滚动分位（★5 ≤{formatMqLevelPct(MQ_LEVEL_5)} / ★3 ≤{formatMqLevelPct(MQ_LEVEL_3)} / ★1 ≤{formatMqLevelPct(MQ_LEVEL_1)}，只用当月及之前 {RSI_ASOF_WINDOW_YEARS} 年内的样本计算；历史不足 {RSI_ASOF_WINDOW_YEARS} 年但满 {MQ_MIN_SAMPLE_MONTHS} 个月时使用全部历史；月/季样本均满 {MQ_MIN_SAMPLE_MONTHS} 个月后才产生信号）；
           ③ <b>月RSI6百分位策略</b>：月 RSI6 跌破「截至当月、近 {RSI_ASOF_WINDOW_YEARS} 年」的滚动 {MONTHLY_RSI_CONFIG.buyPercentile}% 分位买入，≥{MONTHLY_RSI_CONFIG.sellPercentile}% 分位且收益率达门槛时卖出（满 {SINGLE_PERIOD_MIN_SAMPLE_COUNT} 个有效样本后才产生信号，历史不足 {RSI_ASOF_WINDOW_YEARS} 年时使用全部历史）；
           {showWeeklyStrategy && (
             <>
@@ -346,6 +357,12 @@ export const BuyPointActionGroup: React.FC<BuyPointActionGroupProps> = ({
           <br />
           卖出收益率门槛：持有满 <b>{RSI_ANNUALIZE_MIN_HOLDING_DAYS}</b> 天按<b>年化收益率</b>判定、不足则按<b>区间收益率</b>判定 —— 月&季共振 ≥{MQ_SELL_MIN_RETURN_PCT}%、周/月单周期 ≥{SINGLE_PERIOD_SELL_MIN_RETURN_PCT}%；未达门槛不卖出、继续持有等待下一次信号（阈值可配置）。
           其中<b>月&季共振 ★5 配对的卖出还须持有满 {MQ_SELL_MIN_HOLDING_DAYS} 天</b>（约 1 年，可配置），未满则同样继续持有。
+          <br />
+          <b>自动导出</b>：计算完成后自动下载「推荐买点」Excel，导出本次全部
+          <b>★1 / ★3 / ★5</b> 的月&季 RSI6 百分位策略买入信号（同一{itemLabel}可有多条）；
+          含推荐级别、买入价与买入月/季 RSI6，以及
+          <b>最大回撤率与回撤明细</b>（最大回撤最低点日期、最大回撤的收盘价、买点到最大回撤率的被套天数、回本日期、最大回本持有天数）；
+          底部附「平均值 / 中位数 / 样本方差 / 样本标准差 / 总体方差 / 总体标准差」统计行。
           <br />
           时间窗口：建议仅在<b>周六、周日</b>点击计算；非周末点击会二次确认，确认后照常计算。
         </>
@@ -423,6 +440,47 @@ export const BuyPointActionGroup: React.FC<BuyPointActionGroupProps> = ({
       }
       onClick={() => handleExport(onExportPlan, '「导出买入计划（Excel）」')}
     />
+    <div style={{ gridColumn: '1 / -1' }}>
+      <ActionButton
+        icon={<LineChartOutlined />}
+        title="最低 MACD 柱下一周期月K标记"
+        subtitle="并导出 Excel（最低柱 + 下一周期买入的收益/回撤指标）"
+        gradient="linear-gradient(135deg, #0958d9 0%, #13c2c2 100%)"
+        glow="rgba(19, 194, 194, 0.4)"
+        iconColor="#0958d9"
+        tipHeading="「最低 MACD 柱下一周期月K标记」导出规则"
+        tip={
+          <>
+            对当前分组已勾选{itemLabel}按<b>月K</b>口径计算
+            <b> MACD({MACD_PARAMS.fastPeriod},{MACD_PARAMS.slowPeriod},{MACD_PARAMS.signalPeriod})</b>：
+            连续为负且长度 ≥ <b>{MACD_MONTHLY_WINDOW}</b> 根的区间取最低 MACD 柱（金色标记）；
+            该柱下一周期 MACD 高于最低柱时确认，<b>买入日期 = 最低柱下一周期（确认柱）</b>（青色标记）。
+            同一负值区间后续出现更低柱时，最低柱与买入日期会整体后移，因此该买点为事后参考口径、不是实时信号。
+            <br />
+            <b>样本与完整性</b>：月K至少 <b>{MACD_MIN_MONTHLY_BARS}</b> 根（MACD 预热），且最低柱从第 {MACD_MIN_MONTHLY_BARS} 根月K起（含）才产生标记。
+            <br />
+            以买入日期的{priceLineName}为买入值，统计至<b>最新交易日</b>：
+            当前价格、持有天数、持有至今收益率、持有至今年化收益率
+            （持有满 <b>{RSI_ANNUALIZE_MIN_HOLDING_DAYS}</b> 天按复利年化，不足则直接取区间收益率）。
+            <br />
+            <b>回撤指标</b>：<b>被套最大回撤率</b> = 相对买入价的最大跌幅（附最低点日期/价格/被套天数/回本日期/最大回本持有天数/修复天数）。
+            <b>Calmar 比率 = 持有至今年化收益率 / 被套最大回撤率</b>（无回撤或年化缺失时导出 '-'）。
+            <br />
+            另附<b>买入后最大浮盈率</b>（仅 &gt; 0 时显示）；
+            底部附「平均值 / 中位数 / 样本方差 / 样本标准差 / 总体方差 / 总体标准差」统计行，
+            口径与「导出买入&卖出报告（Excel）」一致。
+            <br />
+            时间窗口：建议仅在<b>每月最后 3 个自然日</b>导出；非月底点击会二次确认，确认后照常导出。
+          </>
+        }
+        onClick={() =>
+          handleExport(
+            onExportMacdBarMarker,
+            '「最低 MACD 柱下一周期月K标记」',
+          )
+        }
+      />
+    </div>
   </div>
   );
 };

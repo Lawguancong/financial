@@ -148,19 +148,44 @@ export const appConfig = {
       { key: '3y', label: '近3年', years: 3 },
     ] as { key: 'full' | '10y' | '5y' | '3y'; label: string; years: number | null }[],
 
-    /** MACD 详情页峰值买点口径 */
+    /**
+     * MACD 详情页峰值买点口径。
+     *
+     * 红色峰值买点属于右侧交易：峰值本身需要等待后续周期数据确认，存在确认延迟；
+     * 默认最多延迟 n=1 个周期（峰值后下一根才确认买点），见 peakConfirmLags。
+     * 仅月/季参与买点判定；日K数据过密、周K仅保留 MACD 图，均不标记。
+     */
     macd: {
-      /** 峰值检测回看窗口（根）：周52 / 月12 / 季4，约 1 年 */
-      peakWindows: { weekly: 52, monthly: 12, quarterly: 4 } as Record<
-        'weekly' | 'monthly' | 'quarterly',
+      /** MACD 参数（快线 / 慢线 / 信号线） */
+      macdParams: { fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 },
+      /**
+       * 月K最低柱标记的最小月K样本数：MACD 预热约等于「慢线 26 + 信号线 9」，
+       * 默认 35 根；最低柱索引必须 ≥ 该门槛 - 1，否则不产生标记。
+       * 详情页 MacdFilterMark 月K与「最低 MACD 柱月K标记」导出共用。
+       */
+      minMonthlyBars: 35,
+
+      /**
+       * 峰值判定时 DEA÷DIF 的固定上限。
+       * 设为 Infinity 表示不设上限，所有高于显示下限的有效比值都参与峰值判定。
+       */
+      peakRatioCap: Infinity,
+      /**
+       * 峰值检测回看窗口（根）：月6 / 季4（季约 1 年）。
+       * 仅月/季参与 MACD 买点判定；日K数据过密、周K仅保留 MACD 图，均不标记。
+       * 同时作为 MACD 柱连续为负区间「最小柱标记」的区间长度门槛 n（仅月/季）。
+       */
+      peakWindows: { monthly: 6, quarterly: 4 } as Record<
+        'monthly' | 'quarterly',
         number
       >,
       /**
        * 峰值确认滞后（根）：峰值后第 N 根才确认买点（as-of，不使用确认日之后的数据）。
-       * 默认 1，即峰值后的下一根；不同周期可分别配置。
+       * 红色峰值买点为右侧交易，需等待下一周期数据判断，默认最多延迟 n=1 个周期；
+       * 仅月/季参与买点判定（日K、周K不标记），月/季可分别配置。
        */
-      peakConfirmLags: { weekly: 1, monthly: 1, quarterly: 1 } as Record<
-        'weekly' | 'monthly' | 'quarterly',
+      peakConfirmLags: { monthly: 1, quarterly: 1 } as Record<
+        'monthly' | 'quarterly',
         number
       >,
     },

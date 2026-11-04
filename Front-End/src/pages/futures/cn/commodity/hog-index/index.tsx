@@ -7,6 +7,7 @@ import IndexMetrics from '@/components/IndexMetrics';
 
 // RSI·推荐级别：与 /stock/us/index 统一复用同一组件（路由层提供 Suspense 边界）
 const RsiFilterMark = React.lazy(() => import('@/components/RsiFilterMark'));
+const MacdFilterMark = React.lazy(() => import('@/components/MacdFilterMark'));
 
 /** index_hog_spot_price 接口返回字段（周频） */
 interface HogSpotPriceItem {
@@ -57,6 +58,7 @@ const HogIndex: React.FC = () => {
       <Spin spinning={loading}>
         <IndexMetrics data={data} />
         <RsiFilterMark data={data} type="index" />
+        <MacdFilterMark data={data} type="index" />
       </Spin>
     </Card>
   );

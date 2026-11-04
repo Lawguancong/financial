@@ -9,6 +9,8 @@ import IndexMetrics from '@/components/IndexMetrics';
 
 // RSI·推荐级别：与 /stock/a/index/detail 统一复用同一组件（路由层提供 Suspense 边界）
 const RsiFilterMark = React.lazy(() => import('@/components/RsiFilterMark'));
+const MacdFilterMark = React.lazy(() => import('@/components/MacdFilterMark'));
+const DailyReturnAnalysis = React.lazy(() => import('@/components/DailyReturnAnalysis'));
 
 /** futures_foreign_hist 接口返回的英文字段 */
 interface ForeignFuturesHistItem {
@@ -95,6 +97,18 @@ const FuturesForeignQuotesDetail: React.FC = () => {
       <Collapse defaultActiveKey={["3"]} style={{ marginTop: 16 }}>
         <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📈📊📉 RSI·推荐级别</span>} key="3">
           <RsiFilterMark data={dailyData} type="commodity" />
+        </Collapse.Panel>
+      </Collapse>
+
+      <Collapse defaultActiveKey={["4"]} style={{ marginTop: 16 }}>
+        <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📈📊📉 MACD 技术指标</span>} key="4">
+          <MacdFilterMark data={dailyData} type="commodity" />
+        </Collapse.Panel>
+      </Collapse>
+
+      <Collapse defaultActiveKey={["5"]} style={{ marginTop: 16 }}>
+        <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📈📊📉 日涨跌幅分析</span>} key="5">
+          <DailyReturnAnalysis data={dailyData} />
         </Collapse.Panel>
       </Collapse>
     </div>

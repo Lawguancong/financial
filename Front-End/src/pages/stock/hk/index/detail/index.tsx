@@ -8,6 +8,8 @@ import IndexMetrics from '@/components/IndexMetrics';
 
 // RSI·推荐级别：与 /stock/a/index/detail、/stock/us/index 统一复用同一组件
 const RsiFilterMark = React.lazy(() => import('@/components/RsiFilterMark'));
+const MacdFilterMark = React.lazy(() => import('@/components/MacdFilterMark'));
+const DailyReturnAnalysis = React.lazy(() => import('@/components/DailyReturnAnalysis'));
 
 const HkIndexDetail: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -72,6 +74,18 @@ const HkIndexDetail: React.FC = () => {
       <Collapse defaultActiveKey={['3']} style={{ marginTop: 16 }}>
         <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📈📊📉 RSI·推荐级别</span>} key="3">
           <RsiFilterMark data={dailyData} type="index" />
+        </Collapse.Panel>
+      </Collapse>
+
+      <Collapse defaultActiveKey={['4']} style={{ marginTop: 16 }}>
+        <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📈📊📉 MACD 技术指标</span>} key="4">
+          <MacdFilterMark data={dailyData} type="index" />
+        </Collapse.Panel>
+      </Collapse>
+
+      <Collapse defaultActiveKey={['5']} style={{ marginTop: 16 }}>
+        <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📈📊📉 日涨跌幅分析</span>} key="5">
+          <DailyReturnAnalysis data={dailyData} />
         </Collapse.Panel>
       </Collapse>
     </div>

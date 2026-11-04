@@ -3,12 +3,15 @@ import { useSearchParams } from 'react-router-dom';
 import { Card, Spin, Typography } from 'antd';
 import apiClient from '@/utils/axios';
 const RsiFilterMark = React.lazy(() => import('@/components/RsiFilterMark'));
+const MacdFilterMark = React.lazy(() => import('@/components/MacdFilterMark'));
+const DailyReturnAnalysis = React.lazy(() => import('@/components/DailyReturnAnalysis'));
 import { message } from 'antd';
 
 const { Title } = Typography;
 
 interface HistData extends Record<string, unknown> {
   日期: string;
+  收盘: number;
   代码: string;
   名称: string;
   今开: number;
@@ -56,6 +59,8 @@ const GlobalIndexDetail: React.FC = () => {
         {/* todo  */}
         {/* {useMemo(() => <IndexMetrics data={data} />, [data])} */}
         {useMemo(() => <RsiFilterMark data={data} type="index" />, [data])}
+        {useMemo(() => <MacdFilterMark data={data} type="index" />, [data])}
+        {useMemo(() => <DailyReturnAnalysis data={data} />, [data])}
       </Spin>
     </Card>
   );

@@ -6,8 +6,14 @@ import apiClient from '@/utils/axios';
 import { isRecentDate } from '@/utils/stockUtils';
 import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
 import { computeBuyPoints } from '@/utils/buyPointWorker';
-import type { BuyPointResult } from '@/utils/buyPointCompute';
-import { exportBuyPlan, exportBuySellReport } from '@/utils/buySellReportExport';
+import type { BuyPointKLineItem, BuyPointResult } from '@/utils/buyPointCompute';
+import {
+  exportBuyPlan,
+  exportBuySellReport,
+  exportRecommendationBuyPoints,
+} from '@/utils/buySellReportExport';
+import type { BuySellReportItem } from '@/utils/buySellReportExport';
+import { exportMacdBarMarker } from '@/utils/macdBarMarkerExport';
 import { BuyPointActionGroup } from '@/components/BuyPointActionGroup';
 
 const { Link } = Typography;
@@ -113,34 +119,41 @@ const HkIndex: React.FC = () => {
     setSelectedRows(newSelectedRows);
   };
 
-  // 计算推荐买点（定量 + 月&季百分位 + 月RSI6百分位 + 周RSI6百分位）
-  const fetchIndexDetailAndCalculate = async (symbol: string): Promise<BuyPointResult> => {
+  // 取指数日K「日期 + 收盘」序列（买点计算与 MACD 月K标记导出共用）
+  const fetchIndexDailyData = async (symbol: string): Promise<BuyPointKLineItem[]> => {
     const response = await apiClient.get('/api/public/stock_hk_index_daily_sina', {
       params: { symbol },
     });
     const stockHistoryList = (response?.data || [])
       .map((item: Record<string, unknown>) => ({
-        日期: item.date,
+        日期: String(item.date),
         收盘: Number(item.close),
       }))
-      .filter((item: { 收盘: number }) => Number.isFinite(item.收盘));
+      .filter((item: { 日期: string; 收盘: number }) => Number.isFinite(item.收盘));
 
     // 接口异常（空数据 / 无有效收盘价）需抛出，由批量编排统一重试并汇总提示
     if (stockHistoryList.length === 0) throw new Error('接口返回空数据');
-
-    return computeBuyPoints({ type: 'index', rawData: stockHistoryList });
+    return stockHistoryList;
   };
+
+  const fetchIndexDetailAndCalculate = async (symbol: string): Promise<BuyPointResult> =>
+    computeBuyPoints({ type: 'index', rawData: await fetchIndexDailyData(symbol) });
 
   const handleCalculateRecommendation = async () => {
     // 仅收集结果，全部计算完成后再一次性更新表格与缓存
     const resultMap = new Map<string, { quantitative: string; percentile: string; monthlyPercentile: string; weeklyPercentile: string }>();
-    await runRecommendationBatchCalculation({
+    // 收集本次计算结果，供计算完成后自动导出「推荐买点」Excel（不重复取数）
+    const exportItems: BuySellReportItem[] = [];
+    const batchResult = await runRecommendationBatchCalculation({
       targets: selectedRows,
       getKey: item => String(item['代码']),
       getName: item => item['名称'] || String(item['代码']),
       emptyWarn: '请选择指数',
       fetchBuyPoints: item => fetchIndexDetailAndCalculate(String(item['代码'])),
       onItemDone: (item, result) => {
+        const code = String(item['代码']);
+        const name = item['名称'] || code;
+        result.mqBuyPoints.forEach(point => exportItems.push({ code, name, point }));
         resultMap.set(String(item['代码']), result);
       },
     });
@@ -161,10 +174,21 @@ const HkIndex: React.FC = () => {
           : item;
       });
 
+    // 计算完成后自动导出「推荐买点」Excel（★1/★3/★5 全部买入信号）；
+    // 在写回表格之后执行，避免导出异常影响买点回填
+    const exportBuyPoints = () =>
+      exportRecommendationBuyPoints({
+        items: exportItems,
+        itemLabel: '指数',
+        filePrefix: '港股指数',
+        failureCount: batchResult.failures.length,
+      });
+
     if (activeTab === SELECTED_TAB_KEY) {
       const latest = applyResults(selectedIndicesRef.current);
       setSelectedIndices(latest);
       saveSelectedIndices(latest);
+      exportBuyPoints();
       return;
     }
 
@@ -172,6 +196,7 @@ const HkIndex: React.FC = () => {
     const isCustomTab = customTabs.some(t => t.key === activeTab);
     if (isCustomTab) {
       saveGroupIndices(activeTab, prev => applyResults(prev));
+      exportBuyPoints();
     }
   };
 
@@ -196,6 +221,19 @@ const HkIndex: React.FC = () => {
       getName: item => item['名称'] || String(item['代码']),
       getKey: item => String(item['代码']),
       fetchPoints: async item => (await fetchIndexDetailAndCalculate(String(item['代码']))).mqBuyPoints,
+      emptyWarn: '请选择指数',
+      itemLabel: '指数',
+      filePrefix: '港股指数',
+    });
+
+  /** 导出「最低 MACD 柱下一周期月K标记」：月K标记 + 持有/回撤指标 */
+  const handleExportMacdBarMarker = () =>
+    exportMacdBarMarker<IndexData>({
+      targets: selectedRows,
+      getCode: item => String(item['代码']),
+      getName: item => item['名称'] || String(item['代码']),
+      getKey: item => String(item['代码']),
+      fetchDailyData: item => fetchIndexDailyData(String(item['代码'])),
       emptyWarn: '请选择指数',
       itemLabel: '指数',
       filePrefix: '港股指数',
@@ -320,7 +358,7 @@ const HkIndex: React.FC = () => {
       ),
     },
     {
-      title: '推荐买点（百分位）',
+      title: '季&月RSI6百分位策略',
       dataIndex: '__推荐买点百分位__',
       key: '__推荐买点百分位__',
       width: 120,
@@ -335,7 +373,7 @@ const HkIndex: React.FC = () => {
       }),
     },
     {
-      title: '推荐买点（定量）',
+      title: '季&月RSI6 定量策略',
       dataIndex: '__推荐买点定量__',
       key: '__推荐买点定量__',
       width: 120,
@@ -839,6 +877,7 @@ const HkIndex: React.FC = () => {
           onCalculate={handleCalculateRecommendation}
           onExportReport={handleExportBuySellReport}
           onExportPlan={handleExportBuyPlan}
+          onExportMacdBarMarker={handleExportMacdBarMarker}
           itemLabel="指数"
         />
         <Table

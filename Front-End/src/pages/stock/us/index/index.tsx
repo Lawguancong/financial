@@ -5,6 +5,7 @@ import type { KLineData } from '@/utils/stockUtils';
 import IndexMetrics from '@/components/IndexMetrics';
 import DailyReturnAnalysis from '@/components/DailyReturnAnalysis';
 const RsiFilterMark = React.lazy(() => import('@/components/RsiFilterMark'));
+const MacdFilterMark = React.lazy(() => import('@/components/MacdFilterMark'));
 
 
 const indexOptions = [
@@ -62,6 +63,7 @@ const UsIndexPage: React.FC = () => {
       <Spin spinning={loading}>
         <IndexMetrics data={data} />
         <RsiFilterMark data={data} type="index" />
+        <MacdFilterMark data={data} type="index" />
         <DailyReturnAnalysis data={data} />
       </Spin>
     </Card>

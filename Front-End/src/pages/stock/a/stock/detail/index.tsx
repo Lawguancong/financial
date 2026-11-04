@@ -55,7 +55,7 @@ const titleStyle: React.CSSProperties = { margin: 0 };
 const StockDetail: React.FC = () => {
   // const [symbolInfo, setSymbolInfo] = useState<Record<string, string>>({});
   const [rawData, setRawData] = useState<StockDetailData[]>([]);
-  const [activeTab, setActiveTab] = useState<string>('macd-filter');
+  const [activeTab, setActiveTab] = useState<string>('rsi-filter');
 
   const [searchParams] = useSearchParams();
   const symbol = searchParams.get('symbol') || '';

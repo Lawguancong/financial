@@ -2,7 +2,18 @@ import moment from 'moment';
 import { message } from 'antd';
 import { runRecommendationBatchCalculation } from './recommendationBatch';
 import { downloadXlsx } from './xlsxExport';
-import type { XlsxCell, XlsxCellStyle, XlsxCellValue, XlsxColumn, XlsxRow } from './xlsxExport';
+import type { XlsxCell, XlsxCellValue, XlsxColumn, XlsxRow } from './xlsxExport';
+import {
+  DETAIL_ROW_HEIGHT,
+  HEADER_ROW_HEIGHT,
+  HEADER_STYLE,
+  SUMMARY_DEFS,
+  SUMMARY_ROW_HEIGHT,
+  ZEBRA_BACKGROUND,
+  buildSummaryRow,
+  detailCellStyle,
+  summaryCellStyle,
+} from './reportExportStyle';
 import { calculateAnnualizedReturn, getSellTrancheColumnTitle, getSellTrancheCount } from './stockUtils';
 import type { MonthlyQuarterlyPercentileBuyPoint } from './stockUtils';
 import { appConfig } from '@/config/appConfig';
@@ -26,6 +37,9 @@ const SELL_TRANCHE_COLUMNS: XlsxColumn[] =
 /** 分批卖出列标题集合（「买入计划」导出时剔除） */
 const SELL_TRANCHE_TITLES = new Set(SELL_TRANCHE_COLUMNS.map(column => column.title));
 
+/** 「买入计划」剔除的列：分批卖出列 + 仅买入&卖出报告展示的「买入后最大浮盈率」 */
+const BUY_PLAN_EXCLUDED_TITLES = new Set([...SELL_TRANCHE_TITLES, '买入后最大浮盈率']);
+
 /** 导出列（不含「当前价格」列）：参考 RsiFilterMark「月&季 RSI6 百分位策略」表格列 */
 export const BUY_SELL_REPORT_COLUMNS: XlsxColumn[] = [
   { title: '代码' },
@@ -43,6 +57,7 @@ export const BUY_SELL_REPORT_COLUMNS: XlsxColumn[] = [
   { title: '平均收益率' },
   ...SELL_TRANCHE_COLUMNS,
   { title: '年化收益率' },
+  { title: '买入后最大浮盈率' },
   { title: '最大回撤率' },
   { title: '最大回撤最低点日期' },
   { title: '最大回撤的收盘价' },
@@ -68,13 +83,13 @@ export const buildReportColumns = (currentPriceTitle: string): XlsxColumn[] =>
   insertCurrentPriceColumn(BUY_SELL_REPORT_COLUMNS, currentPriceTitle);
 
 /**
- * 「买入计划」列：与「买入&卖出报告」一致，但剔除分批卖出列（无卖出），并作两处改名 ——
+ * 「买入计划」列：与「买入&卖出报告」一致，但剔除分批卖出列与「买入后最大浮盈率」，并作两处改名 ——
  * 「平均收益率」→「持有至今收益率」、「年化收益率」→「持有至今年化收益率」：
  * 买入计划导出的是尚未卖出的持仓，口径为「最新交易日 vs 买入价」（可正可负），非已实现收益。
  */
 export const buildBuyPlanColumns = (currentPriceTitle: string): XlsxColumn[] =>
   insertCurrentPriceColumn(
-    BUY_SELL_REPORT_COLUMNS.filter(column => !SELL_TRANCHE_TITLES.has(column.title)).map(column => {
+    BUY_SELL_REPORT_COLUMNS.filter(column => !BUY_PLAN_EXCLUDED_TITLES.has(column.title)).map(column => {
       if (column.title === '平均收益率') return { ...column, title: '持有至今收益率' };
       if (column.title === '年化收益率') return { ...column, title: '持有至今年化收益率' };
       return column;
@@ -128,7 +143,7 @@ export const pickOpenFiveStarBuys = (
 type ReportCellMode = 'paired' | 'open';
 
 /** 单条 ★5 买卖点 -> 导出单元格行（数值列写数字，缺失列留空） */
-const toReportCells = (
+export const buildReportCells = (
   { code, name, point }: BuySellReportItem,
   mode: ReportCellMode,
 ): XlsxCellValue[] => {
@@ -180,6 +195,10 @@ const toReportCells = (
         })
       : []),
     annualizedReturn,
+    // 「买入后最大浮盈率」仅买入&卖出报告展示；买入计划列定义已剔除，单元格同步跳过
+    ...(mode === 'paired'
+      ? [point.maxFavorableReturn != null ? point.maxFavorableReturn : '']
+      : []),
     point.maxDrawdown != null ? point.maxDrawdown : '-',
     point.maxDrawdownDate ?? '-',
     point.maxDrawdownClose != null ? point.maxDrawdownClose : '-',
@@ -213,220 +232,6 @@ const REPORT_SUMMARY_EXCLUDED_TITLES = new Set([
   '卖出收盘价',
   '最大回撤的收盘价',
 ]);
-
-/** 平均值：抗不了极值，作为常规参考 */
-const averageOf = (values: number[]): number =>
-  values.reduce((sum, value) => sum + value, 0) / values.length;
-
-/** 中位数：样本量小且存在极值（如个别数倍收益）时更能代表典型水平 */
-const medianOf = (values: number[]): number => {
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle];
-};
-
-/**
- * 方差：衡量各笔收益率偏离平均值的离散程度，越大代表单笔结果波动越大、稳定性越差。
- * sample = true 为样本方差（除以 n−1，样本量不足 2 时无法计算）；false 为总体方差（除以 n）。
- */
-const varianceOf = (values: number[], sample: boolean): number | null => {
-  const count = values.length;
-  if (count === 0 || (sample && count < 2)) return null;
-  const mean = values.reduce((sum, value) => sum + value, 0) / count;
-  const sumOfSquares = values.reduce((sum, value) => sum + (value - mean) ** 2, 0);
-  return sumOfSquares / (sample ? count - 1 : count);
-};
-
-/** 样本方差（n−1 口径）：把导出的这些交易视为总体中的一个样本 */
-const sampleVarianceOf = (values: number[]): number | null => varianceOf(values, true);
-
-/** 总体方差（n 口径）：把导出的这些交易视为全部总体 */
-const populationVarianceOf = (values: number[]): number | null => varianceOf(values, false);
-
-/**
- * 标准差 = 方差的算术平方根，与收益率同量纲（%），
- * 便于直观判断单笔收益率的典型波动幅度；越大代表波动越剧烈。
- */
-const stdDevOf = (values: number[], sample: boolean): number | null => {
-  const variance = varianceOf(values, sample);
-  return variance == null ? null : Math.sqrt(variance);
-};
-
-/** 样本标准差（n−1 口径） */
-const sampleStdDevOf = (values: number[]): number | null => stdDevOf(values, true);
-
-/** 总体标准差（n 口径） */
-const populationStdDevOf = (values: number[]): number | null => stdDevOf(values, false);
-
-/**
- * 生成表格底部的汇总行：
- * 数值列按 aggregate 统计（平均值 / 中位数 / 方差 / 标准差，保留两位小数），文本/日期列与价格类列留空；
- * 缺失值（'-'、空串）不参与统计；无法计算（如样本量不足）时留空
- */
-const buildSummaryRow = (
-  rows: XlsxCellValue[][],
-  label: string,
-  aggregate: (values: number[]) => number | null,
-  columns: XlsxColumn[],
-  /** 额外的排除列标题（如动态表头的「当前…价格」列） */
-  extraExcludedTitles?: Set<string>,
-): XlsxCellValue[] =>
-  columns.map((column, index) => {
-    if (index === 0) return label;
-    if (REPORT_SUMMARY_EXCLUDED_TITLES.has(column.title)) return '';
-    if (extraExcludedTitles?.has(column.title)) return '';
-    const numbers = rows
-      .map(row => row[index])
-      .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
-    if (numbers.length === 0) return '';
-    const aggregated = aggregate(numbers);
-    return aggregated == null || !Number.isFinite(aggregated) ? '' : Number(aggregated.toFixed(2));
-  });
-
-// ---------------- 导出表格样式（只影响展示，不影响任何统计口径） ----------------
-
-/** 深蓝表头（白字加粗居中、自动换行） */
-const HEADER_STYLE: XlsxCellStyle = {
-  bold: true,
-  color: 'FFFFFF',
-  backgroundColor: '1F4E79',
-  align: 'center',
-  wrapText: true,
-  border: 'thin',
-  borderColor: '163A5C',
-};
-
-const HEADER_ROW_HEIGHT = 45;
-const DETAIL_ROW_HEIGHT = 20;
-const SUMMARY_ROW_HEIGHT = 22;
-/** 明细区隔行底色与细边框 */
-const ZEBRA_BACKGROUND = 'F7F9FC';
-const DETAIL_BORDER_COLOR = 'DCE3EC';
-/** 汇总区暖色底：均值/中位数一档、离散度指标一档，顶部用金色中粗线分隔 */
-const SUMMARY_MEAN_BACKGROUND = 'FFF2CC';
-const SUMMARY_DISPERSION_BACKGROUND = 'FCE4D6';
-const SUMMARY_BORDER_COLOR = 'E3C26B';
-const SUMMARY_TOP_BORDER_COLOR = 'BF8F00';
-const SUMMARY_LABEL_COLOR = '7F6000';
-/** 收益率正负配色（A 股习惯：红涨绿跌） */
-const POSITIVE_RETURN_COLOR = 'C00000';
-const NEGATIVE_RETURN_COLOR = '008000';
-const MUTED_COLOR = 'A6A6A6';
-
-/** 列类型：决定对齐、数字格式与是否按正负着色 */
-type ReportColumnKind =
-  | 'code'
-  | 'name'
-  | 'level'
-  | 'date'
-  | 'price'
-  | 'rsi'
-  | 'days'
-  | 'returnRate'
-  | 'drawdown'
-  | 'ratio'
-  | 'text';
-
-/**
- * 按列标题识别列类型（标题由 buildReportColumns / buildBuyPlanColumns 生成，两种口径共用）：
- * 先判「天数」，避免「买点到最大回撤率的被套天数」被误判为回撤率列。
- */
-const classifyColumn = (title: string): ReportColumnKind => {
-  if (title === '代码') return 'code';
-  if (title === '名称') return 'name';
-  if (title === '推荐级别') return 'level';
-  if (/天数/.test(title)) return 'days';
-  if (/日期/.test(title)) return 'date';
-  if (/收盘价|价格/.test(title)) return 'price';
-  if (/RSI6/.test(title)) return 'rsi';
-  if (/收益率/.test(title)) return 'returnRate';
-  if (/最大回撤率/.test(title)) return 'drawdown';
-  if (/Calmar/.test(title)) return 'ratio';
-  return 'text';
-};
-
-/** 各类列的默认对齐 */
-const columnAlign = (kind: ReportColumnKind): 'left' | 'center' | 'right' => {
-  if (kind === 'name') return 'left';
-  if (kind === 'code' || kind === 'level' || kind === 'date' || kind === 'text') return 'center';
-  return 'right';
-};
-
-/** 各类列的数字格式（字符串列不设置） */
-const columnNumberFormat = (kind: ReportColumnKind): string | undefined => {
-  if (kind === 'returnRate' || kind === 'drawdown') return '0.00"%"';
-  if (kind === 'price') return '#,##0.00';
-  if (kind === 'days') return '0';
-  if (kind === 'rsi' || kind === 'ratio') return '0.00';
-  return undefined;
-};
-
-/** 明细单元格样式：统一细边框 + 隔行底色（行级）+ 收益率红正绿负 + 推荐级别金色 */
-const detailCellStyle = (title: string, value: XlsxCellValue): XlsxCellStyle => {
-  const kind = classifyColumn(title);
-  const style: XlsxCellStyle = {
-    border: 'thin',
-    borderColor: DETAIL_BORDER_COLOR,
-    align: columnAlign(kind),
-    numberFormat: typeof value === 'number' ? columnNumberFormat(kind) : undefined,
-  };
-
-  if (kind === 'level') {
-    style.bold = true;
-    style.color = 'BF8F00';
-    // ★ 列浅金底，整列在明细中一眼可见
-    style.backgroundColor = 'FFF8E1';
-  }
-
-  if (typeof value === 'number' && kind === 'returnRate') {
-    if (value > 0) style.color = POSITIVE_RETURN_COLOR;
-    else if (value < 0) style.color = NEGATIVE_RETURN_COLOR;
-  }
-
-  // 缺失值统一灰字居中，避免 '-' 抢视觉焦点
-  if (value == null || value === '' || value === '-') {
-    style.align = 'center';
-    style.color = MUTED_COLOR;
-  }
-
-  return style;
-};
-
-/** 汇总行单元格样式：暖色底 + 加粗 + 顶部金色分隔线；收益率均值保留红正绿负 */
-const summaryCellStyle = (
-  title: string,
-  label: string,
-  value: XlsxCellValue,
-  isFirstSummaryRow: boolean,
-  isLabelColumn: boolean,
-): XlsxCellStyle => {
-  const kind = classifyColumn(title);
-  const isDispersion =
-    label === '样本方差' || label === '样本标准差' || label === '总体方差' || label === '总体标准差';
-  const style: XlsxCellStyle = {
-    bold: true,
-    backgroundColor: isDispersion ? SUMMARY_DISPERSION_BACKGROUND : SUMMARY_MEAN_BACKGROUND,
-    border: 'thin',
-    borderColor: SUMMARY_BORDER_COLOR,
-    topBorder: isFirstSummaryRow ? 'medium' : undefined,
-    align: columnAlign(kind),
-    numberFormat: typeof value === 'number' ? columnNumberFormat(kind) : undefined,
-  };
-  if (isFirstSummaryRow) style.borderColor = SUMMARY_TOP_BORDER_COLOR;
-
-  if (isLabelColumn) {
-    // 第一列汇总标签
-    style.align = 'left';
-    style.color = SUMMARY_LABEL_COLOR;
-  } else if (typeof value === 'number' && kind === 'returnRate' && !isDispersion) {
-    // 方差/标准差恒为非负，按正负着色会全红，故只给均值/中位数着色
-    if (value > 0) style.color = POSITIVE_RETURN_COLOR;
-    else if (value < 0) style.color = NEGATIVE_RETURN_COLOR;
-  }
-
-  return style;
-};
-
 
 export interface BuyPointExportOptions<T> {
   /** 待导出的目标列表（调用方已按勾选过滤） */
@@ -504,9 +309,9 @@ const runReportExport = async <T>(
   // 明细行 + 底部汇总行（平均值、中位数、样本/总体方差与标准差，均只基于明细行统计）
   const columns =
     mode === 'open' ? buildBuyPlanColumns(currentPriceTitle) : buildReportColumns(currentPriceTitle);
-  const excludedTitles = new Set([currentPriceTitle]);
+  const excludedTitles = new Set([...REPORT_SUMMARY_EXCLUDED_TITLES, currentPriceTitle]);
   // 统计口径保持不变：先算纯值行，再套样式
-  const detailValues = reportItems.map(item => toReportCells(item, mode));
+  const detailValues = reportItems.map(item => buildReportCells(item, mode));
   const rows: XlsxRow[] = detailValues.map((values, rowIndex) => ({
     cells: values.map((value, colIndex): XlsxCell => ({
       value,
@@ -517,20 +322,7 @@ const runReportExport = async <T>(
     height: DETAIL_ROW_HEIGHT,
   }));
 
-  const summaryDefs: {
-    label: string;
-    aggregate: (values: number[]) => number | null;
-  }[] = [
-    { label: '平均值', aggregate: averageOf },
-    { label: '中位数', aggregate: medianOf },
-    // 统计学离散度指标：方差/标准差越大，说明各笔收益率的波动越大、结果越不稳定
-    { label: '样本方差', aggregate: sampleVarianceOf },
-    { label: '样本标准差', aggregate: sampleStdDevOf },
-    { label: '总体方差', aggregate: populationVarianceOf },
-    { label: '总体标准差', aggregate: populationStdDevOf },
-  ];
-
-  summaryDefs.forEach(({ label, aggregate }, summaryIndex) => {
+  SUMMARY_DEFS.forEach(({ label, aggregate }, summaryIndex) => {
     const values = buildSummaryRow(detailValues, label, aggregate, columns, excludedTitles);
     rows.push({
       cells: values.map((value, colIndex): XlsxCell => ({
@@ -583,4 +375,159 @@ export const exportBuyPlan = async <T>(options: BuyPointExportOptions<T>): Promi
     emptyMessage: '所选{label}暂无「月&季 RSI6 百分位策略」尚未卖出的 ★5 买入信号',
     successMessage: count => `「买入计划」已导出（共 ${count} 条 ★5 买入信号）`,
   });
+};
+
+// ============================================================
+// 「推荐买点」导出（计算推荐买点完成后自动下载，复用本次计算结果）
+// ============================================================
+
+/**
+ * 「推荐买点」导出列（顺序即表头顺序）：
+ * 全部 ★1/★3/★5 月&季 RSI6 百分位策略买入信号，含最大回撤率与回撤明细；
+ * 不含数据源、当前价格、持有天数与收益率列。
+ */
+export const RECOMMENDATION_BUY_POINT_COLUMNS: XlsxColumn[] = [
+  { title: '代码' },
+  { title: '名称' },
+  { title: '推荐级别' },
+  { title: '买入日期' },
+  { title: '买入收盘价' },
+  { title: '买入月RSI6' },
+  { title: '买入季RSI6' },
+  { title: '最大回撤率' },
+  { title: '最大回撤最低点日期' },
+  { title: '最大回撤的收盘价' },
+  { title: '买点到最大回撤率的被套天数' },
+  { title: '回本日期' },
+  { title: '最大回本持有天数' },
+];
+
+/** 「推荐买点」汇总行不参与统计的列：文本/日期列与价格列 */
+export const RECOMMENDATION_SUMMARY_EXCLUDED_TITLES = new Set([
+  '代码',
+  '名称',
+  '推荐级别',
+  '买入日期',
+  '买入收盘价',
+  '最大回撤最低点日期',
+  '最大回撤的收盘价',
+  '回本日期',
+]);
+
+/**
+ * 单条月&季 RSI6 百分位买点 -> 「推荐买点」导出单元格。
+ *
+ * 回撤指标统一由 `computeHoldingDrawdown` 计算：已卖出的窗口为买入日 → 首笔卖出信号日，
+ * 未卖出的为买入日 → 最新交易日；全程未跌破买入价时最大回撤相关字段均写 `'-'`。
+ */
+export const buildRecommendationCells = ({
+  code,
+  name,
+  point,
+}: BuySellReportItem): XlsxCellValue[] => [
+  code,
+  name,
+  '★'.repeat(point.level),
+  formatReportDate(point.日期),
+  Number(point.收盘.toFixed(2)),
+  Number(point.monthlyRsi.toFixed(2)),
+  Number(point.quarterlyRsi.toFixed(2)),
+  // ↓ 与 RECOMMENDATION_BUY_POINT_COLUMNS 表头严格对齐：最大回撤率 -> 最低点日期 -> 最低点收盘价 -> 被套天数 -> 回本日期 -> 最大回本持有天数
+  point.maxDrawdown != null ? point.maxDrawdown : '-',
+  point.maxDrawdownDate ?? '-',
+  point.maxDrawdownClose != null ? point.maxDrawdownClose : '-',
+  point.daysToMaxDrawdown != null ? point.daysToMaxDrawdown : '-',
+  point.recoveryDate ?? '-',
+  point.maxRecoveryHoldingDays != null ? point.maxRecoveryHoldingDays : '-',
+];
+
+/**
+ * 构建「推荐买点」明细值行（不修改入参）：
+ * 按买入日期倒序（最近信号在前）、同日按代码升序；同一标的多条买点全部保留（不去重、不限数量）。
+ */
+export const buildRecommendationExportValues = (
+  items: BuySellReportItem[],
+): XlsxCellValue[][] =>
+  [...items]
+    .sort((a, b) => {
+      const dateCompare = b.point.日期.localeCompare(a.point.日期);
+      return dateCompare !== 0 ? dateCompare : a.code.localeCompare(b.code);
+    })
+    .map(buildRecommendationCells);
+
+export interface RecommendationBuyPointExportOptions {
+  /** 本次「计算推荐买点」收集到的全部买点明细（调用方已按勾选标的过滤） */
+  items: BuySellReportItem[];
+  /** 标的名词，用于「无信号」提示 */
+  itemLabel: string;
+  /** 导出文件名前缀（标的类型），如「A股个股」「开放式基金」 */
+  filePrefix: string;
+  /** 接口异常标的数量：>0 时不再追加「无信号」提示（失败已由批量编排弹窗汇总） */
+  failureCount?: number;
+}
+
+/**
+ * 导出「推荐买点」Excel：直接复用「计算推荐买点」本次已算出的结果（不重新取数），
+ * 导出全部 ★1/★3/★5 月&季 RSI6 百分位策略买入信号（同一只可有多条）。
+ * 排序、回撤明细列、底部六行统计与样式均与其它导出保持一致。
+ */
+export const exportRecommendationBuyPoints = ({
+  items,
+  itemLabel,
+  filePrefix,
+  failureCount = 0,
+}: RecommendationBuyPointExportOptions): void => {
+  if (items.length === 0) {
+    // 全部接口异常时已弹出失败汇总 Modal，不再追加「无信号」提示
+    if (failureCount === 0) {
+      message.info(`所选${itemLabel}暂无「月&季 RSI6 百分位策略」买入信号`);
+    }
+    return;
+  }
+
+  const columns = RECOMMENDATION_BUY_POINT_COLUMNS;
+  const excludedTitles = RECOMMENDATION_SUMMARY_EXCLUDED_TITLES;
+
+  // 明细行（按买入日期倒序、同日按代码升序）+ 底部汇总行（只基于明细行统计）
+  const detailValues = buildRecommendationExportValues(items);
+  const rows: XlsxRow[] = detailValues.map((values, rowIndex) => ({
+    cells: values.map((value, colIndex): XlsxCell => ({
+      value,
+      style: detailCellStyle(columns[colIndex].title, value),
+    })),
+    style: rowIndex % 2 === 1 ? { backgroundColor: ZEBRA_BACKGROUND } : undefined,
+    height: DETAIL_ROW_HEIGHT,
+  }));
+
+  SUMMARY_DEFS.forEach(({ label, aggregate }, summaryIndex) => {
+    const values = buildSummaryRow(detailValues, label, aggregate, columns, excludedTitles);
+    rows.push({
+      cells: values.map((value, colIndex): XlsxCell => ({
+        value,
+        style: summaryCellStyle(
+          columns[colIndex].title,
+          label,
+          value,
+          summaryIndex === 0,
+          colIndex === 0,
+        ),
+      })),
+      height: SUMMARY_ROW_HEIGHT,
+    });
+  });
+
+  downloadXlsx(
+    `${filePrefix}_推荐买点_${moment().format('YYYYMMDD_HHmm')}.xlsx`,
+    '月季RSI6百分位策略买点',
+    columns,
+    rows,
+    {
+      headerStyle: HEADER_STYLE,
+      headerHeight: HEADER_ROW_HEIGHT,
+      rowHeight: DETAIL_ROW_HEIGHT,
+      freezeHeader: true,
+      autoFilterRowCount: detailValues.length,
+    },
+  );
+  message.success(`「推荐买点」已导出（共 ${items.length} 条 ★1/★3/★5 买入信号）`);
 };

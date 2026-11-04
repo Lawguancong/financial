@@ -7,7 +7,7 @@ type FundDetailItem = Record<string, string | number>;
 /**
  * 拉取基金累计收益率序列，统一整理为买点 Worker 所需的入参
  */
-const fetchFundReturnSeries = async (fundCode: string): Promise<BuyPointFundItem[]> => {
+export const fetchFundReturnSeries = async (fundCode: string): Promise<BuyPointFundItem[]> => {
   const response = await apiClient.get('/api/public/fund_open_fund_info_em', {
     params: {
       symbol: fundCode,

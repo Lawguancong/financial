@@ -7,11 +7,13 @@
 import {
   calculateMACD,
   cleanCsindexHistory,
+  filterMacdBarMarksByMinIndex,
   findConfirmedPeaks,
   findLocalMaxima,
+  findMacdBarReboundMarks,
   mapConfirmedPeakRows,
 } from '../src/utils/stockUtils';
-import type { CsindexHistoryRow, KLineData } from '../src/utils/stockUtils';
+import type { CsindexHistoryRow, KLineData, MacdBarReboundMark } from '../src/utils/stockUtils';
 import { approx, assert, eq, summary } from './testUtils';
 
 // ============================================================
@@ -437,6 +439,127 @@ console.log('\n── G. findConfirmedPeaks 确认序列 ──');
     JSON.stringify([]),
     'G8 前一根真实值更高 → 不标记',
   );
+}
+
+// ============================================================
+// H. findMacdBarReboundMarks — MACD 柱连续为负区间最小柱标记
+// ============================================================
+console.log('\n── H. findMacdBarReboundMarks ──');
+
+/** 构造 MACD 柱序列（日期递增） */
+const barRows = (bars: number[]) =>
+  bars.map((bar, index) => ({
+    日期: `2024-01-${String(index + 1).padStart(2, '0')}`,
+    __MACD_BAR__: bar,
+  }));
+
+{
+  const marks = findMacdBarReboundMarks(barRows([-1, -2, -3, -4, -3]), 4);
+  eq(marks.length, 1, 'H1 连续 4 根为负后下一根反弹 → 1 条标记');
+  eq(marks[0].index, 3, 'H2 标记落在区间最小柱（第 4 根）');
+  eq(marks[0].bar, -4, 'H3 标记柱值取最小值');
+  eq(marks[0].minBar, -4, 'H4 minBar 与 bar 一致');
+  eq(marks[0].confirmIndex, 4, 'H5 确认柱为第 5 根，不标记确认柱');
+  eq(marks[0].confirmBar, -3, 'H6 确认柱值为 -3');
+}
+{
+  // 连续 5 根为负：第 5 根继续创新低不标记，第 6 根高于区间最小值时标记最小柱
+  const marks = findMacdBarReboundMarks(barRows([-1, -2, -3, -4, -5, -4]), 4);
+  eq(marks.length, 1, 'H7 创新低时不标记，后续反弹才标记');
+  eq(marks[0].index, 4, 'H8 标记落在新低柱（第 5 根）');
+  eq(marks[0].bar, -5, 'H9 标记柱值为 -5');
+  eq(marks[0].confirmIndex, 5, 'H10 确认柱为第 6 根');
+}
+{
+  const marks = findMacdBarReboundMarks(barRows([-1, -2, -3, -4, -3, -2]), 4);
+  eq(marks.length, 1, 'H11 同一负值区间只标记一次');
+  eq(marks[0].index, 3, 'H12 标记落在区间最小柱（第 4 根）');
+}
+{
+  const marks = findMacdBarReboundMarks(barRows([-1, -2, -3, 1]), 4);
+  eq(marks.length, 0, 'H13 不足 4 根负值柱 → 不标记');
+}
+{
+  const marks = findMacdBarReboundMarks(barRows([-1, -2, -3, -4, 1]), 4);
+  eq(marks.length, 1, 'H14 连续 4 根为负后转正 → 标记最小柱');
+  eq(marks[0].index, 3, 'H15 标记落在区间最小柱（第 4 根）');
+  eq(marks[0].confirmIndex, 4, 'H16 确认柱为转正柱');
+}
+{
+  // 最小值并列时取区间内最早的一根；下一周期为第 5 根的 -3
+  const marks = findMacdBarReboundMarks(barRows([-1, -2, -3, -4, -3, -4, -2]), 4);
+  eq(marks.length, 1, 'H17 并列最小值 → 一条标记');
+  eq(marks[0].index, 3, 'H18 并列最小值取最早一根（第 4 根）');
+  eq(marks[0].bar, -4, 'H19 标记柱值为 -4');
+  eq(marks[0].confirmIndex, 4, 'H20 确认柱为最低柱的下一周期（第 5 根）');
+}
+{
+  // 同一连续负值区间内，后面的最小值即使再次出现，也不能重复标记
+  const marks = findMacdBarReboundMarks(barRows([-1, -2, -3, -4, -3, -2, -3, -4, -3]), 4);
+  eq(marks.length, 1, 'H21 同一负值区间只产生一条标记');
+  eq(marks[0].index, 3, 'H22 标记落在最早的区间最小柱（第 4 根）');
+  assert(marks[0].index !== 7, 'H23 后面的并列低点不重复标记');
+}
+{
+  // 中间出现非负柱后，新负值区间可以再次标记
+  const marks = findMacdBarReboundMarks(
+    barRows([-1, -2, -3, -4, -3, 1, -1, -2, -3, -4, -3]),
+    4,
+  );
+  eq(marks.length, 2, 'H24 两段独立负值区间 → 两条标记');
+  eq(marks[0].index, 3, 'H25 第一段标记索引');
+  eq(marks[1].index, 9, 'H26 第二段标记索引');
+}
+{
+  eq(findMacdBarReboundMarks([], 4).length, 0, 'H27 空数组 → 空标记');
+  eq(findMacdBarReboundMarks(barRows([-1, -2, -3]), 4).length, 0, 'H28 数据不足 → 空标记');
+}
+{
+  // 最小值取整个负值区间的最低值，而不是前 4 根
+  const marks = findMacdBarReboundMarks(barRows([-10, -1, -2, -3, -4, -3]), 4);
+  eq(marks.length, 1, 'H29 整个负值区间 → 标记最小柱');
+  eq(marks[0].index, 0, 'H30 标记落在最早的最小柱（第 1 根）');
+  eq(marks[0].minBar, -10, 'H31 最小值为整个区间最低值');
+  eq(marks[0].confirmIndex, 1, 'H32 确认柱为最低柱的下一周期（第 2 根）');
+}
+{
+  // 反弹后又创新低：标记跟随新的最小值柱，不标记较早的较高柱
+  const marks = findMacdBarReboundMarks(barRows([-1, -2, -3, -4, -3, -5, -4]), 4);
+  eq(marks.length, 1, 'H33 区间内出现新低 → 仍只一条标记');
+  eq(marks[0].index, 5, 'H34 标记跟随新的最小柱（第 6 根）');
+  eq(marks[0].bar, -5, 'H35 标记柱值为新低 -5');
+  eq(marks[0].confirmIndex, 6, 'H36 确认柱为第 7 根');
+}
+{
+  // 数据结束时最小值仍在最后一根，后面没有更高的柱 → 不标记
+  const marks = findMacdBarReboundMarks(barRows([-1, -2, -3, -4, -5]), 4);
+  eq(marks.length, 0, 'H37 区间最低点仍在最后且未反弹 → 不标记');
+}
+
+// ============================================================
+// I. filterMacdBarMarksByMinIndex — MACD 预热索引门槛
+// ============================================================
+console.log('\n── I. filterMacdBarMarksByMinIndex ──');
+{
+  const makeMark = (index: number): MacdBarReboundMark => ({
+    index,
+    date: `2024-01-${String(index + 1).padStart(2, '0')}`,
+    bar: -1,
+    minBar: -1,
+    confirmIndex: index + 1,
+    confirmDate: `2024-01-${String(index + 2).padStart(2, '0')}`,
+    confirmBar: 0,
+    runLength: 1,
+  });
+  const marks = [makeMark(0), makeMark(10), makeMark(20)];
+
+  eq(filterMacdBarMarksByMinIndex(marks, 10).length, 2, 'I1 门槛 10 → 保留索引 10/20');
+  eq(filterMacdBarMarksByMinIndex(marks, 20).length, 1, 'I2 门槛 20 → 仅保留索引 20');
+  eq(filterMacdBarMarksByMinIndex(marks, 21).length, 0, 'I3 门槛 21 → 全部过滤');
+  eq(filterMacdBarMarksByMinIndex(marks, -1).length, 3, 'I4 负门槛按 0 处理 → 全部保留');
+  eq(filterMacdBarMarksByMinIndex([], 10).length, 0, 'I5 空标记 → 空结果');
+  eq(filterMacdBarMarksByMinIndex([makeMark(34)], 34).length, 1, 'I6 第 35 根（索引 34）刚好保留');
+  eq(filterMacdBarMarksByMinIndex([makeMark(33)], 34).length, 0, 'I7 第 34 根（索引 33）被预热过滤');
 }
 
 summary();

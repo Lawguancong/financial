@@ -4,9 +4,15 @@ import apiClient from '@/utils/axios';
 import { isRecentDate } from '@/utils/stockUtils';
 import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
 import { computeBuyPoints } from '@/utils/buyPointWorker';
-import type { BuyPointResult } from '@/utils/buyPointCompute';
+import type { BuyPointKLineItem, BuyPointResult } from '@/utils/buyPointCompute';
 import { BuyPointActionGroup } from '@/components/BuyPointActionGroup';
-import { exportBuyPlan, exportBuySellReport } from '@/utils/buySellReportExport';
+import {
+  exportBuyPlan,
+  exportBuySellReport,
+  exportRecommendationBuyPoints,
+} from '@/utils/buySellReportExport';
+import type { BuySellReportItem } from '@/utils/buySellReportExport';
+import { exportMacdBarMarker } from '@/utils/macdBarMarkerExport';
 
 const { Link } = Typography;
 
@@ -154,10 +160,8 @@ const Index: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 计算单个品种的四类推荐买点（定量 + 百分位 + 月/周 RSI6 百分位策略）
-  const fetchCommodityAndCalculate = async (
-    symbol: string,
-  ): Promise<BuyPointResult> => {
+  // 取品种日K「日期 + 收盘」序列（买点计算与 MACD 月K标记导出共用）
+  const fetchCommodityDailyData = async (symbol: string): Promise<BuyPointKLineItem[]> => {
     const response = await apiClient.get('/api/public/spot_hist_sge', {
       params: { symbol },
     });
@@ -175,21 +179,29 @@ const Index: React.FC = () => {
     if (!hasValidPrice) {
       throw new Error('接口无数据或收盘价全为 0');
     }
-
-    return computeBuyPoints({ type: 'commodity', rawData: stockHistoryList });
+    return stockHistoryList;
   };
+
+  // 计算单个品种的四类推荐买点（定量 + 百分位 + 月/周 RSI6 百分位策略）
+  const fetchCommodityAndCalculate = async (symbol: string): Promise<BuyPointResult> =>
+    computeBuyPoints({ type: 'commodity', rawData: await fetchCommodityDailyData(symbol) });
 
   // 仅对勾选的品种批量计算买点，逐行回填
   const handleCalculateRecommendation = async () => {
     // 基于当前缓存累积本次结果，批量结束后一次性持久化（避免逐只频繁写 localStorage）
     const nextCache: Record<string, CommodityBuyPointCache> = { ...buyPointCache };
-    await runRecommendationBatchCalculation({
+    // 收集本次计算结果，供计算完成后自动导出「推荐买点」Excel（不重复取数）
+    const exportItems: BuySellReportItem[] = [];
+    const batchResult = await runRecommendationBatchCalculation({
       targets: selectedRows,
       getKey: item => String(item['品种']),
       getName: item => item['中文名'] || String(item['品种']),
       emptyWarn: '请勾选需要计算买点的品种',
       fetchBuyPoints: item => fetchCommodityAndCalculate(String(item['品种'])),
       onItemDone: (item, result) => {
+        const code = String(item['品种']);
+        const name = item['中文名'] || code;
+        result.mqBuyPoints.forEach(point => exportItems.push({ code, name, point }));
         // 空结果不覆盖已有缓存
         const entry: CommodityBuyPointCache = {
           ...(nextCache[item.品种] ?? {}),
@@ -217,6 +229,13 @@ const Index: React.FC = () => {
     });
     setBuyPointCache(nextCache);
     saveBuyPointCache(nextCache);
+    // 全部失败/未选择时已由批量编排提示，不再追加「无信号」提示
+    if (batchResult.successCount === 0) return;
+    exportRecommendationBuyPoints({
+      items: exportItems,
+      itemLabel: '品种',
+      filePrefix: '大宗商品',
+    });
   };
 
   /** 导出「买入&卖出报告」：仅导出已完成买卖配对的 ★5 信号 */
@@ -240,6 +259,19 @@ const Index: React.FC = () => {
       getName: item => item['中文名'] || String(item['品种']),
       getKey: item => String(item['品种']),
       fetchPoints: async item => (await fetchCommodityAndCalculate(String(item['品种']))).mqBuyPoints,
+      emptyWarn: '请勾选需要导出的品种',
+      itemLabel: '品种',
+      filePrefix: '大宗商品',
+    });
+
+  /** 导出「最低 MACD 柱下一周期月K标记」：月K标记 + 持有/回撤指标 */
+  const handleExportMacdBarMarker = () =>
+    exportMacdBarMarker<CommodityIndexData>({
+      targets: selectedRows,
+      getCode: item => String(item['品种']),
+      getName: item => item['中文名'] || String(item['品种']),
+      getKey: item => String(item['品种']),
+      fetchDailyData: item => fetchCommodityDailyData(String(item['品种'])),
       emptyWarn: '请勾选需要导出的品种',
       itemLabel: '品种',
       filePrefix: '大宗商品',
@@ -269,7 +301,7 @@ const Index: React.FC = () => {
       ),
     },
     {
-      title: '推荐买点（百分位）',
+      title: '季&月RSI6百分位策略',
       dataIndex: '__推荐买点百分位__',
       key: '__推荐买点百分位__',
       width: 160,
@@ -283,7 +315,7 @@ const Index: React.FC = () => {
       }),
     },
     {
-      title: '推荐买点（定量）',
+      title: '季&月RSI6 定量策略',
       dataIndex: '__推荐买点定量__',
       key: '__推荐买点定量__',
       width: 160,
@@ -332,6 +364,7 @@ const Index: React.FC = () => {
         onCalculate={handleCalculateRecommendation}
         onExportReport={handleExportBuySellReport}
         onExportPlan={handleExportBuyPlan}
+        onExportMacdBarMarker={handleExportMacdBarMarker}
         itemLabel="品种"
       />
       <div style={{ marginBottom: '16px', textAlign: 'right' }}>

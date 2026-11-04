@@ -8,7 +8,7 @@
  */
 
 import moment from 'moment';
-import { runBuyPointTask } from '../src/utils/buyPointCompute';
+import { computeHoldingMaxFavorable, runBuyPointTask } from '../src/utils/buyPointCompute';
 import type { BuyPointFundItem, BuyPointKLineItem, BuyPointResult } from '../src/utils/buyPointCompute';
 import { getMinSellHoldingDays, getSellTrancheCount, summarizeSellTranches } from '../src/utils/stockUtils';
 import type { SellTrancheDetail } from '../src/utils/stockUtils';
@@ -148,6 +148,10 @@ const stockResult = runBuyPointTask({ type: 'stock', rawData: dailyData });
       eq(point.returnRate, summarizeSellTranches(tranches) ?? point.returnRate, 'B14 平均收益率 = 已执行批次算术平均');
     }
     assert(point.annualizedReturn != null, 'B15 满最低持有天数后年化收益率已计算');
+    assert(
+      point.maxFavorableReturn == null || point.maxFavorableReturn > 0,
+      'B24 买入后最大浮盈率仅在 >0 时提供',
+    );
     if (point.maxDrawdown != null) {
       assert(point.maxDrawdown > 0, 'B16 最大回撤为正数百分比');
       assert((point.maxDrawdownClose ?? Number.POSITIVE_INFINITY) < point.收盘, 'B17 回撤低点收盘价低于买入价');
@@ -204,6 +208,10 @@ const fundResult = runBuyPointTask({ type: 'fund', rawData: fundData });
       assert((point.maxDrawdownClose ?? Number.POSITIVE_INFINITY) < point.收盘, 'C7 基金回撤低点按净值口径低于买入值');
     }
     assert(point.annualizedReturn != null, 'C8 基金满最低持有天数后年化收益率已计算');
+    assert(
+      point.maxFavorableReturn == null || point.maxFavorableReturn > 0,
+      'C9 基金买入后最大浮盈率仅在 >0 时提供',
+    );
   });
   if (sold.length === 0) {
     assert(true, 'C4 当前基金合成数据无已配对卖出（跳过卖出断言）');
@@ -228,6 +236,92 @@ console.log('\n── D. 类型分支 ──');
   keys.forEach(key => {
     assert(indexResult[key] !== undefined && commodityResult[key] !== undefined, `D3 ${key} 字段存在`);
   });
+}
+
+// ============================================================
+// E. computeHoldingMaxFavorable（买入后最大浮盈率） — 9
+// ============================================================
+console.log('\n── E. computeHoldingMaxFavorable ──');
+{
+  const series: BuyPointKLineItem[] = [
+    { 日期: '2020-01-01', 收盘: 100 },
+    { 日期: '2020-02-01', 收盘: 120 },
+    { 日期: '2020-03-01', 收盘: 90 },
+    { 日期: '2020-04-01', 收盘: 150 },
+  ];
+  eq(
+    computeHoldingMaxFavorable(series, '2020-01-01', 100),
+    50,
+    'E1 未卖出 → 买入日至最新最高收益率 50%',
+  );
+  eq(
+    computeHoldingMaxFavorable(series, '2020-01-01', 100, '2020-03-01'),
+    20,
+    'E2 卖出日窗口 → 最高收益率 20%',
+  );
+  eq(
+    computeHoldingMaxFavorable(series, '2020-01-01', 100, '2020-02-01'),
+    20,
+    'E3 窗口仅到峰值 → 最高收益率 20%',
+  );
+  eq(
+    computeHoldingMaxFavorable(series, '2020-01-01', 100, '2020-01-01'),
+    null,
+    'E4 仅买入日（最高收益率 0）→ null（不计算）',
+  );
+}
+{
+  const series: BuyPointKLineItem[] = [
+    { 日期: '2020-01-01', 收盘: 0 },
+    { 日期: '2020-02-01', 收盘: -50 },
+    { 日期: '2020-03-01', 收盘: 0 },
+    { 日期: '2020-04-01', 收盘: 50 },
+  ];
+  eq(
+    computeHoldingMaxFavorable(series, '2020-01-01', 0, undefined, 'cumulativeReturn'),
+    50,
+    'E5 累计收益率口径：净值 100 → 150 = 50%',
+  );
+}
+{
+  const series: BuyPointKLineItem[] = [
+    { 日期: '2020-01-01', 收盘: 100 },
+    { 日期: '2020-02-01', 收盘: 90 },
+    { 日期: '2020-03-01', 收盘: 80 },
+  ];
+  eq(
+    computeHoldingMaxFavorable(series, '2020-01-01', 100),
+    null,
+    'E6 全程未高于买入价（最高收益率 0）→ null（不计算）',
+  );
+}
+{
+  eq(
+    computeHoldingMaxFavorable([], '2020-01-01', 100),
+    null,
+    'E7 空数据 → null',
+  );
+  eq(
+    computeHoldingMaxFavorable(
+      [{ 日期: '2019-01-01', 收盘: 100 }],
+      '2020-01-01',
+      100,
+    ),
+    null,
+    'E8 买入日晚于数据 → null',
+  );
+}
+{
+  const series: BuyPointKLineItem[] = [
+    { 日期: '2020-01-01', 收盘: 100 },
+    { 日期: '2020-02-01', 收盘: Number('invalid') },
+    { 日期: '2020-03-01', 收盘: 120 },
+  ];
+  eq(
+    computeHoldingMaxFavorable(series, '2020-01-01', 100),
+    20,
+    'E9 非法收盘价被忽略，仍取有效最高值',
+  );
 }
 
 summary();

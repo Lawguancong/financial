@@ -12,8 +12,14 @@ import apiClient from '@/utils/axios';
 import { isRecentDate } from '@/utils/stockUtils';
 import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
 import { computeBuyPoints } from '@/utils/buyPointWorker';
-import type { BuyPointResult } from '@/utils/buyPointCompute';
-import { exportBuyPlan, exportBuySellReport } from '@/utils/buySellReportExport';
+import type { BuyPointKLineItem, BuyPointResult } from '@/utils/buyPointCompute';
+import {
+  exportBuyPlan,
+  exportBuySellReport,
+  exportRecommendationBuyPoints,
+} from '@/utils/buySellReportExport';
+import type { BuySellReportItem } from '@/utils/buySellReportExport';
+import { exportMacdBarMarker } from '@/utils/macdBarMarkerExport';
 import { BuyPointActionGroup } from '@/components/BuyPointActionGroup';
 
 const { Search } = Input;
@@ -449,8 +455,8 @@ const OutTrading: React.FC = () => {
     localStorage.setItem('OutTrading-selectedStocks', JSON.stringify(stocks));
   };
 
-  // 计算推荐买点（定量 + 月&季百分位 + 月RSI6百分位 + 周RSI6百分位）
-  const fetchStockDetailAndCalculate = async (symbol: string): Promise<BuyPointResult> => {
+  // 取个股日K「日期 + 收盘」序列（买点计算与 MACD 月K标记导出共用）
+  const fetchStockDailyData = async (symbol: string): Promise<BuyPointKLineItem[]> => {
     // 9 开头 bj, 6 开头 sh, 0 开头 sz
     const prefix = symbol.startsWith('9')
       ? 'bj'
@@ -466,26 +472,34 @@ const OutTrading: React.FC = () => {
     const response = await apiClient.get('/api/public/stock_zh_a_hist_tx', { params });
     const stockHistoryList = (response?.data || [])
       .map((item: Record<string, unknown>) => ({
-        日期: item.date,
+        日期: String(item.date),
         收盘: Number(item.close),
       }))
-      .filter((item: { 收盘: number }) => Number.isFinite(item.收盘));
+      .filter((item: { 日期: string; 收盘: number }) => Number.isFinite(item.收盘));
 
     // 接口异常（空数据 / 无有效收盘价）需抛出，由批量编排统一重试并汇总提示
     if (stockHistoryList.length === 0) throw new Error('接口返回空数据');
-
-    return computeBuyPoints({ type: 'stock', rawData: stockHistoryList });
+    return stockHistoryList;
   };
+
+  // 计算推荐买点（定量 + 月&季百分位 + 月RSI6百分位 + 周RSI6百分位）
+  const fetchStockDetailAndCalculate = async (symbol: string): Promise<BuyPointResult> =>
+    computeBuyPoints({ type: 'stock', rawData: await fetchStockDailyData(symbol) });
 
   const handleCalculateRecommendation = async (groupKey: string) => {
     let working = [...getGroupStocks(groupKey)];
-    await runRecommendationBatchCalculation({
+    // 收集本次计算结果，供计算完成后自动导出「推荐买点」Excel（不重复取数）
+    const exportItems: BuySellReportItem[] = [];
+    const batchResult = await runRecommendationBatchCalculation({
       targets: selectedRows,
       getKey: stock => String(stock['代码']),
       getName: stock => stock['名称'] || String(stock['代码']),
       emptyWarn: '请选择股票',
       fetchBuyPoints: stock => fetchStockDetailAndCalculate(String(stock['代码'])),
-      onItemDone: (stock, { quantitative, percentile, monthlyPercentile, weeklyPercentile }) => {
+      onItemDone: (stock, { quantitative, percentile, monthlyPercentile, weeklyPercentile, mqBuyPoints }) => {
+        const code = String(stock['代码']);
+        const name = stock['名称'] || code;
+        mqBuyPoints.forEach(point => exportItems.push({ code, name, point }));
         working = working.map(s =>
           s['代码'] === stock['代码']
             ? {
@@ -504,6 +518,13 @@ const OutTrading: React.FC = () => {
         }
         saveGroupStocks(groupKey, working);
       },
+    });
+    // 全部失败/未选择时已由批量编排提示，不再追加「无信号」提示
+    if (batchResult.successCount === 0) return;
+    exportRecommendationBuyPoints({
+      items: exportItems,
+      itemLabel: '股票',
+      filePrefix: 'A股个股',
     });
   };
 
@@ -535,6 +556,19 @@ const OutTrading: React.FC = () => {
       getName: stock => stock['名称'] || String(stock['代码']),
       getKey: stock => String(stock['代码']),
       fetchPoints: async stock => (await fetchStockDetailAndCalculate(String(stock['代码']))).mqBuyPoints,
+      emptyWarn: '请选择股票',
+      itemLabel: '股票',
+      filePrefix: 'A股个股',
+    });
+
+  /** 导出「最低 MACD 柱下一周期月K标记」：月K标记 + 持有/回撤指标 */
+  const handleExportMacdBarMarker = () =>
+    exportMacdBarMarker<StockData>({
+      targets: selectedRows,
+      getCode: stock => String(stock['代码']),
+      getName: stock => stock['名称'] || String(stock['代码']),
+      getKey: stock => String(stock['代码']),
+      fetchDailyData: stock => fetchStockDailyData(String(stock['代码'])),
       emptyWarn: '请选择股票',
       itemLabel: '股票',
       filePrefix: 'A股个股',
@@ -688,7 +722,7 @@ const OutTrading: React.FC = () => {
     },
 
     {
-      title: '推荐买点（百分位）',
+      title: '季&月RSI6百分位策略',
       dataIndex: '__推荐买点百分位__',
       key: '__推荐买点百分位__',
       width: 120,
@@ -732,7 +766,7 @@ const OutTrading: React.FC = () => {
       },
     },
     {
-      title: '推荐买点（定量）',
+      title: '季&月RSI6 定量策略',
       dataIndex: '__推荐买点定量__',
       key: '__推荐买点定量__',
       width: 120,
@@ -955,6 +989,7 @@ const OutTrading: React.FC = () => {
         onCalculate={() => handleCalculateRecommendation(groupKey)}
         onExportReport={handleExportBuySellReport}
         onExportPlan={handleExportBuyPlan}
+        onExportMacdBarMarker={handleExportMacdBarMarker}
         itemLabel="股票"
       />
       <Table

@@ -101,6 +101,11 @@ def get_xxx():
 - 路由会自动通过 `routeConfigs` 收集并注入 `routers/index.tsx`，无需手动改路由文件
 - `menuItems`（传给 antd Menu）会自动从 `menuConfigs` 映射，但**只支持两层 children**，更深层级需检查 `menuItems` 映射逻辑
 
+**同步使用手册（必做）**：新增或调整页面后，必须在 `Front-End/src/config/userManualConfig.ts` 的 `userManualItems` 中新增/更新对应 `menuKey` 的 `features`：
+- 新增页面 → 新增 `{ menuKey, features }`，`menuKey` 与 `menuConfig.tsx` 叶子菜单 `key` 完全一致；
+- 已有页面结构调整（tab/列/按钮/筛选/跳转）→ 同步修改该条目，删除过期描述；
+- 只写用户可见功能，详细规则见技能 `code-change-skill-sync`。
+
 ### 第 4 步：创建页面文件
 
 页面目录按领域组织：`src/pages/<category>/<region>/<feature>/index.tsx`。
@@ -356,8 +361,9 @@ const response = await apiClient.get<T>(url);
 2. 启动前端：`yarn start:frontend:aktools`（端口 6671）
 3. 访问 `http://localhost:6671/<路由路径>` 验证页面
 4. 浏览器控制台检查 `console.log` 输出的 response 数据结构是否符合预期
-5. 若数据字段名不确定，可在 Python 中 `import akshare as ak; print(ak.<函数名>().columns.tolist())` 确认列名
-6. 若接口 404，确认 aktools 服务已启动且该 akshare 函数存在
+5. 使用手册已同步：`Front-End/src/config/userManualConfig.ts` 中存在本次页面 `menuKey` 的条目，且描述与页面当前实际功能一致
+6. 若数据字段名不确定，可在 Python 中 `import akshare as ak; print(ak.<函数名>().columns.tolist())` 确认列名
+7. 若接口 404，确认 aktools 服务已启动且该 akshare 函数存在
 
 **akshare 自建模式（仅当新增了 app.py 接口时）**：
 - 启动后端：`yarn start:server:akshare`（端口 6680）
@@ -387,12 +393,16 @@ const response = await apiClient.get<T>(url);
 
 1. **组件位置**：放 `Front-End/src/components/`（跨页面复用），页面内用 `React.lazy` + `Suspense` 引入。
 2. **Props**：`data: KLineData[]` 为必传（日 K，至少含 `日期`/`收盘`，基金场景 `收盘` 为累计收益率）；`type?: 'stock' | 'index' | 'fund' | 'commodity'` 默认 `stock`，仅影响「收盘价 / 累计收益率」文案；`visiblePeriods?: MacdPeriodKey[]` 默认全部四周期，基金可传 `['monthly','quarterly']`；传空数组则不展示任何周期。
-3. **多周期口径**：日 K 直接算；周/月/季先用 `aggregateKLineByPeriod` 聚合，再按同一参数独立计算。MACD 参数固定为 `(12, 26, 9)`：`DIF=EMA(收盘,12)-EMA(收盘,26)`、`DEA=EMA(DIF,9)`、`MACD柱=2×(DIF-DEA)`，计算内核为 `stockUtils.calculateMACD`；内核同时产出派生序列 `DEA-DIF`（= −MACD柱/2）与 `DEA÷DIF`（DIF=0 时为 `null`）。
-4. **图表组合**：用 `DualAxes` 叠加三个同 X 视图——主视图画 DIF/DEA/DEA-DIF 三条折线并负责 shared tooltip（按日期查表补齐柱/DIFF/DEA/DEA-DIF/DEA÷DIF 五个值），柱状视图画 interval 柱（正红负绿）且只关闭 y 轴（`axis: { y: false }`），比值视图画 `DEA÷DIF` 粉色实线并使用右侧独立 y 轴（`axis: { y: { position: 'right' } }`，无网格）。x 轴配置必须放在**顶层** `axis.x`，否则后续 mark 的 axis 配置会把共享 x guide 置空、导致日期轴消失。主视图与柱状视图显式设置相同的 y `domain`（包含 0）保证零轴对齐；比值右轴取 2%~98% 分位，超出范围的比值**钳制到上下边界**（不要置空，否则曲线会出现缺失时段），tooltip 仍为真实值。
-5. **图例过滤**：每个周期图的自定义图例可点击（`role="button"` + `tabIndex`，支持 Enter/Space），按 `MacdLegendKey`（`bar`/`dif`/`dea`/`deaMinusDif`/`ratio`）独立记录隐藏状态；被隐藏的折线不进入长表数据、柱/比值 mark 直接不生成，比值右轴随之一并消失。MACD 柱正/负两个图例共用 `bar` 键。主折线被全部隐藏时 tooltip 依次回退到柱、比值；全部系列隐藏时显示占位提示而不是空图。
-6. **样本区间（as-of）**：组件顶部提供 `DatePicker.RangePicker`，支持双边/单边区间与「清除开始/结束」；**先按区间裁剪 `data` 得到 `filteredData`，再基于它重算各周期 MACD 与峰值**，区间外数据完全不使用。为避免切换区间时 G2 重绘阻塞日期面板：选择器状态 `sampleRange` 立即更新，实际计算用 `appliedRange`，通过 `setTimeout(0) + startTransition` 延后提交；两者不一致期间显示 `Spin`「MACD 指标与峰值重算中」，图表配置设 `animate: false`。
-7. **峰值标记与买点表（as-of）**：峰值检测用 `stockUtils.findConfirmedPeaks`：只回看过去 `peakWindows` 根（周52 / 月12 / 季4，来自 `appConfig.chart.macd`）要求为窗口最高，且峰值后 `peakConfirmLags` 根（默认 1，可逐周期配置）全部回落才确认；确认回落使用 `confirmValues` 传入真实比值，避免显示裁剪的 null 误判为未确认；确认日当天即产生买点，不使用确认日之后的数据。红点仍标在峰值位置；买点表用 `stockUtils.mapConfirmedPeakRows` 配对峰值行/确认行：峰值日期、峰值收盘价、DEA÷DIF、MACD、DEA、DIFF 取峰值日数据；「买入收盘价（N根后）」取峰值后第 N 根确认日的收盘价，并在单元格内展示确认日期。峰值参与判定的比值允许到右轴上限×2，避免「略超 98% 分位」的有效峰值（如季K 2024-06 的 1.91）被漏掉。主折线全隐藏时由柱状图承担左 y 轴。表格与图例隐藏状态无关。
-8. **测试**：公共计算函数改动必须补 `Front-End/test/macd.test.ts` 一类用例（含 `calculateMACD`、`cleanCsindexHistory`、`findLocalMaxima`、`findConfirmedPeaks`、`mapConfirmedPeakRows`），并运行 `npm test`。
+3. **多周期口径**：日 K 直接算；周/月/季先用 `aggregateKLineByPeriod` 聚合，再按同一参数独立计算。MACD 参数取自 `appConfig.chart.macd.macdParams`（默认快/慢/信号线 `12/26/9`）：`DIF=EMA(收盘,快线)-EMA(收盘,慢线)`、`DEA=EMA(DIF,信号线)`、`MACD柱=2×(DIF-DEA)`，计算内核为 `stockUtils.calculateMACD`；内核同时产出派生序列 `DEA-DIF`（= −MACD柱/2）与 `DEA÷DIF`（DIF=0 时为 `null`）。
+4. **图表组合**：用 `DualAxes` 叠加三个同 X 视图——主视图画 DIF/DEA/DEA-DIF 三条折线并负责 shared tooltip（按日期查表补齐柱/DIFF/DEA/DEA-DIF/DEA÷DIF 五个值），柱状视图画 interval 柱（正红负绿）且只关闭 y 轴（`axis: { y: false }`），比值视图画 `DEA÷DIF` 粉色实线并使用独立缩放、隐藏轴（右侧轴让给价格线）。x 轴配置必须放在**顶层** `axis.x`，否则后续 mark 的 axis 配置会把共享 x guide 置空、导致日期轴消失。主视图与柱状视图显式设置相同的 y `domain`（包含 0）保证零轴对齐；比值显示范围取 `MacdFilterMark.tsx` 顶部的展示参数 `RATIO_DISPLAY_PERCENTILES`（默认 2%~98%），上下额外留白取 `RATIO_DISPLAY_PADDING_RATIO`；超出范围的比值**钳制到上下边界**（不要置空，否则曲线会出现缺失时段），tooltip 仍为真实值。
+5. **图例过滤**：每个周期图的自定义图例可点击（`role="button"` + `tabIndex`，支持 Enter/Space），按 `MacdLegendKey`（`bar`/`dif`/`dea`/`deaMinusDif`/`ratio`/`price`）独立记录隐藏状态；被隐藏的折线不进入长表数据、柱/比值 mark 直接不生成，`price` 隐藏时价格线与青色价格线标记一并隐藏。MACD 柱正/负两个图例共用 `bar` 键。主折线被全部隐藏时 tooltip 依次回退到柱、比值；全部系列隐藏时显示占位提示而不是空图。
+6. **样本区间（as-of）**：组件顶部提供 `DatePicker.RangePicker`，支持双边/单边区间与「清除开始/结束」；**先按区间裁剪 `data` 得到 `filteredData`，再基于它重算各周期 MACD（月/季同时重算峰值）**，区间外数据完全不使用。为避免切换区间时 G2 重绘阻塞日期面板：选择器状态 `sampleRange` 立即更新，实际计算用 `appliedRange`，通过 `setTimeout(0) + startTransition` 延后提交；两者不一致期间显示 `Spin`「MACD 指标与峰值重算中」，图表配置设 `animate: false`。**月K最低柱标记的 MACD 预热门槛按样本内月K索引计算**：样本区间内月K不足 `minMonthlyBars` 时不产生最低柱标记。
+7. **峰值标记与买点表（as-of）**：峰值检测用 `stockUtils.findConfirmedPeaks`：只回看过去 `peakWindows` 根（月6 / 季4，来自 `appConfig.chart.macd`）要求为窗口最高，且峰值后 `peakConfirmLags` 根（默认 1，可按周期配置）全部回落才确认；确认回落使用 `confirmValues` 传入真实比值，避免显示裁剪的 null 误判为未确认；确认日当天即产生买点，不使用确认日之后的数据。**红色峰值买点属于右侧交易：需要等待下一个周期数据判断，默认最多存在 n=1 个周期的确认延迟（峰值后第 1 根才产生买入信号）。**红点仍标在峰值位置；买点表用 `stockUtils.mapConfirmedPeakRows` 配对峰值行/确认行：峰值日期、峰值收盘价、DEA÷DIF、MACD、DEA、DIFF 取峰值日数据；「买入收盘价（N根后）」取峰值后第 N 根确认日的收盘价，并在单元格内展示确认日期。峰值参与判定的比值上限取自 `appConfig.chart.macd.peakRatioCap`（当前为 `Infinity`，表示不设上限）；所有高于显示下限的有效比值都参与峰值判定，不再过滤 74.15 或数百上千的极端但有效峰值。**仅月/季参与买点判定：日K数据过密、周K仅保留 MACD 图，均不标记峰值与买点表。**主折线全隐藏时由柱状图承担左 y 轴。表格与图例隐藏状态无关。
+8. **测试**：公共计算函数改动必须补 `Front-End/test/macd.test.ts` 一类用例（含 `calculateMACD`、`cleanCsindexHistory`、`findLocalMaxima`、`findConfirmedPeaks`、`findMacdBarReboundMarks`、`mapConfirmedPeakRows`），并运行 `npm test`；MACD 预热门槛与导出列另见 `test/macdBarMarkerExport.test.ts`。
+9. **跨页面接入现状**：所有展示 `RsiFilterMark` 的页面都同时接入 `MacdFilterMark`，两者必须放在相互独立的区块（独立 `Collapse.Panel` / Tab / 组件块），不得混在同一面板；props 与 `RsiFilterMark` 保持一致（`data` / `type` / `visiblePeriods`）。涉及页面：全球指数详情、商品详情、外盘期货详情、生猪指数、A 股指数详情、港股个股详情、港股指数详情、美股指数、基金详情（`FundRsiFilterMark`）。A 股个股详情页与港股个股详情页均使用独立的「RSI6 技术指标」「MACD 技术指标」tab。
+10. **日涨跌幅分析**：有日 K 数据的详情页同时接入 `DailyReturnAnalysis`（独立 `Collapse.Panel` / Tab / 组件块）：A 股个股、A 股指数、港股个股、港股指数、美股指数、全球指数、国内商品、外盘期货。生猪指数为周频数据、基金详情为累计收益率序列（非日 K 价格），不接入。
+11. **MACD柱负连续区间最小柱标记（数据）**：`stockUtils.findMacdBarReboundMarks` 检测连续负值区间，区间长度至少为 n（n 复用各周期 `appConfig.chart.macd.peakWindows`：月6 / 季4；仅月/季标记，日K与周K不标记），取**整个连续负值区间**的最小值（并列时取最早一根）；**最低柱的下一周期**柱值高于该最小值时，产出该最小值柱（`index`/`bar`）与下一周期确认柱（`confirmIndex`/`confirmBar`）。每个连续负值区间最多一条记录，后面的局部低点不重复标记；若区间内出现新的更低点，记录跟随新的最小值柱。**月K额外增加 MACD 预热门槛**：最低柱索引必须 ≥ `appConfig.chart.macd.minMonthlyBars - 1`（默认 35 根 = 慢线 26 + 信号线 9），`MacdFilterMark` 在 `periodResults` 中对月K过滤、季K不受限；导出 `macdBarMarkerExport` 使用同一门槛。该数据不参与、不改变「红色峰值买点」及买入逻辑。
+12. **MACD价格线与双标记（展示）**：`MacdFilterMark` 在各周期 MACD 图上叠加价格线（指数为「指数」、股票/商品为「收盘价」、基金为「累计收益率」，取聚合后周期的 `收盘`），使用右侧独立轴；`DEA÷DIF` 改为独立缩放、隐藏轴（峰值标签仍显示真实值）。价格线右轴上下基础留白由 `PRICE_LINE_BASE_PADDING_RATIO`（默认 0.05）控制，底部额外留白由 `PRICE_LINE_BOTTOM_PADDING_RATIO`（默认 0.9）控制，使价格线整体上移、减少与 MACD 柱/线重叠；底部设为 0 表示只保留基础留白。颜色、周期主题色、图表高度、标记点/峰值样式、MACD 折线/柱/比值线/价格线样式均集中在 `MacdFilterMark.tsx` 顶部展示参数区；`appConfig.chart.macd` 只保留策略参数（`macdParams` / `minMonthlyBars` / `peakRatioCap` / `peakWindows` / `peakConfirmLags`）。**保留原有金色圆点**：标在最低 MACD 柱；**新增青色圆点**：标在价格线上、`confirmIndex` 对应的下一周期价格。`price` 图例可单独显示/隐藏价格线和青色标记，`bar` 图例控制金色柱标记。图表下方在原「红色峰值买点」表之后新增「最低 MACD 柱下一周期价格线标记」表（最低柱日期/值/价格、连续负值柱数、下一周期日期/价格/MACD），原红色峰值买点表与逻辑保持不变。**买点标记与两张表仅月/季启用；周K仍保留 MACD 图，但不显示红色峰值买点表与最低柱标记表。**
 
 ### 中证指数历史起始日与占位行
 
@@ -401,6 +411,16 @@ const response = await apiClient.get<T>(url);
 - 起始日使用 `appConfig.http.indexHistoryStartDate`（默认 `19901219`，A 股最早交易日）；
 - 用 `stockUtils.cleanCsindexHistory(rows, startDate)` 清洗，禁止再写 `19800101` 或用「收盘 % 100」等启发式切片；
 - 指数列表买点计算与指数详情页都必须走同一函数，避免两边口径不一致。
+
+### 多数据源指数列表合并（中证 + 新浪）
+
+`/stock/a/index` 的「全部」Tab 同时拉取 `/api/public/index_csindex_all` 与 `/api/public/stock_zh_index_spot_sina`，由 `stockUtils.mergeIndexSpotLists` 统一合并：
+
+- 新浪字段映射：`代码 → 指数代码`（保留 `sh/sz` 前缀）、`名称 → 指数简称`、`最新价 → 最新收盘`；新浪行情补充列（涨跌额/涨跌幅/昨收/今开/最高/最低/成交量/成交额）在中证行显示「-」。
+- 同码匹配统一用 `stockUtils.normalizeIndexCode`：仅对「`sh/sz/bj` + 数字」去前缀并转小写，避免误伤中证字母代码（如 `SHHKSI`）；同码以中证行为准，只补新浪行情字段，标记 `数据源 = 中证+新浪`；仅新浪有的指数追加到尾部，标记 `数据源 = 新浪`。列表按 `指数代码` 去重后唯一。
+- 详情/日线取数必须按 `数据源` 分流：中证行（含「中证+新浪」）走 `stock_zh_index_hist_csindex`（6 位代码，配合 `cleanCsindexHistory`）；`数据源 === '新浪'` 走 `stock_zh_index_daily`（必须带 `sh/sz` 前缀），返回 `date/close` 统一用 `stockUtils.normalizeSinaIndexDailyRows` 归一化为 `日期/收盘`（ISO 日期转 `YYYY-MM-DD`、过滤非正收盘）。详情页通过 `source=sina&name=...` 参数切换；`name` 由 `URLSearchParams.get` 自动解码，禁止再调用 `decodeURIComponent`（名称含 `%` 会抛 URIError）。
+- 自选/自定义分组刷新按「完整代码优先、去前缀同码回退」匹配，并保留 4 个买点字段。
+- 展示说明：`index/index.tsx` 顶部 `DATA_SOURCE_STYLES` 定义三种数据源配色（中证灰 / 中证+新浪金 / 新浪橙），「全部」Tab 用浅蓝信息条 + 彩色标签解释含义，表格「数据源」列复用同一套标签样式。
 
 ## 注意事项
 

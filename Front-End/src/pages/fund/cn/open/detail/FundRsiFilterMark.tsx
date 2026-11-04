@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Spin } from 'antd';
 import IndexMetrics from '@/components/IndexMetrics';
 import RsiFilterMark from '@/components/RsiFilterMark';
+import MacdFilterMark from '@/components/MacdFilterMark';
 import type { KLineData } from '@/utils/stockUtils';
 import apiClient from '@/utils/axios';
 
@@ -54,6 +55,11 @@ const FundRsiFilterMark: React.FC<FundRsiFilterMarkProps> = ({ symbol }) => {
     <Spin spinning={loading}>
       {useMemo(() => <IndexMetrics data={data} closeValueType="cumulativeReturn" />, [data])}
       {useMemo(() => <RsiFilterMark
+        data={data}
+        type="fund"
+        visiblePeriods={['monthly', 'quarterly']}
+      />, [data])}
+      {useMemo(() => <MacdFilterMark
         data={data}
         type="fund"
         visiblePeriods={['monthly', 'quarterly']}

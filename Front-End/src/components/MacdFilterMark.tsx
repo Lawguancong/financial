@@ -8,7 +8,9 @@ import type { Dayjs } from 'dayjs';
 import {
   aggregateKLineByPeriod,
   calculateMACD,
+  filterMacdBarMarksByMinIndex,
   findConfirmedPeaks,
+  findMacdBarReboundMarks,
   mapConfirmedPeakRows,
 } from '@/utils/stockUtils';
 import type { KLineData } from '@/utils/stockUtils';
@@ -57,14 +59,34 @@ interface MacdPeriodResult {
   latest: { dif: number; dea: number; bar: number; date: string } | null;
   /** 是否存在有效比值（DIF ≠ 0），无有效比值时不展示比值图例 */
   hasRatio: boolean;
-  /** 峰值检测窗口；null 表示该周期不标记峰值（日K） */
+  /** 峰值检测窗口；null 表示该周期不标记峰值（日K、周K） */
   peakWindow: number | null;
-  /** 峰值确认滞后（根）；null 表示该周期不标记峰值（日K） */
+  /** 峰值确认滞后（根）；null 表示该周期不标记峰值（日K、周K） */
   peakConfirmLag: number | null;
   /** 红色峰值圆点对应的买点记录 */
   peakRows: MacdPeakRow[];
+  /** 最低 MACD 柱下一周期价格线标记记录 */
+  barMarkerRows: MacdBarMarkerRow[];
   /** 图表配置 */
   chartConfig: Record<string, unknown>;
+}
+
+/** 最低 MACD 柱下一周期价格线标记行（表格数据） */
+interface MacdBarMarkerRow {
+  /** 最低 MACD 柱日期 */
+  minDate: string;
+  /** 最低 MACD 柱值 */
+  minBar: number;
+  /** 最低 MACD 柱的收盘价/指数/累计收益率 */
+  minClose: number;
+  /** 连续负值区间长度 */
+  runLength: number;
+  /** 下一周期（确认）日期 */
+  confirmDate: string;
+  /** 下一周期收盘价/指数/累计收益率 */
+  confirmClose: number;
+  /** 下一周期 MACD 柱值 */
+  confirmBar: number;
 }
 
 /** DEA÷DIF 峰值买点行（峰值列取峰值日数据；买入列取峰值后第 N 根确认日数据） */
@@ -88,7 +110,7 @@ interface MacdPeakRow {
 }
 
 /** 可点击图例对应的数据系列键（MACD 柱的正/负两个图例共用 bar） */
-type MacdLegendKey = 'bar' | 'dif' | 'dea' | 'deaMinusDif' | 'ratio';
+type MacdLegendKey = 'bar' | 'dif' | 'dea' | 'deaMinusDif' | 'ratio' | 'price';
 
 /** 图例项定义 */
 interface MacdLegendItem {
@@ -98,18 +120,66 @@ interface MacdLegendItem {
   symbol: string;
 }
 
-/** MACD 默认参数：快线 12、慢线 26、信号线 9 */
-const MACD_PARAMS = { fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 } as const;
+/** 策略/峰值参数取自 appConfig.chart.macd */
+const {
+  macdParams: MACD_PARAMS,
+  peakWindows: RATIO_PEAK_WINDOWS,
+  peakConfirmLags: RATIO_PEAK_CONFIRM_LAGS,
+  peakRatioCap: RATIO_PEAK_CAP,
+  minMonthlyBars: MACD_MIN_MONTHLY_BARS,
+} = appConfig.chart.macd;
+
+/** 本组件展示参数（颜色 / 样式 / 高度 / 留白） */
+const MACD_COLORS = {
+  dif: '#fa8c16',
+  dea: '#1890ff',
+  deaMinusDif: '#722ed1',
+  deaDivDif: '#eb2f96',
+  barUp: '#cf1322',
+  barDown: '#3f8600',
+  priceLine: '#595959',
+  ratioPeak: '#ff4d4f',
+  barMarker: '#d48806',
+  priceMarker: '#08979c',
+  barMarkerText: '#874d00',
+  priceMarkerText: '#006d75',
+};
+const MACD_PERIOD_COLORS = {
+  daily: '#80a02f',
+  weekly: '#52c41a',
+  monthly: '#1890ff',
+  quarterly: '#7014fa',
+};
+const RATIO_DISPLAY_PERCENTILES = { low: 2, high: 98 };
+const RATIO_DISPLAY_PADDING_RATIO = 0.05;
+const PRICE_LINE_BASE_PADDING_RATIO = 0.05;
+const PRICE_LINE_BOTTOM_PADDING_RATIO = 0.9;
+const PRICE_LINE_STYLE = { lineWidth: 1.3, opacity: 0.7 };
+const MACD_LINE_STYLE = { lineWidth: 1.5 };
+const MACD_BAR_STYLE = { maxWidth: 12 };
+const RATIO_LINE_STYLE = { lineWidth: 1, opacity: 0.35 };
+const MACD_CHART_HEIGHT = 300;
+const MARKER_STYLE = { radius: 5, strokeWidth: 1.5 };
+const RATIO_PEAK_MARKER_STYLE = {
+  radius: 4,
+  strokeWidth: 2,
+  textFontSize: 10,
+  textOffsetAbove: -8,
+  textOffsetBelow: 12,
+};
+
 /** 图表标题统一展示的参数口径 */
-const MACD_TITLE = 'MACD(12,26,9)';
+const MACD_TITLE = `MACD(${MACD_PARAMS.fastPeriod},${MACD_PARAMS.slowPeriod},${MACD_PARAMS.signalPeriod})`;
 
 /** 图表配色：DIF / DEA / DEA−DIF / DEA÷DIF 折线，以及 MACD 柱正负色（A 股习惯：红涨绿跌） */
-const DIF_COLOR = '#fa8c16';
-const DEA_COLOR = '#1890ff';
-const DEA_MINUS_DIF_COLOR = '#722ed1';
-const DEA_DIV_DIF_COLOR = '#eb2f96';
-const MACD_BAR_UP_COLOR = '#cf1322';
-const MACD_BAR_DOWN_COLOR = '#3f8600';
+const DIF_COLOR = MACD_COLORS.dif;
+const DEA_COLOR = MACD_COLORS.dea;
+const DEA_MINUS_DIF_COLOR = MACD_COLORS.deaMinusDif;
+const DEA_DIV_DIF_COLOR = MACD_COLORS.deaDivDif;
+const MACD_BAR_UP_COLOR = MACD_COLORS.barUp;
+const MACD_BAR_DOWN_COLOR = MACD_COLORS.barDown;
+/** 指数 / 收盘价 / 累计收益率折线颜色 */
+const INDEX_LINE_COLOR = MACD_COLORS.priceLine;
 
 /** 图例排列：颜色块 + 线型符号 + 名称；每个周期图独立过滤 */
 const MACD_LEGEND_ITEMS: MacdLegendItem[] = [
@@ -118,32 +188,125 @@ const MACD_LEGEND_ITEMS: MacdLegendItem[] = [
   { key: 'dif', label: 'DIFF', color: DIF_COLOR, symbol: '━' },
   { key: 'dea', label: 'DEA', color: DEA_COLOR, symbol: '━' },
   { key: 'deaMinusDif', label: 'DEA-DIF', color: DEA_MINUS_DIF_COLOR, symbol: '━' },
-  { key: 'ratio', label: 'DEA÷DIF（右轴）', color: DEA_DIV_DIF_COLOR, symbol: '━' },
+  { key: 'ratio', label: 'DEA÷DIF（独立缩放）', color: DEA_DIV_DIF_COLOR, symbol: '━' },
+  { key: 'price', label: '价格线', color: INDEX_LINE_COLOR, symbol: '━' },
 ];
 
 const MACD_PERIODS: MacdPeriodMeta[] = [
-  { key: 'daily', label: '日K', color: '#80a02f' },
-  { key: 'weekly', label: '周K', color: '#52c41a' },
-  { key: 'monthly', label: '月K', color: '#1890ff' },
-  { key: 'quarterly', label: '季K', color: '#7014fa' },
+  { key: 'daily', label: '日K', color: MACD_PERIOD_COLORS.daily },
+  { key: 'weekly', label: '周K', color: MACD_PERIOD_COLORS.weekly },
+  { key: 'monthly', label: '月K', color: MACD_PERIOD_COLORS.monthly },
+  { key: 'quarterly', label: '季K', color: MACD_PERIOD_COLORS.quarterly },
 ];
 
 /**
  * DEA÷DIF 峰值检测参数统一取自 appConfig.chart.macd：
- * - peakWindows：回看窗口（周52 / 月12 / 季4，约 1 年）
+ * - peakWindows：回看窗口（月6 / 季4，季约 1 年）
  * - peakConfirmLags：峰值确认滞后（默认 1，即峰值后的第 1 根确认买点）
- * 日K数据点过密，不标记峰值。
+ * 红色峰值买点属于右侧交易：需等待下一周期数据确认，默认最多延迟 n=1 个周期。
+ * 仅月/季参与买点判定；日K数据点过密、周K仅保留 MACD 图，均不标记峰值与最低柱。
+ *
+ * 金色/青色标记：MACD 柱连续为负区间长度至少为 peakWindows 根时，取整个区间的最小值；
+ * 区间内或区间结束后出现高于该最小值的柱时，金色圆点标记最低 MACD 柱（保留原标记），
+ * 青色圆点标记最低柱下一周期（confirmIndex）对应的价格线位置；每段一组。
+ * 与红色峰值买点相互独立，仅做展示。日K、周K不标记。
  */
-const {
-  peakWindows: RATIO_PEAK_WINDOWS,
-  peakConfirmLags: RATIO_PEAK_CONFIRM_LAGS,
-} = appConfig.chart.macd;
+
+/** 各周期峰值确认滞后的最大值：用于顶部口径说明文案，避免写死延迟周期数 */
+const MAX_PEAK_CONFIRM_LAG = Math.max(...Object.values(RATIO_PEAK_CONFIRM_LAGS));
+
+/** 峰值窗口文案：月6 / 季4，季约 1 年；同时作为连续负值区间最小柱标记的 n */
+const PEAK_WINDOW_TEXT = `月${RATIO_PEAK_WINDOWS.monthly} / 季${RATIO_PEAK_WINDOWS.quarterly}`;
+
+/** 参与 MACD 买点判定（红色峰值买点 + 最低柱标记）的周期：仅月/季 */
+type MacdPeakPeriodKey = 'monthly' | 'quarterly';
+const isMacdPeakPeriod = (key: MacdPeriodKey): key is MacdPeakPeriodKey =>
+  key === 'monthly' || key === 'quarterly';
 
 /** 峰值标记配色 */
-const RATIO_PEAK_COLOR = '#ff4d4f';
+const RATIO_PEAK_COLOR = MACD_COLORS.ratioPeak;
+/** 最低 MACD 柱的金色标记配色（保留原标记，已加深） */
+const MACD_BAR_MARKER_COLOR = MACD_COLORS.barMarker;
+/** 最低 MACD 柱下一周期在价格线上的青色标记配色（已加深） */
+const PRICE_MARKER_COLOR = MACD_COLORS.priceMarker;
+/** 两个标记的图例文字加深色 */
+const MACD_BAR_MARKER_TEXT_COLOR = MACD_COLORS.barMarkerText;
+const PRICE_MARKER_TEXT_COLOR = MACD_COLORS.priceMarkerText;
 
-/** 峰值判定允许的最高比值 = 右轴上限 × 该倍数（过滤 DIF≈0 的极端值，保留略超 98% 分位的有效峰值） */
-const RATIO_PEAK_CAP_MULTIPLIER = 2;
+/** 构建最低 MACD 柱下一周期价格线标记表格列 */
+const buildBarMarkerColumns = (priceLabel: string) => [
+  {
+    title: '最低MACD柱日期',
+    dataIndex: 'minDate',
+    key: 'minDate',
+    width: 120,
+    render: (text: string) => moment(text).format('YYYY-MM-DD'),
+  },
+  {
+    title: '最低MACD柱',
+    dataIndex: 'minBar',
+    key: 'minBar',
+    align: 'right' as const,
+    width: 110,
+    render: (value: number) => (
+      <span
+        style={{
+          color: value >= 0 ? MACD_BAR_UP_COLOR : MACD_BAR_DOWN_COLOR,
+          fontWeight: 600,
+        }}
+      >
+        {value.toFixed(2)}
+      </span>
+    ),
+  },
+  {
+    title: `最低柱${priceLabel}`,
+    dataIndex: 'minClose',
+    key: 'minClose',
+    align: 'right' as const,
+    width: 130,
+    render: (value: number) => value?.toFixed(2),
+  },
+  {
+    title: '连续负值柱数',
+    dataIndex: 'runLength',
+    key: 'runLength',
+    align: 'right' as const,
+    width: 110,
+  },
+  {
+    title: '下一周期日期',
+    dataIndex: 'confirmDate',
+    key: 'confirmDate',
+    width: 120,
+    render: (text: string) => moment(text).format('YYYY-MM-DD'),
+  },
+  {
+    title: `下一周期${priceLabel}`,
+    dataIndex: 'confirmClose',
+    key: 'confirmClose',
+    align: 'right' as const,
+    width: 140,
+    render: (value: number) => value?.toFixed(2),
+  },
+  {
+    title: '下一周期MACD',
+    dataIndex: 'confirmBar',
+    key: 'confirmBar',
+    align: 'right' as const,
+    width: 120,
+    render: (value: number) => (
+      <span
+        style={{
+          color: value >= 0 ? MACD_BAR_UP_COLOR : MACD_BAR_DOWN_COLOR,
+          fontWeight: 500,
+        }}
+      >
+        {value.toFixed(2)}
+      </span>
+    ),
+  },
+];
 
 /** 构建红色峰值买点表格列（买入价格列标题随标的类型切换） */
 const buildPeakTableColumns = (priceLabel: string) => [
@@ -334,6 +497,8 @@ const buildMacdChartConfig = (
   hidden: Set<MacdLegendKey>,
   peakWindow: number | null,
   peakConfirmLag: number,
+  priceLineName: string,
+  minMarkerIndex: number,
 ) => {
   const chartData = rows.map((row) => ({
     date: moment(row.日期).format('YYYY-MM-DD'),
@@ -342,7 +507,67 @@ const buildMacdChartConfig = (
     bar: row.__MACD_BAR__,
     deaMinusDif: row.__MACD_DEA_MINUS_DIF__,
     deaDivDif: row.__MACD_DEA_DIV_DIF__,
+    // 价格线：指数/股票/商品为收盘价，基金为累计收益率
+    price: Number(row.收盘),
   }));
+
+  // 原有标记保留：金色圆点标在最低 MACD 柱。
+  // 新增标记：青色圆点标在价格线上，x = 最低 MACD 柱的下一周期（confirmIndex），y = 该周期价格。
+  // 两个标记只做展示，不参与红色峰值买点判定。
+  const reboundMarks =
+    peakWindow != null
+      ? filterMacdBarMarksByMinIndex(
+        findMacdBarReboundMarks(rows, peakWindow),
+        minMarkerIndex,
+      )
+      : [];
+  const macdBarMarkerData = reboundMarks.map((mark) => ({
+    date: chartData[mark.index].date,
+    bar: chartData[mark.index].bar,
+  }));
+  const priceMarkerData = reboundMarks
+    .map((mark) => {
+      const confirm = chartData[mark.confirmIndex];
+      return confirm && Number.isFinite(confirm.price)
+        ? { date: confirm.date, price: confirm.price }
+        : null;
+    })
+    .filter((item): item is { date: string; price: number } => item != null);
+  const barMarkerRows: MacdBarMarkerRow[] = reboundMarks.map((mark) => {
+    const minRow = rows[mark.index];
+    const confirmRow = rows[mark.confirmIndex];
+    return {
+      minDate: moment(minRow.日期).format('YYYY-MM-DD'),
+      minBar: mark.bar,
+      minClose: Number(minRow.收盘),
+      runLength: mark.runLength,
+      confirmDate: moment(confirmRow.日期).format('YYYY-MM-DD'),
+      confirmClose: Number(confirmRow.收盘),
+      confirmBar: mark.confirmBar,
+    };
+  });
+
+  // 价格线：指数/股票/商品为收盘价，基金为累计收益率；独立右轴
+  const priceData = chartData
+    .filter((row) => Number.isFinite(row.price))
+    .map((row) => ({ date: row.date, price: row.price }));
+  let priceDomain: [number, number] | null = null;
+  if (priceData.length > 0) {
+    let min = priceData[0].price;
+    let max = priceData[0].price;
+    priceData.forEach(({ price }) => {
+      if (price < min) min = price;
+      if (price > max) max = price;
+    });
+    if (min === max) {
+      min -= 1;
+      max += 1;
+    }
+    const padding = (max - min) * PRICE_LINE_BASE_PADDING_RATIO || 1;
+    // 底部额外留白把价格线整体向上平移，减少与 MACD 柱/线的重叠
+    const bottomPadding = (max - min) * PRICE_LINE_BOTTOM_PADDING_RATIO;
+    priceDomain = [min - padding - bottomPadding, max + padding];
+  }
 
   // tooltip 按日期查表：hover 到任意一条折线时都能同时展示柱/DIFF/DEA/DEA-DIF/DEA÷DIF
   const barByDate = new Map(chartData.map((row) => [row.date, row.bar]));
@@ -350,6 +575,7 @@ const buildMacdChartConfig = (
   const deaByDate = new Map(chartData.map((row) => [row.date, row.dea]));
   const deaMinusDifByDate = new Map(chartData.map((row) => [row.date, row.deaMinusDif]));
   const deaDivDifByDate = new Map(chartData.map((row) => [row.date, row.deaDivDif]));
+  const priceByDate = new Map(priceData.map((row) => [row.date, row.price]));
 
   // 折线数据转为长表：series=DIFF/DEA/DEA-DIF，value=对应数值；被图例过滤的系列不参与绘制
   const lineData = chartData.flatMap((row) => {
@@ -378,9 +604,9 @@ const buildMacdChartConfig = (
   }
   const yDomain = [yMin, yMax];
 
-  // 比值使用右侧独立 y 轴：忽略 DIF=0 的 null 点。
+  // 比值使用独立缩放（右侧轴让给价格线，比值轴隐藏）：忽略 DIF=0 的 null 点。
   // DIF 接近 0 时比值会急剧放大，若用全量 min/max 会把正常区间压成一条直线，
-  // 因此右轴取 2%~98% 分位作为显示范围（tooltip 仍展示真实值），并开启 clip 裁剪越界尖峰。
+  // 因此显示范围取 2%~98% 分位（tooltip 仍展示真实值），并开启 clip 裁剪越界尖峰。
   const ratios = chartData
     .map((row) => row.deaDivDif)
     .filter((value): value is number => value != null && Number.isFinite(value));
@@ -388,17 +614,21 @@ const buildMacdChartConfig = (
   let ratioMax = 0;
   if (ratios.length > 0) {
     const sortedRatios = [...ratios].sort((a, b) => a - b);
-    const low = sortedRatios[Math.floor((sortedRatios.length - 1) * 0.02)];
-    const high = sortedRatios[Math.ceil((sortedRatios.length - 1) * 0.98)];
+    const low = sortedRatios[
+      Math.floor((sortedRatios.length - 1) * (RATIO_DISPLAY_PERCENTILES.low / 100))
+    ];
+    const high = sortedRatios[
+      Math.ceil((sortedRatios.length - 1) * (RATIO_DISPLAY_PERCENTILES.high / 100))
+    ];
     ratioMin = Math.min(0, low);
     ratioMax = Math.max(0, high);
-    const padding = (ratioMax - ratioMin) * 0.05 || 1;
+    const padding = (ratioMax - ratioMin) * RATIO_DISPLAY_PADDING_RATIO || 1;
     ratioMin -= padding;
     ratioMax += padding;
   }
   const ratioDomain = [ratioMin, ratioMax];
 
-  // 超出右轴显示范围的比值钳制到上下边界（不置空），保证 DEA÷DIF 线在极端时段也连续可见；
+  // 超出显示范围的比值钳制到上下边界（不置空），保证 DEA÷DIF 线在极端时段也连续可见；
   // tooltip 仍展示真实比值。
   const ratioPlotData = chartData.map((row) => ({
     date: row.date,
@@ -411,9 +641,9 @@ const buildMacdChartConfig = (
   const ratioVisible = ratios.length > 0 && !hidden.has('ratio');
 
   // 峰值检测只用“可参与买点判定”的比值：
-  // - 低于右轴下限或高于上限×2 的极端值（DIF≈0 时可达成百上千）不参与，避免压制正常峰值；
+  // - 低于显示下限或高于固定上限 RATIO_PEAK_CAP（默认 100，DIF≈0 时可达成百上千）的极端值不参与，避免压制正常峰值；
   // - 略超 98% 分位的有效峰值（如季K 2024-06 的 1.91）仍可参与。
-  const peakCap = Math.max(ratioMax, ratioMax * RATIO_PEAK_CAP_MULTIPLIER);
+  const peakCap = Math.max(ratioMax, RATIO_PEAK_CAP);
   const trueRatios = chartData.map((row) => row.deaDivDif);
   const peakSource = trueRatios.map((ratio) =>
     ratio != null && ratio >= ratioMin && ratio <= peakCap ? ratio : null,
@@ -463,6 +693,11 @@ const buildMacdChartConfig = (
     title: (datum: { date: string }) => moment(datum.date).format('YYYY-MM-DD'),
     items: [
       (datum: { date: string }) => ({
+        name: priceLineName,
+        color: INDEX_LINE_COLOR,
+        value: formatValue(priceByDate.get(datum.date)),
+      }),
+      (datum: { date: string }) => ({
         name: 'MACD柱',
         color:
           (barByDate.get(datum.date) ?? 0) >= 0 ? MACD_BAR_UP_COLOR : MACD_BAR_DOWN_COLOR,
@@ -510,18 +745,12 @@ const buildMacdChartConfig = (
       yField: 'ratioPlot',
       style: {
         stroke: DEA_DIV_DIF_COLOR,
-        lineWidth: 1,
-        opacity: 0.35,
+        lineWidth: RATIO_LINE_STYLE.lineWidth,
+        opacity: RATIO_LINE_STYLE.opacity,
       },
       scale: { y: { key: 'ratioY', independent: false, domain: ratioDomain } },
-      axis: {
-        y: {
-          position: 'right' as const,
-          title: 'DEA÷DIF',
-          grid: false,
-          label: { style: { fill: DEA_DIV_DIF_COLOR, fontSize: 10 } },
-        },
-      },
+      // 右侧轴让给价格线；DEA÷DIF 保持独立缩放但不显示轴，峰值标签仍展示真实值
+      axis: false,
       tooltip: tooltipHost === 'ratio' ? tooltipConfig : false,
     });
   }
@@ -532,7 +761,7 @@ const buildMacdChartConfig = (
       type: 'line' as const,
       yField: 'value',
       colorField: 'series',
-      style: { lineWidth: 1.5 },
+      style: { lineWidth: MACD_LINE_STYLE.lineWidth },
       scale: {
         y: { domain: yDomain },
         color: {
@@ -553,12 +782,72 @@ const buildMacdChartConfig = (
       style: {
         fill: (datum: { bar: number }) =>
           datum.bar >= 0 ? MACD_BAR_UP_COLOR : MACD_BAR_DOWN_COLOR,
-        maxWidth: 12,
+        maxWidth: MACD_BAR_STYLE.maxWidth,
       },
       scale: { y: { domain: yDomain } },
       // 主折线全部隐藏时，由柱状图承担左 y 轴，避免只剩柱时没有刻度
       axis: lineVisible ? { y: false } : leftAxisConfig,
       tooltip: tooltipHost === 'bar' ? tooltipConfig : false,
+    });
+  }
+
+  // 价格线：独立右轴，放在柱状图上层；隐藏 price 图例时不绘制
+  if (priceDomain && !hidden.has('price')) {
+    children.push({
+      data: priceData,
+      type: 'line' as const,
+      yField: 'price',
+      style: {
+        stroke: INDEX_LINE_COLOR,
+        lineWidth: PRICE_LINE_STYLE.lineWidth,
+        opacity: PRICE_LINE_STYLE.opacity,
+      },
+      scale: { y: { key: 'priceY', independent: true, domain: priceDomain } },
+      axis: {
+        y: {
+          position: 'right' as const,
+          title: priceLineName,
+          grid: false,
+          label: { style: { fill: INDEX_LINE_COLOR, fontSize: 10 } },
+        },
+      },
+      tooltip: false,
+    });
+
+    // 青色圆点：最低 MACD 柱的下一周期（confirmIndex），标在价格线上
+    if (priceMarkerData.length > 0) {
+      children.push({
+        data: priceMarkerData,
+        type: 'point' as const,
+        yField: 'price',
+        style: {
+          fill: PRICE_MARKER_COLOR,
+          stroke: '#ffffff',
+          lineWidth: MARKER_STYLE.strokeWidth,
+          r: MARKER_STYLE.radius,
+        },
+        scale: { y: { key: 'priceY', independent: true, domain: priceDomain } },
+        axis: false,
+        tooltip: false,
+      });
+    }
+  }
+
+  // 原有金色标记保留：最低 MACD 柱，放在价格线上层，避免被价格线遮挡
+  if (barVisible && macdBarMarkerData.length > 0) {
+    children.push({
+      data: macdBarMarkerData,
+      type: 'point' as const,
+      yField: 'bar',
+      style: {
+        fill: MACD_BAR_MARKER_COLOR,
+        stroke: '#ffffff',
+        lineWidth: MARKER_STYLE.strokeWidth,
+        r: MARKER_STYLE.radius,
+      },
+      scale: { y: { domain: yDomain } },
+      axis: false,
+      tooltip: false,
     });
   }
 
@@ -571,8 +860,8 @@ const buildMacdChartConfig = (
       style: {
         fill: '#ffffff',
         stroke: RATIO_PEAK_COLOR,
-        lineWidth: 2,
-        r: 4,
+        lineWidth: RATIO_PEAK_MARKER_STYLE.strokeWidth,
+        r: RATIO_PEAK_MARKER_STYLE.radius,
       },
       scale: { y: { key: 'ratioY', independent: false, domain: ratioDomain } },
       axis: false,
@@ -585,12 +874,15 @@ const buildMacdChartConfig = (
       textField: 'label',
       style: {
         fill: RATIO_PEAK_COLOR,
-        fontSize: 10,
+        fontSize: RATIO_PEAK_MARKER_STYLE.textFontSize,
         fontWeight: 600,
         textAlign: 'center',
-        // 峰值达到右轴顶部时把数值放到圆点下方，避免被画布上边缘裁掉
+        // 峰值达到显示范围顶部时把数值放到圆点下方，避免被画布上边缘裁掉
         textBaseline: (datum: { atTop: boolean }) => (datum.atTop ? 'top' : 'bottom'),
-        dy: (datum: { atTop: boolean }) => (datum.atTop ? 12 : -8),
+        dy: (datum: { atTop: boolean }) =>
+          datum.atTop
+            ? RATIO_PEAK_MARKER_STYLE.textOffsetBelow
+            : RATIO_PEAK_MARKER_STYLE.textOffsetAbove,
       },
       scale: { y: { key: 'ratioY', independent: false, domain: ratioDomain } },
       axis: false,
@@ -601,7 +893,7 @@ const buildMacdChartConfig = (
   return {
     chartConfig: {
       xField: 'date',
-      height: 300,
+      height: MACD_CHART_HEIGHT,
       autoFit: true,
       clip: true,
       // 区间切换需要频繁重绘，关闭入场动画以减少卡顿
@@ -618,14 +910,18 @@ const buildMacdChartConfig = (
       children,
     },
     peakRows,
+    barMarkerRows,
   };
 };
 
 /**
  * MACD 技术指标（日/周/月/季）。
  *
- * 计算口径：DIF = EMA(收盘,12) − EMA(收盘,26)，DEA = EMA(DIF,9)，MACD 柱 = 2 × (DIF − DEA)。
- * 图表额外展示两条派生线：DEA-DIF（= −MACD柱/2）与 DEA÷DIF（右轴，DIF=0 时为断点）。
+ * 计算口径：DIF = EMA(收盘,快线) − EMA(收盘,慢线)，DEA = EMA(DIF,信号线)，MACD 柱 = 2 × (DIF − DEA)；
+ * 默认快/慢/信号线为 12/26/9，可在 appConfig.chart.macd.macdParams 配置。
+ * 图表额外展示两条派生线：DEA-DIF（= −MACD柱/2）与 DEA÷DIF（独立缩放、隐藏轴，DIF=0 时为断点）；
+ * 另叠加指数/收盘价/累计收益率价格线（右侧独立轴），最低 MACD 柱的下一周期在该线上用青色圆点标记。
+ * 买点标记（红色峰值买点、金色最低柱、青色下一周期）仅月/季启用；日K、周K只展示 MACD 图。
  * 周/月/季 MACD 均先由日 K 聚合为对应周期收盘价，再按同一参数独立计算。
  */
 const MacdFilterMark: React.FC<MacdFilterMarkProps> = ({
@@ -635,6 +931,9 @@ const MacdFilterMark: React.FC<MacdFilterMarkProps> = ({
 }) => {
   /** 价格/收益率文案：基金为累计收益率 */
   const priceLabel = type === 'fund' ? '累计收益率' : '收盘价';
+
+  /** 价格线名称：指数显示「指数」，基金显示「累计收益率」，其余「收盘价」 */
+  const priceLineName = type === 'index' ? '指数' : type === 'fund' ? '累计收益率' : '收盘价';
 
   /** 可见周期：默认全部四周期（日/周/月/季） */
   // 用签名作为依赖，避免父组件传入内联数组时每次渲染都重建周期列表、触发 MACD 重算
@@ -757,14 +1056,22 @@ const MacdFilterMark: React.FC<MacdFilterMarkProps> = ({
       const rows = macdRowsByPeriod[meta.key];
       if (!rows?.length) return [];
       const last = rows[rows.length - 1];
-      const peakWindow = meta.key === 'daily' ? null : RATIO_PEAK_WINDOWS[meta.key];
-      const peakConfirmLag = meta.key === 'daily' ? null : RATIO_PEAK_CONFIRM_LAGS[meta.key];
-      const { chartConfig, peakRows } = buildMacdChartConfig(
+      const periodKey = meta.key;
+      const peakWindow = isMacdPeakPeriod(periodKey) ? RATIO_PEAK_WINDOWS[periodKey] : null;
+      const peakConfirmLag = isMacdPeakPeriod(periodKey)
+        ? RATIO_PEAK_CONFIRM_LAGS[periodKey]
+        : null;
+      // 月K最低柱需位于 MACD 预热门槛之后；季K不受此限制
+      const minMarkerIndex =
+        periodKey === 'monthly' ? Math.max(0, MACD_MIN_MONTHLY_BARS - 1) : 0;
+      const { chartConfig, peakRows, barMarkerRows } = buildMacdChartConfig(
         rows,
         meta.label,
         new Set(hiddenByPeriod[meta.key]),
         peakWindow,
         peakConfirmLag ?? 1,
+        priceLineName,
+        minMarkerIndex,
       );
       return [
         {
@@ -779,14 +1086,26 @@ const MacdFilterMark: React.FC<MacdFilterMarkProps> = ({
           peakWindow,
           peakConfirmLag,
           peakRows,
+          barMarkerRows,
           chartConfig,
         },
       ];
     });
-  }, [macdRowsByPeriod, visibleMacdPeriods, hiddenByPeriod]);
+  }, [macdRowsByPeriod, visibleMacdPeriods, hiddenByPeriod, priceLineName]);
 
   /** 买点表列：买入价格列标题随 type 切换 */
   const peakTableColumns = useMemo(() => buildPeakTableColumns(priceLabel), [priceLabel]);
+  /** 最低 MACD 柱下一周期价格线标记表格列 */
+  const barMarkerColumns = useMemo(() => buildBarMarkerColumns(priceLineName), [priceLineName]);
+
+  /** 图例项：价格线名称随 type 动态显示 */
+  const macdLegendItems = useMemo(
+    () =>
+      MACD_LEGEND_ITEMS.map((item) =>
+        item.key === 'price' ? { ...item, label: priceLineName } : item,
+      ),
+    [priceLineName],
+  );
 
   /** 样本区间控件：空数据/空区间时也保留，便于重新选择 */
   const sampleRangeControl = (
@@ -909,7 +1228,7 @@ const MacdFilterMark: React.FC<MacdFilterMarkProps> = ({
       >
         <InfoCircleOutlined style={{ color: '#722ed1', marginTop: 3 }} />
         <span>
-          选择区间后先裁剪样本，再基于样本重算 MACD 与峰值；买点按「峰值后第 N 根确认」的
+          选择区间后先裁剪样本，再基于样本重算 MACD（月/季同时重算峰值）；买点按「峰值后第 N 根确认」的
           <span style={{ color: '#262626', fontWeight: 600 }}> as-of 口径</span>
           生成，不使用区间外数据，也不使用确认日之后的数据。
         </span>
@@ -962,17 +1281,21 @@ const MacdFilterMark: React.FC<MacdFilterMarkProps> = ({
         <InfoCircleOutlined style={{ color: '#1890ff', fontSize: 15, marginTop: 2 }} />
         <span style={{ fontSize: 12.5, lineHeight: 1.8, color: '#46536b' }}>
           <span style={{ color: '#262626', fontWeight: 600 }}>{MACD_TITLE}</span>：
-          DIF（快线）= <span style={{ color: DIF_COLOR, fontWeight: 600 }}>EMA({priceLabel},12) − EMA({priceLabel},26)</span>，
-          DEA（慢线）= <span style={{ color: DEA_COLOR, fontWeight: 600 }}>EMA(DIF,9)</span>，
+          DIF（快线）= <span style={{ color: DIF_COLOR, fontWeight: 600 }}>EMA({priceLabel},{MACD_PARAMS.fastPeriod}) − EMA({priceLabel},{MACD_PARAMS.slowPeriod})</span>，
+          DEA（慢线）= <span style={{ color: DEA_COLOR, fontWeight: 600 }}>EMA(DIF,{MACD_PARAMS.signalPeriod})</span>，
           MACD 柱 = <span style={{ color: MACD_BAR_UP_COLOR, fontWeight: 600 }}>2 × (DIF − DEA)</span>；
           <span style={{ color: DEA_MINUS_DIF_COLOR, fontWeight: 600 }}>DEA−DIF = −MACD柱/2</span>（紫线）；
-          <span style={{ color: DEA_DIV_DIF_COLOR, fontWeight: 600 }}>DEA÷DIF</span>（粉色实线，右侧独立轴，
-          DIF=0 时无定义、显示为断点；右轴按 2%~98% 分位显示，超出范围的比值钳制到上下边界以保证曲线连续，
+          <span style={{ color: DEA_DIV_DIF_COLOR, fontWeight: 600 }}>DEA÷DIF</span>（粉色实线，独立缩放、不显示轴，
+          DIF=0 时无定义、显示为断点；显示范围按 {RATIO_DISPLAY_PERCENTILES.low}%~{RATIO_DISPLAY_PERCENTILES.high}% 分位，超出范围的比值钳制到上下边界以保证曲线连续，
           tooltip 仍为真实值）；
+          <span style={{ color: INDEX_LINE_COLOR, fontWeight: 600 }}>{priceLineName}</span>（灰色线，右侧独立轴）；
           <span style={{ color: RATIO_PEAK_COLOR, fontWeight: 600 }}>红圈 + 数值</span>
-          标记 DEA÷DIF 的顶部峰值：当前值为过去 N 根内最高且为正值（周52 / 月12 / 季4 根，约 1 年），
-          峰值后第 M 根确认买点（默认 M=1，as-of）；日K数据过密不标记；
+          标记 DEA÷DIF 的顶部峰值：当前值为过去 N 根内最高且为正值（{PEAK_WINDOW_TEXT} 根，季约 1 年），
+          峰值后第 M 根确认买点（M 取各周期 peakConfirmLags；as-of；红色峰值买点属于右侧交易，需等待下一周期数据确认，当前最多延迟 {MAX_PEAK_CONFIRM_LAG} 个周期）；仅月/季标记，日K数据过密、周K仅保留 MACD 图不标记；
           买点表列出买点日（确认日）的指标值，并附峰值日期与峰值比值；
+          <span style={{ color: MACD_BAR_MARKER_COLOR, fontWeight: 600 }}>金色圆点</span>标记最低 MACD 柱，
+          <span style={{ color: PRICE_MARKER_COLOR, fontWeight: 600 }}>青色圆点</span>标记在{priceLineName}线上：
+          连续为负区间长度至少为 n（n 取各周期 peakWindows：{PEAK_WINDOW_TEXT} 根；仅月/季标记，日K与周K不标记；月K最低柱还须从第 {MACD_MIN_MONTHLY_BARS} 根月K起（含）才标记，季K不受此限制），取整个区间的最小值（并列取最早一根）；区间内或区间结束后出现高于该最小值的柱时，金色圆点标在该最低 MACD 柱，青色圆点标在该柱下一周期（确认柱）对应的{priceLineName}值；每段一组；
           DIF 上穿 DEA 为<span style={{ color: MACD_BAR_UP_COLOR, fontWeight: 600 }}>金叉</span>，
           下穿为<span style={{ color: MACD_BAR_DOWN_COLOR, fontWeight: 600 }}>死叉</span>；
           柱由负转正/正转负反映动能切换。周/月/季 MACD 分别按对应周期最后一个交易日的{priceLabel}独立计算。
@@ -1090,11 +1413,11 @@ const MacdFilterMark: React.FC<MacdFilterMarkProps> = ({
           >
             <Space orientation="vertical" size={12} style={{ width: '100%' }}>
               {periodResults.map(
-                ({ meta, chartConfig, hasRatio, peakRows, peakWindow, peakConfirmLag }) => {
+                ({ meta, chartConfig, hasRatio, peakRows, peakWindow, peakConfirmLag, barMarkerRows }) => {
                   const hiddenSet = new Set(hiddenByPeriod[meta.key]);
                   const allHidden =
-                    (['bar', 'dif', 'dea', 'deaMinusDif'] as MacdLegendKey[]).every((key) =>
-                      hiddenSet.has(key),
+                    (['bar', 'dif', 'dea', 'deaMinusDif', 'price'] as MacdLegendKey[]).every(
+                      (key) => hiddenSet.has(key),
                     ) && (!hasRatio || hiddenSet.has('ratio'));
 
                   return (
@@ -1124,7 +1447,7 @@ const MacdFilterMark: React.FC<MacdFilterMarkProps> = ({
                           color: '#8c8c8c',
                         }}
                       >
-                        {MACD_LEGEND_ITEMS.filter((item) => item.key !== 'ratio' || hasRatio).map(
+                        {macdLegendItems.filter((item) => item.key !== 'ratio' || hasRatio).map(
                           (item, index) => {
                             const isHidden = hiddenSet.has(item.key);
                             return (
@@ -1153,12 +1476,36 @@ const MacdFilterMark: React.FC<MacdFilterMarkProps> = ({
                             );
                           },
                         )}
+                        {!hiddenSet.has('bar') && peakWindow != null && (
+                          <span
+                            style={{
+                              color: MACD_BAR_MARKER_TEXT_COLOR,
+                              fontSize: 12,
+                              fontWeight: 700,
+                            }}
+                          >
+                            <span style={{ color: MACD_BAR_MARKER_COLOR }}>●</span>{' '}
+                            连续 {peakWindow} 根以上为负区间的最低 MACD 柱
+                          </span>
+                        )}
+                        {!hiddenSet.has('price') && peakWindow != null && (
+                          <span
+                            style={{
+                              color: PRICE_MARKER_TEXT_COLOR,
+                              fontSize: 12,
+                              fontWeight: 700,
+                            }}
+                          >
+                            <span style={{ color: PRICE_MARKER_COLOR }}>●</span>{' '}
+                            最低 MACD 柱下一周期的{priceLineName}线标记
+                          </span>
+                        )}
                         <span style={{ color: '#bfbfbf' }}>点击图例可显示/隐藏</span>
                       </div>
                       {allHidden ? (
                         <div
                           style={{
-                            height: 300,
+                            height: MACD_CHART_HEIGHT,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -1190,7 +1537,8 @@ const MacdFilterMark: React.FC<MacdFilterMarkProps> = ({
                             </span>
                             <span style={{ fontSize: 11, color: '#8c8c8c' }}>
                               过去 {peakWindow} 根内最高且为正值的 DEA÷DIF 峰值；峰值列取红点当日数据，
-                              买入列取峰值后第 {peakConfirmLag ?? 1} 根（确认日）数据
+                              买入列取峰值后第 {peakConfirmLag ?? 1} 根（确认日）数据；
+                              红色峰值买点属于右侧交易，需等待下一周期数据确认，最多延迟 {peakConfirmLag ?? 1} 个周期
                             </span>
                           </div>
                           {peakRows.length > 0 ? (
@@ -1205,6 +1553,43 @@ const MacdFilterMark: React.FC<MacdFilterMarkProps> = ({
                             />
                           ) : (
                             <div style={{ fontSize: 12, color: '#8c8c8c' }}>暂无峰值买点</div>
+                          )}
+                        </div>
+                      )}
+
+                      {peakWindow != null && (
+                        <div style={{ marginTop: 12 }}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'baseline',
+                              flexWrap: 'wrap',
+                              gap: 6,
+                              marginBottom: 6,
+                            }}
+                          >
+                            <span style={{ fontSize: 13, fontWeight: 600, color: '#595959' }}>
+                              最低 MACD 柱下一周期{priceLineName}线标记（{meta.label}）
+                            </span>
+                            <span style={{ fontSize: 11, color: '#8c8c8c' }}>
+                              金色圆点=最低 MACD 柱；青色圆点=下一周期{priceLineName}线；
+                              每段连续负值区间只标记一次
+                            </span>
+                          </div>
+                          {barMarkerRows.length > 0 ? (
+                            <Table<MacdBarMarkerRow>
+                              dataSource={barMarkerRows}
+                              columns={barMarkerColumns}
+                              rowKey={(row) => `${row.minDate}-${row.confirmDate}`}
+                              size="small"
+                              bordered
+                              pagination={false}
+                              scroll={{ x: 960 }}
+                            />
+                          ) : (
+                            <div style={{ fontSize: 12, color: '#8c8c8c' }}>
+                              暂无最低 MACD 柱标记
+                            </div>
                           )}
                         </div>
                       )}

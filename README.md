@@ -1,10 +1,10 @@
 <div align="center">
 
-# 📈 Financial Data Workbench 11111
+# 📈 Financial Data Workbench
 
 **基于 AKShare / AKTools 的一站式财经数据可视化与投研分析平台**
 
-A股 · 港股 · 美股 · 基金 · 债券 · 大宗商品 · 全球指数 · REITs
+A股 · 港股 · 美股 · 基金 · 债券 · 大宗商品 · 全球指数 · REITs · 期货
 
 <br />
 
@@ -36,7 +36,7 @@ A股 · 港股 · 美股 · 基金 · 债券 · 大宗商品 · 全球指数 · 
 
 ## 🎯 项目简介
 
-本项目通过 **AKTools**（或自建 Flask 服务）将 Python 财经数据库 [AKShare](https://github.com/akfamily/akshare) 封装为 HTTP API，前端突破语言限制，以表格与图表的形式呈现覆盖 **股票、基金、债券、大宗商品、全球指数、房地产** 等品类的金融数据，并内置 RSI 量化策略、自选池、推荐买点等投研辅助工具。
+本项目通过 **AKTools**（或自建 Flask 服务）将 Python 财经数据库 [AKShare](https://github.com/akfamily/akshare) 封装为 HTTP API，前端突破语言限制，以表格与图表的形式呈现覆盖 **股票、基金、债券、大宗商品、全球指数、房地产、期货** 等品类的金融数据，并内置 RSI 量化策略、自选池、推荐买点等投研辅助工具。
 
 > 💡 AKTools 是一款用于快速搭建 AKShare HTTP API 的工具，一行命令即可启动服务，让 C/C++、Java、Go、Rust、JavaScript 等任意语言都能轻松获取财经数据。
 
@@ -92,13 +92,14 @@ A股 · 港股 · 美股 · 基金 · 债券 · 大宗商品 · 全球指数 · 
 | :--- | :--- | :--- |
 | 🏠 首页 | — | 数据看板入口 |
 | 📊 股票 | A股 | 宏观指标、市场温度、估值、指数、个股、期权波动、股票回购、历史分红、向上突破 |
-| | 港股 | 恒生指数股息率 |
+| | 港股 | 恒生指数股息率、指数、个股 |
 | | 美股 | 美股指数 |
 | 💼 基金 | 国内 | 基金温度、新发基金、基金仓位、基金公司、基金分红、基金经理、**基金列表/详情**、资产配置、规模变动 |
 | 🏦 债券 | 国内 | 中美国债收益率 |
 | 🌍 全球指数 | 全球 | 全球指数实时行情与详情 |
 | 🛢️ 大宗商品 | 国内 | 金属指数、中国油价 |
 | 🏢 房地产 | 国内 | 房地产宏观、REITs 实时行情 |
+| ⚡ 期货 | 国外 / 国内 | 国外大宗商品行情、国内生猪指数 |
 | 📚 知识课堂 | — | RSI 指标科普 |
 | 🧪 API 测试 | — | 接口在线调试 |
 
@@ -261,9 +262,13 @@ financial/
 │   │   │   ├── commodity/      # 大宗商品
 │   │   │   ├── global/         # 全球指数
 │   │   │   ├── realestate/     # 房地产 / REITs
+│   │   │   ├── futures/        # 期货（国外 / 国内）
 │   │   │   └── knowledge/      # 知识课堂
+│   │   ├── components/         # 公共组件（RSI / MACD 标记、对比图表等）
 │   │   ├── routers/            # 路由表（由菜单配置自动生成）
-│   │   └── utils/              # stockUtils / fundUtils / recommendationBatch 等
+│   │   ├── utils/              # stockUtils / fundUtils / recommendationBatch 等
+│   │   └── workers/            # Web Worker（RSI 批量计算）
+│   ├── test/                   # 单元测试（node:test + tsx）
 │   ├── .env.aktools            # aktools 模式环境变量
 │   ├── .env.akshare            # akshare 模式环境变量
 │   └── vite.config.ts

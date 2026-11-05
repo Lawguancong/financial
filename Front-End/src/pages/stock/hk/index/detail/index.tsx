@@ -5,6 +5,7 @@ import apiClient from '@/utils/axios';
 import dayjs from 'dayjs';
 import { calculateStartDate } from '@/utils';
 import IndexMetrics from '@/components/IndexMetrics';
+import { appConfig } from '@/config/appConfig';
 
 // RSI·推荐级别：与 /stock/a/index/detail、/stock/us/index 统一复用同一组件
 const RsiFilterMark = React.lazy(() => import('@/components/RsiFilterMark'));
@@ -77,11 +78,13 @@ const HkIndexDetail: React.FC = () => {
         </Collapse.Panel>
       </Collapse>
 
-      <Collapse defaultActiveKey={['4']} style={{ marginTop: 16 }}>
-        <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📈📊📉 MACD 技术指标</span>} key="4">
-          <MacdFilterMark data={dailyData} type="index" />
-        </Collapse.Panel>
-      </Collapse>
+      {appConfig.features.macd && (
+        <Collapse defaultActiveKey={['4']} style={{ marginTop: 16 }}>
+          <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📈📊📉 MACD 技术指标</span>} key="4">
+            <MacdFilterMark data={dailyData} type="index" />
+          </Collapse.Panel>
+        </Collapse>
+      )}
 
       <Collapse defaultActiveKey={['5']} style={{ marginTop: 16 }}>
         <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📈📊📉 日涨跌幅分析</span>} key="5">

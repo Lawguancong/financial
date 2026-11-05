@@ -440,47 +440,49 @@ export const BuyPointActionGroup: React.FC<BuyPointActionGroupProps> = ({
       }
       onClick={() => handleExport(onExportPlan, '「导出买入计划（Excel）」')}
     />
-    <div style={{ gridColumn: '1 / -1' }}>
-      <ActionButton
-        icon={<LineChartOutlined />}
-        title="最低 MACD 柱下一周期月K标记"
-        subtitle="并导出 Excel（最低柱 + 下一周期买入的收益/回撤指标）"
-        gradient="linear-gradient(135deg, #0958d9 0%, #13c2c2 100%)"
-        glow="rgba(19, 194, 194, 0.4)"
-        iconColor="#0958d9"
-        tipHeading="「最低 MACD 柱下一周期月K标记」导出规则"
-        tip={
-          <>
-            对当前分组已勾选{itemLabel}按<b>月K</b>口径计算
-            <b> MACD({MACD_PARAMS.fastPeriod},{MACD_PARAMS.slowPeriod},{MACD_PARAMS.signalPeriod})</b>：
-            连续为负且长度 ≥ <b>{MACD_MONTHLY_WINDOW}</b> 根的区间取最低 MACD 柱（金色标记）；
-            该柱下一周期 MACD 高于最低柱时确认，<b>买入日期 = 最低柱下一周期（确认柱）</b>（青色标记）。
-            同一负值区间后续出现更低柱时，最低柱与买入日期会整体后移，因此该买点为事后参考口径、不是实时信号。
-            <br />
-            <b>样本与完整性</b>：月K至少 <b>{MACD_MIN_MONTHLY_BARS}</b> 根（MACD 预热），且最低柱从第 {MACD_MIN_MONTHLY_BARS} 根月K起（含）才产生标记。
-            <br />
-            以买入日期的{priceLineName}为买入值，统计至<b>最新交易日</b>：
-            当前价格、持有天数、持有至今收益率、持有至今年化收益率
-            （持有满 <b>{RSI_ANNUALIZE_MIN_HOLDING_DAYS}</b> 天按复利年化，不足则直接取区间收益率）。
-            <br />
-            <b>回撤指标</b>：<b>被套最大回撤率</b> = 相对买入价的最大跌幅（附最低点日期/价格/被套天数/回本日期/最大回本持有天数/修复天数）。
-            <b>Calmar 比率 = 持有至今年化收益率 / 被套最大回撤率</b>（无回撤或年化缺失时导出 '-'）。
-            <br />
-            另附<b>买入后最大浮盈率</b>（仅 &gt; 0 时显示）；
-            底部附「平均值 / 中位数 / 样本方差 / 样本标准差 / 总体方差 / 总体标准差」统计行，
-            口径与「导出买入&卖出报告（Excel）」一致。
-            <br />
-            时间窗口：建议仅在<b>每月最后 3 个自然日</b>导出；非月底点击会二次确认，确认后照常导出。
-          </>
-        }
-        onClick={() =>
-          handleExport(
-            onExportMacdBarMarker,
-            '「最低 MACD 柱下一周期月K标记」',
-          )
-        }
-      />
-    </div>
+    {appConfig.features.macd && (
+      <div style={{ gridColumn: '1 / -1' }}>
+        <ActionButton
+          icon={<LineChartOutlined />}
+          title="最低 MACD 柱下一周期月K标记"
+          subtitle="并导出 Excel（最低柱 + 下一周期买入的收益/回撤指标）"
+          gradient="linear-gradient(135deg, #0958d9 0%, #13c2c2 100%)"
+          glow="rgba(19, 194, 194, 0.4)"
+          iconColor="#0958d9"
+          tipHeading="「最低 MACD 柱下一周期月K标记」导出规则"
+          tip={
+            <>
+              对当前分组已勾选{itemLabel}按<b>月K</b>口径计算
+              <b> MACD({MACD_PARAMS.fastPeriod},{MACD_PARAMS.slowPeriod},{MACD_PARAMS.signalPeriod})</b>：
+              连续为负且长度 ≥ <b>{MACD_MONTHLY_WINDOW}</b> 根的区间取最低 MACD 柱（金色标记）；
+              该柱下一周期 MACD 高于最低柱时确认，<b>买入日期 = 最低柱下一周期（确认柱）</b>（青色标记）。
+              同一负值区间后续出现更低柱时，最低柱与买入日期会整体后移，因此该买点为事后参考口径、不是实时信号。
+              <br />
+              <b>样本与完整性</b>：月K至少 <b>{MACD_MIN_MONTHLY_BARS}</b> 根（MACD 预热），且最低柱从第 {MACD_MIN_MONTHLY_BARS} 根月K起（含）才产生标记。
+              <br />
+              以买入日期的{priceLineName}为买入值，统计至<b>最新交易日</b>：
+              当前价格、持有天数、持有至今收益率、持有至今年化收益率
+              （持有满 <b>{RSI_ANNUALIZE_MIN_HOLDING_DAYS}</b> 天按复利年化，不足则直接取区间收益率）。
+              <br />
+              <b>回撤指标</b>：<b>被套最大回撤率</b> = 相对买入价的最大跌幅（附最低点日期/价格/被套天数/回本日期/最大回本持有天数/修复天数）。
+              <b>Calmar 比率 = 持有至今年化收益率 / 被套最大回撤率</b>（无回撤或年化缺失时导出 '-'）。
+              <br />
+              另附<b>买入后最大浮盈率</b>（仅 &gt; 0 时显示）；
+              底部附「平均值 / 中位数 / 样本方差 / 样本标准差 / 总体方差 / 总体标准差」统计行，
+              口径与「导出买入&卖出报告（Excel）」一致。
+              <br />
+              时间窗口：建议仅在<b>每月最后 3 个自然日</b>导出；非月底点击会二次确认，确认后照常导出。
+            </>
+          }
+          onClick={() =>
+            handleExport(
+              onExportMacdBarMarker,
+              '「最低 MACD 柱下一周期月K标记」',
+            )
+          }
+        />
+      </div>
+    )}
   </div>
   );
 };

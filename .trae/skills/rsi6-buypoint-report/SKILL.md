@@ -7,12 +7,15 @@ description: 维护各行情页（A股/港股个股与指数、大宗商品、�
 
 列表页底部的四个操作入口：前三个（计算推荐买点 / 导出买入&卖出报告 / 导出买入计划）**计算内核完全相同**（`runRecommendationBatchCalculation` + 同一 Worker 池），差别只在「写回表格」与「导出 Excel 的筛选口径」；「计算推荐买点」在完成计算后还会**自动导出「推荐买点」Excel**（复用本次结果，不重复取数，见「功能一」）；第四个「最低 MACD 柱月K标记」独立按 MACD 月K计算并导出（见「功能四」）。
 
+> **MACD 总开关**：`appConfig.features.macd`（默认 `false`）控制 MACD 相关的全部展示——关闭时 `BuyPointActionGroup` 不渲染第 4 个按钮，详情页 MACD 区块/组件、使用手册与知识页中的 MACD 文案同步隐藏；前三个 RSI 入口不受影响。改为 `true` 即恢复展示。
+
 ## 配置中心（重要）
 
 本技能涉及的所有可配置参数已统一收敛到 **`Front-End/src/config/appConfig.ts`**，按分组组织：
 
 | 分组 | 包含参数 |
 |------|----------|
+| `appConfig.features` | `macd`（MACD 功能总开关，默认 `false`；关闭后列表页第 4 按钮、详情页 MACD 区块/组件、使用手册与知识页 MACD 文案均不展示） |
 | `appConfig.rsi` | `warmup`、`asOfWindowMonths`、`minSampleCount`、`sellMinReturnPct`、`annualizeMinHoldingDays`、`recentBuyPointDays` |
 | `appConfig.rsi.monthlyQuarterly` | `levelRules`（★5/★3/★1 的 `monthlyPercentile` / `quarterlyPercentile`，月季可分设）、`monthlySellPercentile`、`quarterlySellPercentile`、`sellMinHoldingDays`、`trancheCount`、`trancheIntervalDays` |
 | `appConfig.rsi.singlePeriod` | `weekly.buyPercentile` / `weekly.sellPercentile`、`monthly.buyPercentile` / `monthly.sellPercentile` |
@@ -38,6 +41,7 @@ description: 维护各行情页（A股/港股个股与指数、大宗商品、�
 - 按钮位置与原「计算推荐买点」按钮**完全一致**：个股/指数（含港股）在「自选 / 自定义分组」Tab 内；大宗商品在页面顶部；基金在「自选基金」Tab 内。
 - 「全部」列表 Tab 不挂按钮组（历史行为保持不变）。
 - 页面差异的三处开关：`itemLabel` 只影响文案名词；`showWeeklyStrategy` 只有基金传 `false`（基金数据无日/周频，见「基金数据粒度」）；`priceLineName` 只有基金传「累计收益率」，其余页面用默认「收盘价」（影响 MACD 规则文案与导出列名；第 4 个按钮标题固定为「最低 MACD 柱下一周期月K标记」）。
+- **第 4 个 MACD 按钮受 `appConfig.features.macd` 控制**：默认 `false` 时按钮整块不渲染（前三个按钮的 3 列网格布局不变）；改为 `true` 才展示。对应页面回调仍保留，不影响前三入口。
 - **A股指数页按行内 `数据源` 分流日线接口**：中证行（`数据源` 为空 /「中证」/「中证+新浪」）走 `stock_zh_index_hist_csindex`（6 位代码 + `cleanCsindexHistory`）；`数据源 === '新浪'` 的独有指数走 `stock_zh_index_daily`（代码带 `sh/sz` 前缀，`date/close` 归一化为 `日期/收盘`，无需清洗）。四个入口共用 `fetchIndexDailyData(index)`，新增取数/导出入口必须沿用该分流。
 
 ## 基金数据粒度（重要）
@@ -234,6 +238,8 @@ description: 维护各行情页（A股/港股个股与指数、大宗商品、�
 
 ## 功能四：最低 MACD 柱下一周期月K标记（Excel）
 
+> 入口受 `appConfig.features.macd` 总开关控制：默认 `false` 时不渲染按钮、不展示任何 MACD 文案；计算与导出函数本身保留，改为 `true` 后入口恢复。
+
 与前三入口**独立计算**：不计算 RSI6、不回写表格，只对勾选标的按月K MACD 标记导出持有/回撤指标。入口页面 `handleExportMacdBarMarker` → 公共 `exportMacdBarMarker(options)`（`src/utils/macdBarMarkerExport.ts`）。
 
 ### 计算口径
@@ -300,6 +306,7 @@ description: 维护各行情页（A股/港股个股与指数、大宗商品、�
 | 改接口异常重试次数 / 间隔 / 汇总弹窗 | `src/config/appConfig.ts` 的 `appConfig.batch.fetchRetryCount` / `retryDelayMs`（`recommendationBatch.ts` 内以 `FETCH_RETRY_COUNT` / `RETRY_DELAY_MS` 别名引用）；汇总弹窗文案仍在 `recommendationBatch.ts` 的 `Modal.error` |
 | 改按钮 UI / 规则文案 | `BuyPointActionGroup.tsx`（名词差异靠 `itemLabel`，周线差异靠 `showWeeklyStrategy`，MACD 价格线文案靠 `priceLineName`） |
 | 新增接入页面 | 复制任一页面的三个导出 handler + 计算 handler（含 `exportItems` 收集与 `exportRecommendationBuyPoints` 调用）+ `<BuyPointActionGroup>`，补 `filePrefix`；取数函数返回 `Promise<BuyPointResult>`，空数据/无有效收盘价必须 `throw`（不要返回空结果）；MACD 导出另提供 `fetchDailyData` |
+| 隐藏 / 展示 MACD 全部功能 | `appConfig.features.macd`（默认 `false`）：列表页第 4 按钮在 `BuyPointActionGroup` 内按开关渲染；详情页 MACD Tab / Collapse / 组件块在各自页面按开关渲染；`userManualConfig.ts` 与 RSI 知识页 MACD 文案同步判断 |
 | 改 MACD 月K标记口径（窗口 / MACD 参数 / 预热门槛 / 买入日期） | `appConfig.chart.macd.macdParams` / `peakWindows.monthly` / `minMonthlyBars`（默认 35）；计算在 `findMacdBarReboundMarks`（`stockUtils.ts`）与 `buildMacdBarMarkerRows`（`macdBarMarkerExport.ts`）；买入日期 = 最低柱下一周期（确认柱）的 `buyDate` |
 | 改 MACD 导出的回撤 / MFE 口径 | `macdBarMarkerExport.ts` 的 `computeHoldingDrawdown`（最大回撤，`buyPointCompute.ts`）、`computeMaxFavorableReturn`（MFE） |
 | 改 MACD 导出列 / 文件名 / 排序 / 提示文案 | `macdBarMarkerExport.ts` 的 `buildMacdBarMarkerColumns` + `toExportCells`（下标必须同步）+ `exportMacdBarMarker`；汇总排除列在 `exportMacdBarMarker` 的 `excludedTitles` |

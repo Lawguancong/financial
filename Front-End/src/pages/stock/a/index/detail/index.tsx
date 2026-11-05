@@ -274,11 +274,13 @@ const IndexDetail: React.FC = () => {
         </Collapse.Panel>
       </Collapse>
 
-      <Collapse defaultActiveKey={["4"]} style={{ marginTop: 16 }}>
-        <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📈📊📉 MACD 技术指标</span>} key="4">
-          <MacdFilterMark data={dailyData} type="index" />
-        </Collapse.Panel>
-      </Collapse>
+      {appConfig.features.macd && (
+        <Collapse defaultActiveKey={["4"]} style={{ marginTop: 16 }}>
+          <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📈📊📉 MACD 技术指标</span>} key="4">
+            <MacdFilterMark data={dailyData} type="index" />
+          </Collapse.Panel>
+        </Collapse>
+      )}
 
       <Collapse defaultActiveKey={["5"]} style={{ marginTop: 16 }}>
         <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📈📊📉 日涨跌幅分析</span>} key="5">

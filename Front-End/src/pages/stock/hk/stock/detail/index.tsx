@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback, Suspense, memo } from
 import { Spin, Typography, Card, Tabs } from 'antd';
 import apiClient from '@/utils/axios';
 import { useSearchParams } from 'react-router-dom';
+import { appConfig } from '@/config/appConfig';
 
 // 懒加载组件，按需加载
 const HkPriceAndTurnover = React.lazy(() => import('./components/HkPriceAndTurnover'));
@@ -109,16 +110,18 @@ const HkStockDetail: React.FC = () => {
         </Card>
       ),
     },
-    {
-      key: 'macd-filter',
-      label: 'MACD 技术指标',
-      children: (
-        <Card style={cardStyle}>
-          <Title level={5}>MACD 技术指标</Title>
-          {macdFilterMarkComponent}
-        </Card>
-      ),
-    },
+    ...(appConfig.features.macd
+      ? [{
+          key: 'macd-filter',
+          label: 'MACD 技术指标',
+          children: (
+            <Card style={cardStyle}>
+              <Title level={5}>MACD 技术指标</Title>
+              {macdFilterMarkComponent}
+            </Card>
+          ),
+        }]
+      : []),
     {
       key: 'daily-return-analysis',
       label: '日涨跌幅分析',

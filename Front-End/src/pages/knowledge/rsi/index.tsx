@@ -215,7 +215,12 @@ const CHECKLIST: ChecklistRow[] = [
 
 const TIPS: TipItem[] = [
   { title: '结合趋势', desc: '只在上升趋势或震荡市中使用，下降趋势中慎用。' },
-  { title: '多指标共振', desc: '配合 MACD 底背离、成交量放大、支撑位等确认。' },
+  {
+    title: '多指标共振',
+    desc: appConfig.features.macd
+      ? '配合 MACD 底背离、成交量放大、支撑位等确认。'
+      : '配合成交量放大、支撑位等确认。',
+  },
   { title: '分批建仓', desc: 'RSI6 < 20 先买一部分，< 15 再买，避免一次性抄底。' },
   { title: '设置止损', desc: '跌破前低，或 RSI6 持续低于 20 且无反弹，应止损。' },
   { title: '周期选择', desc: '日线 RSI6 适合短线，周线适合中线，月线 / 季线适合长线战略布局。' },

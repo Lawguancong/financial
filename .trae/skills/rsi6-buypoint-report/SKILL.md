@@ -1,11 +1,13 @@
 ---
 name: rsi6-buypoint-report
-description: 维护各行情页（A股/港股个股与指数、大宗商品、外盘期货、开放式基金）的「计算推荐买点」「导出买入&卖出报告（Excel）」「导出买入计划（Excel）」三入口，覆盖 RSI6 多周期买点计算（标准 Wilder 平滑 / Wilder RSI）、RSI6 日/周/月/季口径（含「周期初→当日」未来函数消除、周键 weekYear、周期二分定位）、详情页各周期历史分位参考（全历史/近10年/近5年/近3年）、Worker 池批量编排、接口异常重试与失败汇总 Modal、操作时间窗口（计算仅周末 / 导出仅每月最后 3 个自然日）、★5 月季共振买卖配对（分位阈值 as-of 近 10 年（120 个月，可配置）滚动窗口、满 60 个月才出信号、卖出需月/季 RSI6 双超买且持有满 365 天、收益率达门槛）、周/月单周期分位 as-of 近 10 年滚动窗口（满 60 个有效样本才出信号）、分批卖出、回撤等派生指标、Excel 导出与文件名前缀约定。当用户要求新增或调整买点计算、导出买卖报告/买入计划、修改报告列或策略买卖规则、修改 RSI6 周期口径/消除未来函数（含月季分位 as-of）、调整详情页历史分位参考卡片、调整时间窗口/重试策略、或在其它页面接入这三个入口时调用。不用于新增行情图表页或纯 K 线展示功能。
+description: 维护各行情页（A股/港股个股与指数、大宗商品、外盘期货、开放式基金）的「计算推荐买点」「导出买入&卖出报告（Excel）」「导出买入计划（Excel）」「最低 MACD 柱月K标记（Excel）」四入口，覆盖 RSI6 多周期买点计算（标准 Wilder 平滑 / Wilder RSI）、RSI6 日/周/月/季口径（含「周期初→当日」未来函数消除、周键 weekYear、周期二分定位）、详情页各周期历史分位参考（全历史/近10年/近5年/近3年）、Worker 池批量编排、接口异常重试与失败汇总 Modal、操作时间窗口（计算仅周末 / 导出仅每月最后 3 个自然日）、「计算推荐买点」完成后自动导出「推荐买点」Excel（★1/★3/★5 全部月&季 RSI6 百分位买入、已卖出与持有至今混合口径）、★5 月季共振买卖配对（分位阈值 as-of 近 10 年（120 个月，可配置）滚动窗口、满 60 个月才出信号、卖出需月/季 RSI6 双超买且持有满 365 天、收益率达门槛）、周/月单周期分位 as-of 近 10 年滚动窗口（满 60 个有效样本才出信号）、月K MACD 最低柱标记与下一周期买入的持有/回撤/Calmar 指标、分批卖出、回撤等派生指标、Excel 导出与文件名前缀约定。当用户要求新增或调整买点计算、导出买卖报告/买入计划/推荐买点/最低 MACD 柱月K标记、修改报告列或策略买卖规则、修改 RSI6 周期口径/消除未来函数（含月季分位 as-of）、调整详情页历史分位参考卡片、调整时间窗口/重试策略、或在其它页面接入这些入口时调用。不用于新增行情图表页或纯 K 线展示功能。
 ---
 
 # RSI6 买点计算与买入卖出报告
 
-列表页底部并排的三个操作入口，**计算内核完全相同**（`runRecommendationBatchCalculation` + 同一 Worker 池），差别只在「写回表格」与「导出 Excel 的筛选口径」。
+列表页底部的四个操作入口：前三个（计算推荐买点 / 导出买入&卖出报告 / 导出买入计划）**计算内核完全相同**（`runRecommendationBatchCalculation` + 同一 Worker 池），差别只在「写回表格」与「导出 Excel 的筛选口径」；「计算推荐买点」在完成计算后还会**自动导出「推荐买点」Excel**（复用本次结果，不重复取数，见「功能一」）；第四个「最低 MACD 柱月K标记」独立按 MACD 月K计算并导出（见「功能四」）。
+
+> **MACD 总开关**：`appConfig.features.macd`（默认 `false`）控制 MACD 相关的全部展示——关闭时 `BuyPointActionGroup` 不渲染第 4 个按钮，详情页 MACD 区块/组件、使用手册与知识页中的 MACD 文案同步隐藏；前三个 RSI 入口不受影响。改为 `true` 即恢复展示。
 
 ## 配置中心（重要）
 
@@ -13,31 +15,34 @@ description: 维护各行情页（A股/港股个股与指数、大宗商品、�
 
 | 分组 | 包含参数 |
 |------|----------|
+| `appConfig.features` | `macd`（MACD 功能总开关，默认 `false`；关闭后列表页第 4 按钮、详情页 MACD 区块/组件、使用手册与知识页 MACD 文案均不展示） |
 | `appConfig.rsi` | `warmup`、`asOfWindowMonths`、`minSampleCount`、`sellMinReturnPct`、`annualizeMinHoldingDays`、`recentBuyPointDays` |
 | `appConfig.rsi.monthlyQuarterly` | `levelRules`（★5/★3/★1 的 `monthlyPercentile` / `quarterlyPercentile`，月季可分设）、`monthlySellPercentile`、`quarterlySellPercentile`、`sellMinHoldingDays`、`trancheCount`、`trancheIntervalDays` |
 | `appConfig.rsi.singlePeriod` | `weekly.buyPercentile` / `weekly.sellPercentile`、`monthly.buyPercentile` / `monthly.sellPercentile` |
 | `appConfig.batch` | `fetchRetryCount`、`retryDelayMs`、`concurrency`、`reportConcurrency` |
 | `appConfig.worker` | `maxWorkers` |
 | `appConfig.http` | `timeoutMs`、`indexHistoryStartDate`（中证指数历史查询起始日，默认 19901219；配合 `cleanCsindexHistory` 剔除接口占位行） |
-| `appConfig.chart` | `indexMetrics.*`、`dailyReturn.*`、`indexComparison.*`、`congestionPercentile`、`rsiPercentileRefs`（历史分位参考展示的分位列，默认 2/5/10/90）、`rsiPercentileWindows`、`macd.peakWindows` / `macd.peakConfirmLags`（MACD 峰值买点回看窗口与确认滞后） |
+| `appConfig.chart` | `indexMetrics.*`、`dailyReturn.*`、`indexComparison.*`、`congestionPercentile`、`rsiPercentileRefs`（历史分位参考展示的分位列，默认 2/5/10/90）、`rsiPercentileWindows`、`macd.macdParams`（MACD 快/慢/信号线，默认 12/26/9）、`macd.minMonthlyBars`（月K最低柱标记最小样本数，默认 35 = 慢线 26 + 信号线 9；导出与详情页 `MacdFilterMark` 月K标记共用）、`macd.peakWindows` / `macd.peakConfirmLags`（MACD 峰值买点与最低柱标记回看窗口、确认滞后，仅月/季；周K仅保留 MACD 图、不做买点标记） |
 
 共用项只定义一次：`minSampleCount=60`、`sellMinReturnPct=15`、`asOfWindowMonths=120`、`warmup=6` 由月&季与周/月单周期**共用**；各类分位（月&季 ★5/★3/★1 与月/季卖出、周/月单周期买卖）仍**各自独立可调**。`stockUtils.ts` / 组件内仅保留模块级解构别名（如 `MQ_LEVEL_RULES`、`RSI_ASOF_WINDOW_MONTHS`），不再重复定义常量。
 
 ## 覆盖页面
 
-| 页面 | 文件 | `filePrefix` | `itemLabel` | `showWeeklyStrategy` |
-|------|------|--------------|-------------|----------------------|
-| A股个股 | `Front-End/src/pages/stock/a/stock/components/OutTrading.tsx` | `A股个股` | 股票 | 是 |
-| A股指数 | `Front-End/src/pages/stock/a/index/index.tsx` | `A股指数` | 指数 | 是 |
-| 港股指数 | `Front-End/src/pages/stock/hk/index/index.tsx` | `港股指数` | 指数 | 是 |
-| 港股个股 | `Front-End/src/pages/stock/hk/stock/components/HkOutTrading.tsx` | `港股个股` | 股票 | 是 |
-| 大宗商品 | `Front-End/src/pages/commodity/cn/index.tsx` | `大宗商品` | 品种 | 是 |
-| 外盘期货 | `Front-End/src/pages/futures/foreign/quotes/index.tsx` | `外盘期货` | 期货品种 | 是 |
-| 开放式基金 | `Front-End/src/pages/fund/cn/open/index.tsx` | `开放式基金` | 基金 | **否**（基金数据只有月/季，无日/周） |
+| 页面 | 文件 | `filePrefix` | `itemLabel` | `showWeeklyStrategy` | `priceLineName` |
+|------|------|--------------|-------------|----------------------|----------------|
+| A股个股 | `Front-End/src/pages/stock/a/stock/components/OutTrading.tsx` | `A股个股` | 股票 | 是 | 收盘价（默认） |
+| A股指数 | `Front-End/src/pages/stock/a/index/index.tsx` | `A股指数` | 指数 | 是 | 收盘价（默认） |
+| 港股指数 | `Front-End/src/pages/stock/hk/index/index.tsx` | `港股指数` | 指数 | 是 | 收盘价（默认） |
+| 港股个股 | `Front-End/src/pages/stock/hk/stock/components/HkOutTrading.tsx` | `港股个股` | 股票 | 是 | 收盘价（默认） |
+| 大宗商品 | `Front-End/src/pages/commodity/cn/index.tsx` | `大宗商品` | 品种 | 是 | 收盘价（默认） |
+| 外盘期货 | `Front-End/src/pages/futures/foreign/quotes/index.tsx` | `外盘期货` | 期货品种 | 是 | 收盘价（默认） |
+| 开放式基金 | `Front-End/src/pages/fund/cn/open/index.tsx` | `开放式基金` | 基金 | **否**（基金数据只有月/季，无日/周） | 累计收益率 |
 
 - 按钮位置与原「计算推荐买点」按钮**完全一致**：个股/指数（含港股）在「自选 / 自定义分组」Tab 内；大宗商品在页面顶部；基金在「自选基金」Tab 内。
 - 「全部」列表 Tab 不挂按钮组（历史行为保持不变）。
-- 页面差异的两处开关：`itemLabel` 只影响文案名词；`showWeeklyStrategy` 只有基金传 `false`（基金数据无日/周频，见「基金数据粒度」）。
+- 页面差异的三处开关：`itemLabel` 只影响文案名词；`showWeeklyStrategy` 只有基金传 `false`（基金数据无日/周频，见「基金数据粒度」）；`priceLineName` 只有基金传「累计收益率」，其余页面用默认「收盘价」（影响 MACD 规则文案与导出列名；第 4 个按钮标题固定为「最低 MACD 柱下一周期月K标记」）。
+- **第 4 个 MACD 按钮受 `appConfig.features.macd` 控制**：默认 `false` 时按钮整块不渲染（前三个按钮的 3 列网格布局不变）；改为 `true` 才展示。对应页面回调仍保留，不影响前三入口。
+- **A股指数页按行内 `数据源` 分流日线接口**：中证行（`数据源` 为空 /「中证」/「中证+新浪」）走 `stock_zh_index_hist_csindex`（6 位代码 + `cleanCsindexHistory`）；`数据源 === '新浪'` 的独有指数走 `stock_zh_index_daily`（代码带 `sh/sz` 前缀，`date/close` 归一化为 `日期/收盘`，无需清洗）。四个入口共用 `fetchIndexDailyData(index)`，新增取数/导出入口必须沿用该分流。
 
 ## 基金数据粒度（重要）
 
@@ -47,16 +52,18 @@ description: 维护各行情页（A股/港股个股与指数、大宗商品、�
   - **没有日 RSI6、没有周 RSI6** → 基金的 `weeklyPercentile` 恒为空串，页面不展示「周RSI6百分位策略」列，规则文案也只有 3 条（`showWeeklyStrategy={false}`）。
   - 基金的「定量」不是「日 / 周 / 月 / 季」四周期组合，而是**月度 RSI6 + 所在季度 RSI6** 两个周期（走 `fundRsiRecommendationRules`）。
 - **有月与季度两个周期**：`computeFundBuyPoints` 先把序列映射为「收盘」（`累计收益率`），再**按月取每月最后一条**得到月线、**再在月线上按季取每季最后一条**得到季线，分别算月 RSI6 与季 RSI6。
-- 因此基金页的回写与导出只有 **3 类买点列**：推荐买点（定量）、推荐买点（百分位，月&季共振）、月RSI6百分位策略。
+- 因此基金页的回写与导出只有 **3 类买点列**：季&月RSI6 定量策略、季&月RSI6百分位策略（月&季共振）、月RSI6百分位策略。
 - 基金口径 `closeValueType: 'cumulativeReturn'`（起点 0，年化用 `(100+close)/(100+first)` 而非 `close/first`，否则年化会整线缺失）。
 
 ## 公共模块
 
 | 职责 | 位置 |
 |------|------|
-| 三按钮 + 规则文案 UI | `Front-End/src/components/BuyPointActionGroup.tsx`（三个按钮单行等宽排列；规则文案改为各按钮右侧 info 图标的 hover/聚焦浮层，不再常驻占高度；`itemLabel` 适配名词、`showWeeklyStrategy` 控制「回填 3/4 类买点列」与周策略文案） |
-| 导出主流程（筛选 / 排序 / 单元格 / 汇总 / 下载 / 提示 / 文件名前缀） | `Front-End/src/utils/buySellReportExport.ts`（`exportBuySellReport` / `exportBuyPlan`） |
-| 批量并发编排 | `Front-End/src/utils/recommendationBatch.ts` 的 `runRecommendationBatchCalculation` |
+| 四按钮 + 规则文案 UI | `Front-End/src/components/BuyPointActionGroup.tsx`（前三个按钮单行等宽排列，第四个「最低 MACD 柱下一周期月K标记」在下方整行；规则文案为各按钮右侧 info 图标的 hover/聚焦浮层；`itemLabel` 适配名词、`showWeeklyStrategy` 控制「回填 3/4 类买点列」与周策略文案、`priceLineName` 控制 MACD 规则文案与导出列名） |
+| 导出主流程（筛选 / 排序 / 单元格 / 汇总 / 下载 / 提示 / 文件名前缀） | `Front-End/src/utils/buySellReportExport.ts`（`exportBuySellReport` / `exportBuyPlan` / `exportRecommendationBuyPoints`） |
+| MACD 月K标记导出 | `Front-End/src/utils/macdBarMarkerExport.ts`（`buildMacdBarMarkerRows` 纯计算 + `exportMacdBarMarker` 批量导出） |
+| 报表公共样式/汇总统计 | `Front-End/src/utils/reportExportStyle.ts`（表头/明细/汇总样式、列类型与对齐、平均值/中位数/方差/标准差、`buildSummaryRow`） |
+| 批量并发编排 | `Front-End/src/utils/recommendationBatch.ts` 的 `runRecommendationBatchCalculation`（`taskLabel` 可覆盖进度提示中的任务名词，默认「推荐买点」） |
 | Worker 池客户端（列表页） | `Front-End/src/utils/buyPointWorker.ts` 的 `computeBuyPoints`，池上限 = `Math.min(4, Math.max(1, CPU 核心数 - 1))`（固定上限 4，按需懒创建、空闲复用；每个浏览器标签页各一份） |
 | 详情页单 Worker 客户端 | `Front-End/src/utils/rsiDetailWorker.ts` 的 `createRsiDetailWorker`（每个 `RsiFilterMark` 实例独占 1 个 Worker；数据变化时终止旧 Worker 并重建，最新数据优先） |
 | Worker 内纯计算 | `Front-End/src/utils/buyPointCompute.ts` 的 `runBuyPointTask`（`BuyPointResult`）；`Front-End/src/utils/rsiDetailCompute.ts` 的 `runRsiDetailTask`（`RsiDetailResult`）；Worker 入口分别为 `workers/buyPoint.worker.ts`、`workers/rsiDetail.worker.ts` |
@@ -77,27 +84,27 @@ description: 维护各行情页（A股/港股个股与指数、大宗商品、�
 - 空结果：区间内无数据时提示「所选样本区间内暂无数据，请调整日期范围」；**空状态下仍展示样本区间控件**（含 RangePicker 与两个单侧清除按钮），可直接重新选择。
 - 口径提醒：区间起点处 RSI 需重新预热（日 RSI6 前 `rsiWarmup` 个交易日为 50；月/季 RSI6 从区间起点重新累积），分位窗口也只在区间内滚动，**与全历史口径不同，属有意为之**。
 
-**接入新页面**：页面只需提供 `targets / getCode / getName / getKey / fetchPoints / emptyWarn / itemLabel / filePrefix`，其余全部由公共模块处理；各页面取数函数返回 `Promise<BuyPointResult>`，**接口异常（网络/HTTP 异常、空数组、收盘价无有效值）必须 `throw`**，由 `runRecommendationBatchCalculation` 统一重试并汇总弹窗；**禁止 catch 后返回空结果**（会导致该标的静默漏出报表）。UI 侧直接渲染 `<BuyPointActionGroup onCalculate onExportReport onExportPlan itemLabel showWeeklyStrategy />`。
+**接入新页面**：页面只需提供 `targets / getCode / getName / getKey / fetchPoints / emptyWarn / itemLabel / filePrefix`（MACD 导出另需 `fetchDailyData`），其余全部由公共模块处理；各页面取数函数返回 `Promise<BuyPointResult>`（MACD 导出返回 `Promise<BuyPointKLineItem[]>`），**接口异常（网络/HTTP 异常、空数组、收盘价无有效值）必须 `throw`**，由 `runRecommendationBatchCalculation` 统一重试并汇总弹窗；**禁止 catch 后返回空结果**（会导致该标的静默漏出报表）。UI 侧直接渲染 `<BuyPointActionGroup onCalculate onExportReport onExportPlan onExportMacdBarMarker itemLabel showWeeklyStrategy priceLineName />`。
 
 ## 操作时间窗口（前端本地时间判断）
 
 统一下沉在 `BuyPointActionGroup.tsx`，所有接入页面自动生效，无需逐页改：
 
 - **「计算推荐买点」仅周六 / 周日**（`moment().day()` 为 0 或 6）直接执行；非周末点击弹 `Modal.confirm`（标题「非周末时间」），用户确认后照常计算。
-- **两个导出仅每月最后 3 个自然日**（`moment().date() >= moment().daysInMonth() - 2`：31 天月为 29/30/31，30 天月为 28/29/30，2 月为 26/27/28）；窗口外点击弹 `Modal.confirm`（标题「非月底时间」），确认后照常导出。
+- **三个导出（买入&卖出报告 / 买入计划 / 最低 MACD 柱月K标记）仅每月最后 3 个自然日**（`moment().date() >= moment().daysInMonth() - 2`：31 天月为 29/30/31，30 天月为 28/29/30，2 月为 26/27/28）；窗口外点击弹 `Modal.confirm`（标题「非月底时间」），确认后照常导出。
 - 口径说明：按**自然日**而非交易日判断，不排除节假日；限制只做「提示 + 二次确认」，不硬性阻断。
-- 规则文案三处（计算 / 买入&卖出报告 / 买入计划）均已同步注明上述时间窗口。
+- 规则文案四处（计算 / 买入&卖出报告 / 买入计划 / MACD 月K标记）均已同步注明上述时间窗口。
 
 ## 接口异常重试与失败汇总
 
-在 `recommendationBatch.ts` 单点实现，计算与两个导出共用：
+在 `recommendationBatch.ts` 单点实现，计算与三个导出共用（进度提示的任务名词由 `taskLabel` 控制，默认「推荐买点」，MACD 导出传「MACD 月K标记」）：
 
 - 单个标的取数/计算异常自动重试 **`appConfig.batch.fetchRetryCount = 2` 次**（不含首次，共 3 次尝试），每次间隔 `appConfig.batch.retryDelayMs = 500` 毫秒。
 - 3 次均失败则**跳过该标的**（不中断同批其它标的），记录 `{ key, name, reason }`；全部结束后：
-  - 进度 message 变为「推荐买点处理完成（成功 X/Y，失败 Z）」；
+  - 进度 message 变为「{taskLabel}处理完成（成功 X/Y，失败 Z）」；
   - 弹 `Modal.error`，标题「以下 Z 个标的接口异常，已跳过」，内容按「【代码】名称：原因」逐条汇总，OK 文案「知道了」。
 - 「异常」范围 = **网络/HTTP 异常 + 空数据（空数组 / 收盘价无有效值 / 大宗商品收盘全 0）**；重试对 HTTP 与空数据同样生效。
-- `runRecommendationBatchCalculation` 返回 `{ total, successCount, failures }`；导出主流程在「无任何可导出信号」时，若 `failures.length > 0` 则**不再**追加「无信号」提示（避免与失败 Modal 语义冲突）。
+- `runRecommendationBatchCalculation` 返回 `{ total, successCount, failures }`；三个导出与「推荐买点」自动导出在「无任何可导出信号」时，若 `failures.length > 0` 则**不再**追加「无信号」提示（避免与失败 Modal 语义冲突）；自动导出在 `successCount === 0` 时直接跳过（未选择/全失败已由批量编排提示）。
 - 新增接入页面时，取数函数抛出的 Error.message 会直接展示在 Modal 中，请写可读文案（如「接口返回空数据」）。
 
 ## 功能一：计算推荐买点
@@ -107,13 +114,26 @@ description: 维护各行情页（A股/港股个股与指数、大宗商品、�
 
 | 表格列标题 | 字段 | 来源 |
 |------|------|------|
-| 推荐买点（定量） | `__推荐买点定量__` | `BuyPointResult.quantitative` |
-| 推荐买点（百分位） | `__推荐买点百分位__` | `BuyPointResult.percentile`（月&季共振） |
+| 季&月RSI6 定量策略 | `__推荐买点定量__` | `BuyPointResult.quantitative` |
+| 季&月RSI6百分位策略 | `__推荐买点百分位__` | `BuyPointResult.percentile`（月&季共振） |
 | 月RSI6百分位策略 | `__月RSI6百分位__` | `BuyPointResult.monthlyPercentile` |
 | 周RSI6百分位策略 | `__周RSI6百分位__` | `BuyPointResult.weeklyPercentile`（基金数据无周频，恒为空串 → 基金页无此列） |
 
 - 行情刷新（每日取数）时必须保留买点字段：个股/指数走 `mergeFreshQuotes`（买点字段沿用分组内原值，其余字段以行情为准）；大宗商品等用独立 `buyPointCache` 持久化，空结果不覆盖已有缓存。
 - 「全部」列表 Tab 不展示这些买点列（渲染时 filter 掉对应 `key`），只提供「添加到自选 / 加入分组」。
+
+### 计算完成后自动导出「推荐买点」（Excel）
+
+- **入口与触发**：不新增按钮；各页面 `handleCalculateRecommendation` / `calculateCheckedFunds` 在 `runRecommendationBatchCalculation` 的 `onItemDone` 中把 `result.mqBuyPoints` 逐条收集为 `BuySellReportItem[]`，批量结束后调用公共 `exportRecommendationBuyPoints({ items, itemLabel, filePrefix, failureCount })`。**直接复用本次计算已产出的结果，不重新取数、不重新计算**（用户确认口径）。
+- **执行顺序**：先写回表格/缓存，再导出（增量回填的页面在 `await` 后导出；A股/港股指数、外盘期货这类「批量结束后一次性回填」的页面在自选/自定义分组写回分支内调用导出），避免导出异常阻断买点回填。
+- **提前返回**：`batchResult.successCount === 0`（未选择任何标的或全部接口异常）时不导出——未选择已由 `message.warning(emptyWarn)` 提示、全部异常已由失败汇总 Modal 提示，避免追加「无信号」提示造成误导；部分成功时照常导出成功标的的信号。
+- **排序与多条**：`buildRecommendationExportValues(items)` 不改入参，按买入日期倒序、同日按代码升序；同一标的多条买点全部保留（不去重、不限数量）。
+- **筛选口径**：`mqBuyPoints` 内**全部 ★1 / ★3 / ★5** 月&季 RSI6 百分位策略买入点，不做星级过滤、不做「是否已卖出」过滤；同一只标的可有多条，数量不限。
+- **列（共 13 列，顺序即表头顺序）**：`代码`、`名称`、`推荐级别`、`买入日期`、`买入收盘价`、`买入月RSI6`、`买入季RSI6`、`最大回撤率`、`最大回撤最低点日期`、`最大回撤的收盘价`、`买点到最大回撤率的被套天数`、`回本日期`、`最大回本持有天数`。**不含「数据源」「当前价格」「持有天数」「平均收益率」「年化收益率」列**（用户确认去掉）。
+- **回撤指标口径**（`buildRecommendationCells`）：统一取 `point.maxDrawdown` / `maxDrawdownDate` / `maxDrawdownClose` / `daysToMaxDrawdown` / `recoveryDate` / `maxRecoveryHoldingDays`，由 `computeHoldingDrawdown` 计算：已卖出的窗口为买入日 → 首笔卖出信号日，未卖出的为买入日 → 最新交易日；全程未跌破买入价时统一写 `'-'`。不再区分已卖出/未卖出的收益、持有天数与年化口径（这些列已移除）。
+- **样式与统计**：与其它导出一致（深蓝表头、隔行底色、推荐级别浅金底 + 金色 ★、收益率红正绿负；底部六行 `平均值 / 中位数 / 样本方差 / 样本标准差 / 总体方差 / 总体标准差`，只基于明细行；汇总排除列 = 代码、名称、推荐级别、买入日期、买入收盘价、最大回撤最低点日期、最大回撤的收盘价、回本日期）。
+- **文件与提示**：文件名 `{filePrefix}_推荐买点_YYYYMMDD_HHmm.xlsx`，工作表名 `月季RSI6百分位策略买点`；成功提示「「推荐买点」已导出（共 N 条 ★1/★3/★5 买入信号）」；无信号且无失败时提示「所选{label}暂无「月&季 RSI6 百分位策略」买入信号」。
+- **时间窗口**：导出跟随计算入口，仅在点击「计算推荐买点」时触发（计算入口本身已有周末二次确认），不单独受「每月最后 3 个自然日」窗口约束。
 
 ## 功能二：买入&卖出报告（Excel）
 
@@ -140,7 +160,7 @@ description: 维护各行情页（A股/港股个股与指数、大宗商品、�
 - 排序：按买入日期（`point.日期`）**倒序**（最近信号在前），同日按代码升序。
 - 无任何匹配行时提示「所选{label}未发现「月&季 RSI6 百分位策略」已配对的 ★5 买卖信号」并结束，不生成文件。
 
-### 列 → 字段映射（`toReportCells`，基础 21 列 + `trancheCount` 列分批收益率）
+### 列 → 字段映射（`toReportCells`，基础 22 列 + `trancheCount` 列分批收益率）
 
 | 列标题 | 取值 | 格式约定 |
 |--------|------|----------|
@@ -160,6 +180,7 @@ description: 维护各行情页（A股/港股个股与指数、大宗商品、�
 | 平均收益率 | `point.returnRate`（各批已执行卖出收益率的算术平均） | 保留 2 位 |
 | 第N批卖出收益率（T+X天）（**动态 N 列**） | `point.sellTranches[N-1].returnRate` | 保留 2 位；未执行批次写 `'-'` |
 | 年化收益率 | `point.annualizedReturn`，为空回退 `returnRate` | 保留 2 位 |
+| 买入后最大浮盈率 | `point.maxFavorableReturn`（买入日→首笔卖出信号日；未卖出则至最新交易日；`computeHoldingMaxFavorable`） | 保留 2 位；**最高收益率 ≤0 或缺失时显示空**；仅买入&卖出报告包含，买入计划剔除 |
 | 最大回撤率 | `point.maxDrawdown` | 缺失写 `'-'` |
 | 最大回撤最低点日期 | `point.maxDrawdownDate` | 缺失写 `'-'` |
 | 最大回撤的收盘价 | `point.maxDrawdownClose` | 缺失写 `'-'` |
@@ -200,7 +221,7 @@ description: 维护各行情页（A股/港股个股与指数、大宗商品、�
 |----|---------------|----------|
 | 筛选函数 | `pickPairedFiveStarBuys`（已配对 ★5） | `pickOpenFiveStarBuys` |
 | 单元格口径 `mode` | `paired`（`toReportCells(item, 'paired')`） | `open` |
-| 导出列 | `buildReportColumns(当前价格表头)`（含分批收益率列） | `buildBuyPlanColumns(…)`（剔除分批列、「平均收益率」→「持有至今收益率」、「年化收益率」→「持有至今年化收益率」） |
+| 导出列 | `buildReportColumns(当前价格表头)`（含分批收益率列、买入后最大浮盈率） | `buildBuyPlanColumns(…)`（剔除分批列与「买入后最大浮盈率」、「平均收益率」→「持有至今收益率」、「年化收益率」→「持有至今年化收益率」） |
 | 持有天数 / 收益列 | `point.holdingDays` / `point.returnRate`（各批卖出价 vs 买入价的平均） | `point.holdingDaysToNow` / `point.returnRateToNow`（最新交易日 vs 买入，可正可负） |
 | 年化列 | `point.annualizedReturn`（缺失回退 `returnRate`） | 持有满 `annualizeMinHoldingDays`（当前 1 天）取 `calculateAnnualizedReturn(returnRateToNow, holdingDaysToNow)`，不足取 `returnRateToNow`（可正可负） |
 | 「当前价格」列 | `point.latestClose`（两者相同） | `point.latestClose`（两者相同） |
@@ -211,15 +232,54 @@ description: 维护各行情页（A股/港股个股与指数、大宗商品、�
 
 **`pickOpenFiveStarBuys` 口径**：先求最近一次 ★5 配对卖出的 `sellDate`（`reduce` 取最大；无配对卖出时视为空串，小于任何日期），再保留 `level === 5 && sellDate == null && 日期 > lastSellDate` 的买入——即**当前持仓周期内尚未卖出的 ★5 买入**，同一只可有多条；更早的已配对买入不再导出。
 
+**「买入后最大浮盈率」列**：仅买入&卖出报告包含。`buildBuyPlanColumns` 通过 `BUY_PLAN_EXCLUDED_TITLES` 剔除该列，`buildReportCells(item, 'open')` 也跳过该单元格，避免列与单元格错位。字段由 `buyPointCompute.ts` 的 `computeHoldingMaxFavorable` 计算：买入日→首笔卖出信号日（未卖出则至最新交易日）内的最高收盘收益率，至少 0（买入当日即峰值时为 0）。
+
 **「持有至今」字段来源**：`fillHoldingToNow(points, latestDate, latestClose, closeValueType)`（`stockUtils.ts`）在计算层原地补充 —— **所有买点**都补 `latestDate`/`latestClose`（最新交易日 + 收盘值，即「当前价格」列与动态表头来源）；**仅未卖出**的买点另补 `holdingDaysToNow` = 买入日 → 最新交易日（至少 1 天）、`returnRateToNow` = `calculateHoldingReturnRate(买入价, latestClose, closeValueType)`（可为负）。最新交易日：个股/指数/大宗/外盘取日线中日期最大的一条（`price` 口径），基金取月线最后一条（`cumulativeReturn` 口径，故其「当前价格」列是累计收益率值）。已配对卖出的买点不补「持有至今」口径，避免与已实现口径混淆。`runBuyPointTask`（含 Worker）产出即带这些字段，页面无需额外取数。
+
+## 功能四：最低 MACD 柱下一周期月K标记（Excel）
+
+> 入口受 `appConfig.features.macd` 总开关控制：默认 `false` 时不渲染按钮、不展示任何 MACD 文案；计算与导出函数本身保留，改为 `true` 后入口恢复。
+
+与前三入口**独立计算**：不计算 RSI6、不回写表格，只对勾选标的按月K MACD 标记导出持有/回撤指标。入口页面 `handleExportMacdBarMarker` → 公共 `exportMacdBarMarker(options)`（`src/utils/macdBarMarkerExport.ts`）。
+
+### 计算口径
+
+- 日K「日期 + 收盘」序列（基金传累计收益率序列，`closeValueType: 'cumulativeReturn'`）先按 `aggregateKLineByPeriod({ period: 'monthly' })` 聚合为月K（每月最后一个交易日；基金序列本身按月，聚合后仍是每月一条）。
+- **价格口径过滤**：`closeValueType === 'price'` 时剔除 `收盘 <= 0` 的异常行；基金累计收益率允许 0 与负值。
+- 月K 按 `appConfig.chart.macd.macdParams`（默认 12/26/9）计算 MACD，柱值 = `2 × (DIF − DEA)`；与详情页 `MacdFilterMark` 的月K口径一致。
+- **MACD 预热门槛**：月K样本数至少 `appConfig.chart.macd.minMonthlyBars`（默认 35 = 慢线 26 + 信号线 9），且**最低柱索引必须 ≥ `minMonthlyBars - 1`**（第 35 根月K起）；导出与详情页 `MacdFilterMark` 月K统一过滤，季K不受此限制。
+- 用 `findMacdBarReboundMarks(月K, appConfig.chart.macd.peakWindows.monthly)`（默认 6）识别**事后最低柱标记**：连续负值区间长度 ≥ n，取区间最低 MACD 柱（金色标记）；该柱下一周期 MACD 高于最低柱时确认，**下一周期即买入日期（青色标记）**。
+- **买入日期 = `buyDate` = 最低柱下一周期（确认柱）**，买入值 = `buyClose`；同一负值区间后续出现更低柱时，最低柱与买入日期会整体后移，因此该买点为**事后参考口径，不是实时可交易信号**。持有天数、持有至今收益率、持有至今年化收益率全部从买入日期起算（`calculateHoldingReturnRate` + `calculateAnnualizedReturn`，持有不足 `annualizeMinHoldingDays` 时直接取区间收益率）。
+- **连续负值拆两列**：`barsBeforeMin` = 区间起点 → 最低柱前一周期的连续负值柱数（**不含最低柱**，最低柱为区间第 1 根时为 0）；`runLength` = 整个负值区间的总柱数（原「连续负值柱数」口径）。两者在最低柱位于区间中段时会不同。
+- **被套最大回撤率**：`computeHoldingDrawdown(dailyData, buyDate, buyClose, undefined, closeValueType)`（相对买入价；基金按「净值 = 100 + 累计收益率」折算），附最低点日期/价格、买点到最低点天数、回本日期、最大回本持有天数、被套回撤修复天数。
+- **Calmar = 持有至今年化收益率 / 被套最大回撤率**；年化缺失或回撤为 0 时写 `'-'`。
+- **买入后最大浮盈率（MFE）**：买入日 → 最新交易日内的最高收益率；**仅当 >0 时提供，≤0 时不计算、导出为空**。
+- 无卖出规则：与「买入计划」一样按**持有至今**口径统计，不做买卖配对。
+
+### 导出列（共 23 列，顺序即表头顺序）
+
+`代码`、`名称`、`最低MACD柱日期`、`最低MACD柱`、`最低柱{priceLineName}`、`最低柱前连续负值柱数`、`负值区间总柱数`、`买入日期`、`买入{priceLineName}`、`买入MACD`、`当前价格`（所有行最新交易日一致时表头为 `当前YYYY-MM-DD价格`，否则回退固定「当前价格」）、`持有天数`、`持有至今收益率`、`持有至今年化收益率`、`买入后最大浮盈率`、`被套最大回撤率`、`被套最大回撤最低点日期`、`被套最大回撤的收盘价`、`买点到被套最大回撤的天数`、`回本日期`、`最大回本持有天数`、`被套回撤修复天数`、`Calmar比率（年化收益 / 最大回撤）`。
+
+- `priceLineName`：个股/指数/商品/期货为「收盘价」，基金为「累计收益率」；「被套最大回撤的收盘价」列标题对基金保持不变（值为累计收益率，与买入列同口径）。
+- **「当前价格」动态表头**：所有导出行的 `latestDate` 完全一致时用 `当前YYYY-MM-DD价格`；只要存在不同截止日就回退为固定「当前价格」，避免某行价格与表头日期错配。
+- 缺失值写 `'-'`；数值列保留 2 位；排序按 `buyDate`（买入日期）倒序、同日按代码升序。
+- 底部同样追加六行汇总（`平均值 / 中位数 / 样本方差 / 样本标准差 / 总体方差 / 总体标准差`），只统计数值列；排除代码、名称、全部日期列、`最低柱{priceLineName}`、`买入{priceLineName}`、动态当前价格列、`被套最大回撤的收盘价`。
+- 文件名 **`{filePrefix}_最低MACD柱月K标记_YYYYMMDD_HHmm.xlsx`**，工作表名 `月K最低MACD柱标记`；成功提示「「最低 MACD 柱月K标记（下一周期买入）」已导出（共 N 条）」；无标记时「所选{itemLabel}未发现「月K MACD 最低柱下一周期」标记」。
+- 并发沿用 `appConfig.batch.reportConcurrency`（默认 8），失败重试/汇总 Modal 与前三入口共用 `runRecommendationBatchCalculation`，进度文案任务名传 `'MACD 月K标记'`。
+
+### 页面取数函数
+
+各页面把原 `fetchXxxAndCalculate` 拆为「日线取数」+「买点计算」两层：
+`fetchStockDailyData` / `fetchIndexDailyData` / `fetchCommodityDailyData` / `fetchFuturesDailyData` 返回 `BuyPointKLineItem[]`（`{ 日期, 收盘 }`），供买点计算与 MACD 导出共用；基金用已导出的 `fetchFundReturnSeries` 映射 `累计收益率 → 收盘`。**空数据/无有效收盘价仍在取数层 `throw`**，MACD 导出才能与买点导出同样触发重试与失败汇总。
 
 ## 导出表格样式（仅展示层）
 
 - 生成器：`src/utils/xlsxExport.ts`（零依赖手写 xlsx）。单元格可用 `{ value, style }`，行可用 `{ cells, style, height }`；相同样式组合自动去重生成 `styles.xml`，支持字体色/加粗、填充底色、边框、数字格式、对齐、自动换行、冻结首行与自动筛选。
-- 视觉规范（`buySellReportExport.ts` 顶部样式常量）：
+- 视觉规范（`src/utils/reportExportStyle.ts` 顶部样式常量；`buySellReportExport.ts` 与 `macdBarMarkerExport.ts` 共用）：
   - 表头：深蓝底 `1F4E79` + 白字加粗 + 居中 + 自动换行，行高 45，冻结首行；
   - 明细：隔行浅灰底 `F7F9FC` + 细边框；`推荐级别` 列浅金底 + 金色 ★；收益率列红正绿负并统一 `0.00%`，`最大回撤率` 保持中性色；
   - 底部统计：`平均值 / 中位数` 琥珀底 `FFF2CC`，`样本/总体方差`、`样本/总体标准差` 浅橙底 `FCE4D6`，全部加粗；首行顶部金色中粗线分隔。
+- 列类型识别（`classifyColumn`）：先判「天数」→「柱数」→「日期」→「收盘价/价格」→「RSI6」→「收益率」→「最大回撤率」→「MACD/Calmar」；MACD 相关列按两位小数数值列展示，「连续负值柱数」按整数展示。
 - 自动筛选范围 = 表头 + 明细行（`autoFilterRowCount = detailValues.length`），底部统计行不参与筛选。
 - **只改样式，不改任何统计口径**：`toReportCells`、`averageOf`、`medianOf`、`varianceOf`、`stdDevOf`、`buildSummaryRow` 的计算与排除列规则保持原样。
 
@@ -233,16 +293,23 @@ description: 维护各行情页（A股/港股个股与指数、大宗商品、�
 | 想改什么 | 改哪里 |
 |----------|--------|
 | 加列 / 改列顺序 / 改列标题 | `buySellReportExport.ts` 的 `BUY_SELL_REPORT_COLUMNS` + `toReportCells`（同步下标）+ `buildReportColumns`/`buildBuyPlanColumns`（改名/插列在此）+ 视情况更新 `REPORT_SUMMARY_EXCLUDED_TITLES` |
+| 改「买入后最大浮盈率」 | `buyPointCompute.ts` 的 `computeHoldingMaxFavorable` + `stockUtils.ts` 的 `MonthlyQuarterlyPercentileBuyPoint.maxFavorableReturn` + `buySellReportExport.ts` 的列/单元格（仅买入&卖出报告，买入计划剔除） |
 | 改汇总行排除列 | `REPORT_SUMMARY_EXCLUDED_TITLES`（按列标题）；动态表头的「当前…价格」列通过 `buildSummaryRow` 的 `extraExcludedTitles` 排除 |
 | 改「当前价格」列位置 / 表头 | `CURRENT_PRICE_INSERT_INDEX`（按标题定位）+ `runReportExport` 里 `currentPriceTitle` 的拼法 |
 | 改筛选（级别 / 是否要求卖出） | `pickPairedFiveStarBuys` / `pickOpenFiveStarBuys` |
+| 改「推荐买点」自动导出（触发时机 / 收集范围 / 星级） | 各页面计算 handler 的 `exportItems` 收集、写回后再导出、`batchResult.successCount` 提前返回 + `buySellReportExport.ts` 的 `exportRecommendationBuyPoints` |
+| 改「推荐买点」导出列 / 口径 / 文件名 | `RECOMMENDATION_BUY_POINT_COLUMNS` + `buildRecommendationCells`（回撤明细口径）+ `exportRecommendationBuyPoints`；汇总排除列在 `RECOMMENDATION_SUMMARY_EXCLUDED_TITLES` |
 | 改「买入计划」的持有天数 / 持有至今（年化）收益率口径 | `stockUtils.ts` 的 `fillHoldingToNow`（最新交易日取值在 `buyPointCompute.ts` 的两条计算路径）+ `buySellReportExport.ts` 的 `buildBuyPlanColumns` / `toReportCells(item, 'open')` |
 | 改排序 / 文件名 / 工作表名 / 提示文案 / 类型前缀 | `buySellReportExport.ts` 的 `runReportExport` 与两个导出函数；前缀值改各页面传入的 `filePrefix` |
 | 改导出并发 | `src/config/appConfig.ts` 的 `appConfig.batch.reportConcurrency`（`REPORT_BATCH_CONCURRENCY` 仅作别名） |
 | 改操作时间窗口 | `BuyPointActionGroup.tsx` 的 `isWeekend` / `isLastThreeDaysOfMonth`（自然日口径，只做二次确认不阻断） |
 | 改接口异常重试次数 / 间隔 / 汇总弹窗 | `src/config/appConfig.ts` 的 `appConfig.batch.fetchRetryCount` / `retryDelayMs`（`recommendationBatch.ts` 内以 `FETCH_RETRY_COUNT` / `RETRY_DELAY_MS` 别名引用）；汇总弹窗文案仍在 `recommendationBatch.ts` 的 `Modal.error` |
-| 改按钮 UI / 规则文案 | `BuyPointActionGroup.tsx`（名词差异靠 `itemLabel`，周线差异靠 `showWeeklyStrategy`） |
-| 新增接入页面 | 复制任一页面的两个 handler + `<BuyPointActionGroup>`，补 `filePrefix`；取数函数返回 `Promise<BuyPointResult>`，空数据/无有效收盘价必须 `throw`（不要返回空结果） |
+| 改按钮 UI / 规则文案 | `BuyPointActionGroup.tsx`（名词差异靠 `itemLabel`，周线差异靠 `showWeeklyStrategy`，MACD 价格线文案靠 `priceLineName`） |
+| 新增接入页面 | 复制任一页面的三个导出 handler + 计算 handler（含 `exportItems` 收集与 `exportRecommendationBuyPoints` 调用）+ `<BuyPointActionGroup>`，补 `filePrefix`；取数函数返回 `Promise<BuyPointResult>`，空数据/无有效收盘价必须 `throw`（不要返回空结果）；MACD 导出另提供 `fetchDailyData` |
+| 隐藏 / 展示 MACD 全部功能 | `appConfig.features.macd`（默认 `false`）：列表页第 4 按钮在 `BuyPointActionGroup` 内按开关渲染；详情页 MACD Tab / Collapse / 组件块在各自页面按开关渲染；`userManualConfig.ts` 与 RSI 知识页 MACD 文案同步判断 |
+| 改 MACD 月K标记口径（窗口 / MACD 参数 / 预热门槛 / 买入日期） | `appConfig.chart.macd.macdParams` / `peakWindows.monthly` / `minMonthlyBars`（默认 35）；计算在 `findMacdBarReboundMarks`（`stockUtils.ts`）与 `buildMacdBarMarkerRows`（`macdBarMarkerExport.ts`）；买入日期 = 最低柱下一周期（确认柱）的 `buyDate` |
+| 改 MACD 导出的回撤 / MFE 口径 | `macdBarMarkerExport.ts` 的 `computeHoldingDrawdown`（最大回撤，`buyPointCompute.ts`）、`computeMaxFavorableReturn`（MFE） |
+| 改 MACD 导出列 / 文件名 / 排序 / 提示文案 | `macdBarMarkerExport.ts` 的 `buildMacdBarMarkerColumns` + `toExportCells`（下标必须同步）+ `exportMacdBarMarker`；汇总排除列在 `exportMacdBarMarker` 的 `excludedTitles` |
 | 改买卖 / 回撤 / Calmar 口径 | `stockUtils.ts`（`analyzeMonthlyQuarterlyPercentile`、`computeHoldingDrawdown` 等）与 `buyPointCompute.ts` |
 | 改配对卖出最低收益率门槛（15%） | `src/config/appConfig.ts` 的 `appConfig.rsi.sellMinReturnPct`（月&季共振与周/月单周期**共用同一门槛**）+ 判定 `isPairSellReturnSatisfied`；文案随配置插值自动更新 |
 | 改 ★5 配对卖出最低持有天数（满 1 年门槛） | `appConfig.rsi.monthlyQuarterly.sellMinHoldingDays`（默认 365 自然日）+ `getMinSellHoldingDays()`（非法值兜底 1 天）；判定在 `analyzeMonthlyQuarterlyPercentile`，**仅作用于月&季 ★5 配对**，周/月单周期不受影响；页面与导出文案随配置插值自动更新 |
@@ -277,7 +344,7 @@ description: 维护各行情页（A股/港股个股与指数、大宗商品、�
   - 持有 **满年化分界及以上**（当前配置下为全部持有期）→ 要求**年化收益率 ≥ 门槛**（`calculateAnnualizedReturn` 为 `null` 视为不满足）。
   - 月&季共振与周/月单周期共用 `appConfig.rsi.sellMinReturnPct`（默认 15），不再各自独立。
   - **月&季 ★5 配对额外叠加「持有满 sellMinHoldingDays(365)」前置门槛**：未满天数时连收益率都不校验，直接继续持有。当前年化分界为 1 天，故本策略实际总是按**年化收益率**判定；若把持有门槛改小（如 30 天）且年化分界为 365，则 30~364 天区间会按区间收益率判定、满 365 天后按年化判定。该门槛**不影响**周/月单周期策略。
-  - 页面规则文案（`BuyPointActionGroup.tsx` 三处、`RsiFilterMark.tsx` 月&季/月/周三处）直接读取 `appConfig` 插值，改配置即改文案。
+  - 页面规则文案（`BuyPointActionGroup.tsx` 四处、`RsiFilterMark.tsx` 月&季/月/周三处）直接读取 `appConfig` 插值，改配置即改文案。
 - **★5 顺序配对状态机**：★5买 → 卖 → ★5买 → 卖…；持仓期间出现的后续 ★5 不重复建仓，仅 ★5 参与卖出配对。**卖出必须同时满足「月/季 RSI6 双超买 + 持有满 `appConfig.rsi.monthlyQuarterly.sellMinHoldingDays`(365 天) + 收益率门槛」**，未满 365 天或收益率不达标时 `holdingFiveStarBuy` 保持持仓、等待下一个满足条件的信号（不记录该次卖出）。卖出信号成立后**分批卖出**：第 1 批为信号当日（T+0），之后按 `appConfig.rsi.monthlyQuarterly.trancheIntervalDays`(7) 天间隔依次卖出，共 `trancheCount`(4) 批；第 i 批目标日非交易日时顺延到下一个交易日的收盘价，且必须严格晚于上一批实际卖出日（避免基金等稀疏数据重复取价）。各批分别按「本批卖出价 vs 买入价」计算收益率，已执行批次的算术平均写入 `point.returnRate`（平均收益率）与 `sellTranches`；后续行情未到的批次 `executed=false`、不参与平均。`sellDate`/`sellPrice`/`sellMonthlyRsi`/`sellQuarterlyRsi` 仍取信号当日。
 - **分批卖出配置为 1**：不生成分批列，行为与改造前一次性清仓一致。
 - **季 RSI6 为「季初→当月」逐月序列**：季 RSI6 与月 K 线一一对应（每个自然月一条），键为 `YYYY-MM`；**不再**使用「整季口径 + 季度未走完回退已完成季度」的旧口径（详见下一节）。
@@ -326,7 +393,7 @@ description: 维护各行情页（A股/港股个股与指数、大宗商品、�
 - 详情页单 Worker 与列表页 Worker 池（`computeBuyPoints`）互相独立；不要把 `RsiFilterMark` 接回列表页池。
 - `computeBuyPoints` 返回的 `BuyPointResult` 必须带上 `mqBuyPoints` 明细（含卖出与回撤字段），报告导出依赖它。页面取数函数**不要 catch 后返回空结果**（会静默漏标的）；接口异常/空数据一律 `throw`，由批量编排重试并弹 Modal 汇总。正常计算路径返回的 `BuyPointResult` 由计算层保证字段齐全。
 - 删除页面上的旧按钮后，注意清理随之失效的局部状态（如 `calculating`），否则 `noUnusedLocals` 报 `TS6133`。
-- 三个入口的按钮与规则文案必须留在 `BuyPointActionGroup.tsx` 单点维护，各页面不要复制样式或文案；时间窗口与二次确认也在该组件内，接入页面无需重复实现。
+- 四个入口的按钮与规则文案必须留在 `BuyPointActionGroup.tsx` 单点维护，各页面不要复制样式或文案；时间窗口与二次确认也在该组件内，接入页面无需重复实现。
 - Worker 池（`buyPointWorker.ts`）上限由 `appConfig.worker.maxWorkers`（默认 4）控制：`size = Math.min(MAX_WORKERS, Math.max(1, navigator.hardwareConcurrency - 1))`，即最多 4 个、低核机器取 `core-1`；Worker 按需懒创建（首次提交任务时建池）、空闲槽位复用，`pump()` 循环派发等待队列。按用户确认**保持受限并发**，不要再改成按核心数动态扩容。
 - 列表页 Worker 池是**模块级**的，一个浏览器标签页一份 JS realm → **每个标签页各自独立一个池**（多开 tab 互不干扰，无需额外多实例化）。详情页由 `window.open` 打开 → 同样独立 realm，且不使用该池，而是每个 `RsiFilterMark` 实例创建自己的单 Worker（见下节）。
 
@@ -365,6 +432,7 @@ description: 维护各行情页（A股/港股个股与指数、大宗商品、�
 - **月&季 RSI6 百分位策略已改为 as-of 近 10 年滚动窗口**：`analyzeMonthlyQuarterlyPercentile` 的买/卖阈值只依赖「当月及之前、近 `appConfig.rsi.asOfWindowMonths`(120) 个月」的样本，历史买点可复现、不含未来数据；历史不足 10 年但满 `appConfig.rsi.minSampleCount`(60) 时用全部历史，不足 60 不产生信号。分析结论见 `.trae/documents/月季RSI6分位阈值未来函数分析.md`。
 - **周/月单周期百分位策略也已改为 as-of 近 10 年滚动窗口**：`analyzeSinglePeriodPercentile` 每期只用当期及之前、近 120 个月的样本算阈值（含当期自身），历史不足 10 年时用全部历史，`appConfig.rsi.minSampleCount`(60) 前不产生信号；历史信号可复现、不含未来数据。口径变更后旧缓存不自动失效，需手动重新点「计算推荐买点」覆盖。
 - 当期未走完的月/周 K 会被当作已完成 K 线参与计算，最新一期信号为暂定值；回测/导出口径另有生存者偏差、选择偏差、无交易成本等问题。
+- **MACD 最低柱月K标记为事后标记**：`findMacdBarReboundMarks` 以整段连续负值区间的最小值确定最低柱；同一区间后续出现更低柱时，最低柱与买入日期（下一周期）会整体后移。导出按「最低柱下一周期」买入计算收益/回撤，属**事后参考口径**，不是实时可交易信号。
 - 改策略时不要只看全样本回测收益，需同时评估「截至当期（近 10 年滚动窗口）」口径与参数敏感性（`appConfig.rsi.asOfWindowMonths` 建议测 60 / 120 / 240 三档；另需覆盖「历史不足 10 年回退全部历史」的标的）。
 
 ## 验证方法
@@ -372,9 +440,9 @@ description: 维护各行情页（A股/港股个股与指数、大宗商品、�
 1. 类型检查：`cd Front-End && npx tsc --noEmit -p tsconfig.app.json`（仓库有大量历史遗留报错，只关注本次改动是否新增；`OutTrading.tsx` 等页面操作列 `render: (_, record)` 的 `TS7006` 属历史遗留）。
 2. 导出逻辑回归（推荐，可离线复现真实结果）：用 `npx esbuild <test.ts> --bundle --format=esm --platform=node --tsconfig=tsconfig.app.json --alias:@=./src` 打包临时脚本，在 Node 中 `import { runBuyPointTask } from '@/utils/buyPointCompute'`，喂入真实日线（腾讯 `ak.stock_zh_a_hist_tx(symbol, adjust='hfq')`），断言：`卖出收盘价 == sellPrice`、`卖出月/季RSI6 落在 0~100`、**所有 `sellDate != null` 的行 `holdingDays >= MQ_SELL_MIN_HOLDING_DAYS`（365，满 1 年门槛）**、满 1 年时年化收益率 ≥ 15（`MQ_SELL_MIN_RETURN_PCT`）；分批卖出断言：`sellTranches.length === MQ_SELL_TRANCHE_COUNT`、已执行批次卖出日严格递增、`returnRate` = 已执行批次收益率算术平均、后续无数据时 `executed=false` 且不参与平均。
    还可构造合成数据断言门槛可配置性：在当前 `annualizeMinHoldingDays=1` 下，买入后持有「区间收益率 20% / 30 天」应因年化 < 15% **不出**卖出；把价格改为持有 1 年、区间收益率 20%（年化 20%）→ 出卖出。若临时把 `annualizeMinHoldingDays` 改为 365，则持有 30 天、区间收益率 20% 的场景应立即配对卖出（按区间收益率判定）。**注意断言必须读取 `appConfig.rsi.annualizeMinHoldingDays`，不要写死 365。**
-3. 浏览器实测：切到对应 Tab（个股/指数/港股在「自选/分组」，基金在「自选基金」，大宗商品在页面顶部），确认按钮组渲染、`itemLabel` 名词正确、基金仅 3 条规则文案（无周 RSI6 条）；勾选后点导出，用 `openpyxl` 或直接解压 `.xlsx` 检查文件名前缀、列名顺序与底部 6 行汇总（平均值 / 中位数 / 样本方差 / 样本标准差 / 总体方差 / 总体标准差）。
+3. 浏览器实测：切到对应 Tab（个股/指数/港股在「自选/分组」，基金在「自选基金」，大宗商品在页面顶部），确认按钮组渲染出**四行**（前三并排 + 第四整行「最低 MACD 柱下一周期月K标记」）、`itemLabel` 名词正确、`priceLineName` 只影响规则文案与导出列名、基金仅 3 条 RSI 规则文案（无周 RSI6 条）；勾选后点导出，用 `openpyxl` 或直接解压 `.xlsx` 检查文件名前缀、列名顺序与底部 6 行汇总（平均值 / 中位数 / 样本方差 / 样本标准差 / 总体方差 / 总体标准差）。
 4. RSI6 口径自测（验证消除未来函数）：喂入真实日线后，把数据**截断到某月末最后一个交易日**、重算周/月/季序列取末值作为 oracle，断言与 `calculateAsOfPeriodRSI6` / `calculateQuarterlyRSI6` 的同日值**逐点相等**；再把 `dailyData` **倒序 / 乱序**传入，断言按日期对齐的结果与升序**完全一致**（检验二分定位不依赖输入顺序）。
-5. 时间窗口实测：工作日点「计算推荐买点」应弹「非周末时间」确认框，取消则不动、确认则开始计算；非月底点两个导出应弹「非月底时间」确认框；周末 / 每月最后 3 个自然日则直接执行。可临时改系统日期或用 `moment` 注入验证边界（29/30/31、28/29/30、26/27/28）。
+5. 时间窗口实测：工作日点「计算推荐买点」应弹「非周末时间」确认框，取消则不动、确认则开始计算；非月底点三个导出应弹「非月底时间」确认框；周末 / 每月最后 3 个自然日则直接执行。可临时改系统日期或用 `moment` 注入验证边界（29/30/31、28/29/30、26/27/28）。
 6. 异常重试实测：把接口临时改为错误地址或返回空数组，断言进度提示最终变为「成功 X/Y，失败 Z」，并弹出 `Modal.error` 汇总「【代码】名称：原因」；确认该标的被跳过、其它标的仍正常完成。
 7. 汇总统计自测：`[10,20,30]` 断言样本方差 100、样本标准差 10、总体方差 66.67、总体标准差 8.16；样本量 1 时样本口径留空、总体方差为 0；价格/日期列留空；`'-'`/空串不参与统计；汇总行只基于明细行（中位数不被平均值行污染）。
 8. 月&季 as-of 滚动窗口 oracle 自测：取真实月/季 RSI6 序列，对每个判定月 m 构造「m 及之前、近 `RSI_ASOF_WINDOW_MONTHS` 个月」的样本切片（按日期回推，含当月；切片样本数至少 `MQ_MIN_SAMPLE_MONTHS` 个），直接用 `roundPercentile` 重算 ★5/★3/★1 与 90% 卖出阈值，断言与 `analyzeMonthlyQuarterlyPercentile` 该月的买点分级、卖出触发**完全一致**。另需覆盖三类断言：① **eviction**（窗口滚动确实生效）：历史超过 120 个月的标的，其最新月阈值快照 **不等于** 用全部历史算出的分位；窗口内样本恰为 120 个；② **不足 10 年回退全部历史**：有效历史 < 120 个月（但 ≥ 60 个月）时，最新快照等于全历史分位；③ **截断不变性**：把序列截断到任意历史月份重算，截断前该月及之前已完成的买点、卖出配对完全不变；同时断言前 `MQ_MIN_SAMPLE_MONTHS - 1` 个有效月内无任何买卖信号。
@@ -384,5 +452,6 @@ description: 维护各行情页（A股/港股个股与指数、大宗商品、�
     - `asof-rolling.test.ts`：滚动窗口 / RSI6 数学 / 消除未来函数 / 月季共振 as-of / 单周期 as-of / 分批卖出边界 / 回撤口径。
     - `stockUtils-extra.test.ts`：通用工具函数、YYYYMMDD 日期兼容回归（单周期与月&季 ★5 均能正常配对卖出、`holdingDays` 非 NaN）。
     - `buyPointCompute.test.ts`：个股/指数/大宗商品日线路径与基金累计收益率路径、★5 三重卖出条件、回撤派生字段、确定性。
-    - `buySellReportExport.test.ts`：买入&卖出报告 / 买入计划列构建与 ★5 配对筛选。
+    - `buySellReportExport.test.ts`：买入&卖出报告 / 买入计划列构建与 ★5 配对筛选、推荐买点 13 列（含回撤明细、不含当前价格/持有天数/收益/年化）、单元格对齐、排序/多买点去重边界、汇总排除列与数值统计、缺失值。
+    - `macdBarMarkerExport.test.ts`：MACD 月K标记列构建（收盘价/累计收益率两种口径，23 列）、月度标记计算、MACD 预热门槛、负值柱数拆分、下一周期买入、持有至今收益/年化、MFE、最大回撤、回本/修复天数、Calmar。
     通过标准：每个文件输出 `汇总：通过 N / 失败 0`，`npm test` 退出码为 0。

@@ -2,11 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { Button, Table, Card, Tabs, Space, Alert } from 'antd';
 import moment from 'moment';
 import { numberSorter } from '@/utils/tableUtils';
-import { fetchFundRecommendationPointsBoth } from '@/utils/fundUtils';
+import { fetchFundRecommendationPointsBoth, fetchFundReturnSeries } from '@/utils/fundUtils';
 import { isRecentDate } from '@/utils/stockUtils';
 import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
 import { BuyPointActionGroup } from '@/components/BuyPointActionGroup';
-import { exportBuyPlan, exportBuySellReport } from '@/utils/buySellReportExport';
+import {
+  exportBuyPlan,
+  exportBuySellReport,
+  exportRecommendationBuyPoints,
+} from '@/utils/buySellReportExport';
+import type { BuySellReportItem } from '@/utils/buySellReportExport';
+import { exportMacdBarMarker } from '@/utils/macdBarMarkerExport';
 import OpenFundPanel from './components/OpenFundPanel';
 import IndexFundPanel from './components/IndexFundPanel';
 import ExchangeFundPanel from './components/ExchangeFundPanel';
@@ -18,7 +24,7 @@ interface FundData {
 }
 
 const FundOpen: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<string>('open');
+  const [activeTab, setActiveTab] = useState<string>('selected');
   const [selectedFunds, setSelectedFunds] = useState<FundData[]>([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 100 });
   // 自选基金表格勾选的基金代码
@@ -80,14 +86,19 @@ const FundOpen: React.FC = () => {
     const targets = selectedFunds.filter(f => checkedFundCodes.includes(String(f['基金代码'])));
     setCalculating(true);
     let working = [...selectedFunds];
+    // 收集本次计算结果，供计算完成后自动导出「推荐买点」Excel（不重复取数）
+    const exportItems: BuySellReportItem[] = [];
     try {
-      await runRecommendationBatchCalculation({
+      const batchResult = await runRecommendationBatchCalculation({
         targets,
         getKey: f => String(f['基金代码']),
         getName: f => String(f['基金名称'] || f['基金简称'] || f['基金代码']),
         emptyWarn: '请先勾选需要计算的基金',
         fetchBuyPoints: f => fetchFundRecommendationPointsBoth(String(f['基金代码'])),
-        onItemDone: (fund, { quantitative, percentile, monthlyPercentile }) => {
+        onItemDone: (fund, { quantitative, percentile, monthlyPercentile, mqBuyPoints }) => {
+          const code = String(fund['基金代码']);
+          const name = String(fund['基金名称'] || fund['基金简称'] || code);
+          mqBuyPoints.forEach(point => exportItems.push({ code, name, point }));
           working = working.map(f =>
             f['基金代码'] === fund['基金代码']
               ? { ...f, __推荐买点定量__: quantitative, __推荐买点百分位__: percentile, __月RSI6百分位__: monthlyPercentile }
@@ -97,6 +108,13 @@ const FundOpen: React.FC = () => {
           setSelectedFunds(working);
           saveSelectedFunds(working);
         },
+      });
+      // 全部失败/未选择时已由批量编排提示，不再追加「无信号」提示
+      if (batchResult.successCount === 0) return;
+      exportRecommendationBuyPoints({
+        items: exportItems,
+        itemLabel: '基金',
+        filePrefix: '开放式基金',
       });
     } finally {
       setCalculating(false);
@@ -124,6 +142,23 @@ const FundOpen: React.FC = () => {
       getName: f => String(f['基金名称'] || f['基金简称'] || f['基金代码']),
       getKey: f => String(f['基金代码']),
       fetchPoints: async f => (await fetchFundRecommendationPointsBoth(String(f['基金代码']))).mqBuyPoints,
+      emptyWarn: '请先勾选需要导出的基金',
+      itemLabel: '基金',
+      filePrefix: '开放式基金',
+    });
+
+  /** 导出「最低 MACD 柱下一周期月K标记」：月K标记 + 持有/回撤指标（累计收益率口径） */
+  const handleExportMacdBarMarker = () =>
+    exportMacdBarMarker<FundData>({
+      targets: selectedFunds.filter(f => checkedFundCodes.includes(String(f['基金代码']))),
+      getCode: f => String(f['基金代码']),
+      getName: f => String(f['基金名称'] || f['基金简称'] || f['基金代码']),
+      getKey: f => String(f['基金代码']),
+      fetchDailyData: async f => {
+        const series = await fetchFundReturnSeries(String(f['基金代码']));
+        return series.map(item => ({ 日期: item.日期, 收盘: item.累计收益率 }));
+      },
+      closeValueType: 'cumulativeReturn',
       emptyWarn: '请先勾选需要导出的基金',
       itemLabel: '基金',
       filePrefix: '开放式基金',
@@ -161,7 +196,7 @@ const FundOpen: React.FC = () => {
       },
     },
     {
-      title: '推荐买点（百分位）',
+      title: '季&月RSI6百分位策略',
       dataIndex: '__推荐买点百分位__',
       key: '__推荐买点百分位__',
       width: 120,
@@ -204,7 +239,7 @@ const FundOpen: React.FC = () => {
       },
     },
     {
-      title: '推荐买点（定量）',
+      title: '季&月RSI6 定量策略',
       dataIndex: '__推荐买点定量__',
       key: '__推荐买点定量__',
       width: 120,
@@ -394,7 +429,7 @@ const FundOpen: React.FC = () => {
                 <span style={{ lineHeight: 1.8 }}>
                   基金行情接口<strong>累计收益率 未返回每日净值数据</strong>，无法聚合出日K线/周K线，
                   因此本页<strong style={{ color: '#d46b08' }}>不提供「周RSI6百分位策略」</strong>买点。
-                  当前支持的买点为：推荐买点（定量）、推荐买点（百分位）、月RSI6百分位策略；
+                  当前支持的买点为：季&月RSI6 定量策略、季&月RSI6百分位策略、月RSI6百分位策略；
                   单只基金的月 / 季 RSI6 详情可进入基金详情页查看。
                 </span>
               }
@@ -403,7 +438,9 @@ const FundOpen: React.FC = () => {
               onCalculate={calculateCheckedFunds}
               onExportReport={handleExportBuySellReport}
               onExportPlan={handleExportBuyPlan}
+              onExportMacdBarMarker={handleExportMacdBarMarker}
               itemLabel="基金"
+              priceLineName="累计收益率"
               showWeeklyStrategy={false}
             />
             <Table

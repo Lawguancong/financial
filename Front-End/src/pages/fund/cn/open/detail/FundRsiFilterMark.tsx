@@ -2,6 +2,8 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Spin } from 'antd';
 import IndexMetrics from '@/components/IndexMetrics';
 import RsiFilterMark from '@/components/RsiFilterMark';
+import MacdFilterMark from '@/components/MacdFilterMark';
+import { appConfig } from '@/config/appConfig';
 import type { KLineData } from '@/utils/stockUtils';
 import apiClient from '@/utils/axios';
 
@@ -58,6 +60,11 @@ const FundRsiFilterMark: React.FC<FundRsiFilterMarkProps> = ({ symbol }) => {
         type="fund"
         visiblePeriods={['monthly', 'quarterly']}
       />, [data])}
+      {useMemo(() => (appConfig.features.macd ? <MacdFilterMark
+        data={data}
+        type="fund"
+        visiblePeriods={['monthly', 'quarterly']}
+      /> : null), [data])}
     </Spin>
   );
 };

@@ -21,6 +21,9 @@ import {
   fillHoldingToNow,
   getQuarterKey,
   isRecentDate,
+  mergeIndexSpotLists,
+  normalizeIndexCode,
+  normalizeSinaIndexDailyRows,
   roundPercentile,
 } from '../src/utils/stockUtils';
 import type { KLineData, MonthlyQuarterlyPercentileBuyPoint } from '../src/utils/stockUtils';
@@ -318,6 +321,93 @@ console.log('\n── L. YYYYMMDD 日期兼容 ──');
   eq(point?.sellTranches?.length, appConfig.rsi.monthlyQuarterly.trancheCount, 'M5 分批卖出批次与配置一致');
   assert((point?.returnRate ?? 0) > 15, 'M6 ★5 卖出收益率超过门槛');
   assert((point?.annualizedReturn ?? 0) > 5, 'M7 ★5 卖出年化收益率已计算');
+}
+
+// ============================================================
+// N. mergeIndexSpotLists / normalizeIndexCode（中证+新浪指数列表合并）— 26
+// ============================================================
+console.log('\n── N. mergeIndexSpotLists / normalizeIndexCode ──');
+{
+  eq(normalizeIndexCode('sh000300'), '000300', 'N1 去掉 sh 前缀');
+  eq(normalizeIndexCode(' SZ399005 '), '399005', 'N2 去空格并转小写后去 sz 前缀');
+  eq(normalizeIndexCode('000300'), '000300', 'N3 无前缀保持原样');
+  eq(normalizeIndexCode(undefined), '', 'N4 undefined → 空串');
+}
+{
+  const csindex = [{ 指数代码: '000300', 指数简称: '沪深300', 最新收盘: 3985.5, 指数类别: '规模' }];
+  const sina = [{ 代码: 'sh000300', 名称: '沪深300', 最新价: 3985.236, 涨跌幅: -1.2, 涨跌额: -48.3, 成交量: 100, 成交额: 200 }];
+  const merged = mergeIndexSpotLists(csindex, sina);
+  eq(merged.length, 1, 'N5 同码合并为一行');
+  eq(merged[0]['指数代码'], '000300', 'N6 保留中证 6 位代码');
+  eq(merged[0]['指数简称'], '沪深300', 'N7 保留中证简称');
+  eq(merged[0]['最新收盘'], 3985.5, 'N8 中证最新收盘优先，不被新浪最新价覆盖');
+  eq(merged[0]['涨跌幅'], -1.2, 'N9 新浪涨跌幅补齐到中证行');
+  eq(merged[0]['成交量'], 100, 'N10 新浪成交量补齐到中证行');
+  eq(merged[0]['数据源'], '中证+新浪', 'N11 数据源标记为中证+新浪');
+}
+{
+  const csindex = [{ 指数代码: '000300', 指数简称: '沪深300' }];
+  const sina = [{ 代码: 'sz399005', 名称: '中小100', 最新价: 6848.9, 涨跌幅: 0.5 }];
+  const merged = mergeIndexSpotLists(csindex, sina);
+  eq(merged.length, 2, 'N12 新浪独有指数追加到尾部');
+  eq(merged[1]['指数代码'], 'sz399005', 'N13 保留新浪带前缀原始代码');
+  eq(merged[1]['指数简称'], '中小100', 'N14 名称映射为指数简称');
+  eq(merged[1]['最新收盘'], 6848.9, 'N15 最新价映射为最新收盘');
+  eq(merged[1]['数据源'], '新浪', 'N16 数据源标记为新浪');
+}
+{
+  eq(mergeIndexSpotLists(undefined, undefined).length, 0, 'N17 空输入 → 空数组');
+  eq(mergeIndexSpotLists([{ 指数代码: '000001', 指数简称: '上证指数' }], null).length, 1, 'N18 仅中证输入');
+}
+{
+  eq(normalizeIndexCode('SHHKSI'), 'shhksi', 'N19 中证字母代码不被误去前缀');
+  eq(normalizeIndexCode('BJ899050'), '899050', 'N20 bj 前缀可去除');
+}
+{
+  const merged = mergeIndexSpotLists(
+    [{ 指数代码: '000300', 指数简称: '沪深300', 数据源: '新浪', 涨跌幅: 1.1 }],
+    [{ 代码: 'sh000300', 名称: '沪深300', 涨跌幅: -2.2 }],
+  );
+  eq(merged[0]['数据源'], '中证+新浪', 'N21 输入行旧数据源被覆盖');
+  eq(merged[0]['涨跌幅'], -2.2, 'N22 输入行旧行情被新浪最新值覆盖');
+}
+{
+  const merged = mergeIndexSpotLists([], [
+    { 代码: 'sh000001', 名称: '上证指数' },
+    { 代码: 'SZ000001', 名称: '上证指数重复' },
+  ]);
+  eq(merged.length, 1, 'N23 新浪列表内归一化重复代码只保留一条');
+  eq(merged[0]['指数代码'], 'sh000001', 'N24 保留首个新浪原始代码');
+}
+{
+  const merged = mergeIndexSpotLists(
+    [{ 指数代码: '000300', 指数简称: '沪深300', 指数类别: '规模' }],
+    [{ 代码: 'sh000300', 名称: '沪深300' }],
+  );
+  eq(merged[0]['指数类别'], '规模', 'N25 中证独有字段保留');
+  eq(merged[0]['涨跌幅'], undefined, 'N26 新浪缺失字段保持 undefined（表格显示 -）');
+}
+
+// ============================================================
+// O. normalizeSinaIndexDailyRows（新浪指数日线归一化）— 6
+// ============================================================
+console.log('\n── O. normalizeSinaIndexDailyRows ──');
+{
+  const rows = normalizeSinaIndexDailyRows([
+    { date: '2008-06-30T00:00:00.000', close: 3676.123 },
+    { date: '2008-07-01T00:00:00.000', close: 0 },
+    { date: '2008-07-02T00:00:00.000', close: null },
+    { date: '2008-07-03T00:00:00.000', close: '3629.762' as unknown as number },
+  ]);
+  eq(rows.length, 2, 'O1 过滤收盘为 0/null 的记录');
+  eq(rows[0]['日期'], '2008-06-30', 'O2 ISO 日期格式化为 YYYY-MM-DD');
+  eq(rows[1]['收盘'], 3629.762, 'O3 字符串收盘转为数值');
+  eq(normalizeSinaIndexDailyRows(undefined).length, 0, 'O4 undefined → 空数组');
+  eq(normalizeSinaIndexDailyRows(null).length, 0, 'O5 null → 空数组');
+}
+{
+  const rows = normalizeSinaIndexDailyRows([{ date: '2024-01-02T00:00:00.000', close: Number.NaN }]);
+  eq(rows.length, 0, 'O6 NaN 收盘被过滤');
 }
 
 summary();

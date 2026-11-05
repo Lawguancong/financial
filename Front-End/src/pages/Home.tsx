@@ -62,7 +62,7 @@ const MODULES: ModuleItem[] = [
   },
   {
     title: 'A股个股',
-    desc: '沪深京行情、自选股与 RSI 量化信号',
+    desc: '沪深京行情、自选股与量化信号',
     path: '/stock/a/stock',
     icon: <StockOutlined />,
     gradient: 'linear-gradient(135deg, #ff7875 0%, #f5222d 100%)',
@@ -373,7 +373,7 @@ const Home = () => {
           </h1>
           <p className="hfm-sub">
             覆盖 A股 · 港股 · 美股 · 基金 · 债券 · 大宗商品 · 全球指数 · REITs，
-            内置 RSI6 多周期共振与月&季百分位量化买点策略、自选池批量计算与近期买点高亮，
+            内置 多周期共振与月&季百分位量化买点策略、自选池批量计算与近期买点高亮，
             让数据驱动你的每一次研究。
           </p>
           <div className="hfm-actions">

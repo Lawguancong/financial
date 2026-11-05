@@ -390,6 +390,125 @@ export const cleanCsindexHistory = <T extends CsindexHistoryRow>(
   return firstDate === requestedDate && duplicated ? validRows.slice(1) : validRows;
 };
 
+/** 新浪股票指数实时行情行（stock_zh_index_spot_sina）：代码带 sh/sz 前缀 */
+export interface SinaIndexSpotRow {
+  代码: string;
+  名称: string;
+  最新价?: number | null;
+  涨跌额?: number | null;
+  涨跌幅?: number | null;
+  昨收?: number | null;
+  今开?: number | null;
+  最高?: number | null;
+  最低?: number | null;
+  成交量?: number | null;
+  成交额?: number | null;
+}
+
+/** 新浪股票指数日线行（stock_zh_index_daily）：date 为 ISO 时间戳 */
+export interface SinaIndexDailyRow {
+  date: string;
+  close?: number | null;
+}
+
+/** 指数列表行的数据源标记：中证列表 / 新浪行情 / 两者同码合并 */
+export type IndexSpotSource = '中证' | '新浪' | '中证+新浪';
+
+/** 新浪行情补充字段（中证列表接口不返回，前端缺省展示「-」） */
+export type SinaQuoteFields = Pick<
+  SinaIndexSpotRow,
+  '涨跌额' | '涨跌幅' | '昨收' | '今开' | '最高' | '最低' | '成交量' | '成交额'
+>;
+
+/**
+ * 去掉 sh/sz/bj 前缀并转小写：用于跨数据源同码匹配（sh000300 ↔ 000300）。
+ * 仅处理「前缀 + 数字」形式，避免误伤中证字母代码（如 SHHKSI）。
+ */
+export const normalizeIndexCode = (code: string | null | undefined): string => {
+  const value = String(code ?? '').trim().toLowerCase();
+  return /^(sh|sz|bj)\d+$/.test(value) ? value.replace(/^(sh|sz|bj)/, '') : value;
+};
+
+/**
+ * 把新浪指数日线归一化为「日期 + 收盘」序列（买点计算与详情页共用）：
+ * date（含 ISO 时间戳）统一格式化为 YYYY-MM-DD，并过滤收盘非有限或非正的记录。
+ */
+export const normalizeSinaIndexDailyRows = (
+  rows: SinaIndexDailyRow[] | null | undefined,
+): { 日期: string; 收盘: number }[] =>
+  (rows ?? [])
+    .map(item => ({
+      日期: moment(item.date).format('YYYY-MM-DD'),
+      收盘: Number(item.close),
+    }))
+    .filter(item => Number.isFinite(item.收盘) && item.收盘 > 0);
+
+const toFiniteNumber = (value: unknown): number | undefined => {
+  if (value === null || value === undefined || value === '') return undefined;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : undefined;
+};
+
+/** 只取新浪行情补充字段，避免覆盖中证行的「指数代码/指数简称/最新收盘」等主字段 */
+const pickSinaQuoteFields = (row: SinaIndexSpotRow): SinaQuoteFields => ({
+  涨跌额: toFiniteNumber(row.涨跌额),
+  涨跌幅: toFiniteNumber(row.涨跌幅),
+  昨收: toFiniteNumber(row.昨收),
+  今开: toFiniteNumber(row.今开),
+  最高: toFiniteNumber(row.最高),
+  最低: toFiniteNumber(row.最低),
+  成交量: toFiniteNumber(row.成交量),
+  成交额: toFiniteNumber(row.成交额),
+});
+
+/**
+ * 合并「中证指数列表（index_csindex_all）」与「新浪股票指数行情（stock_zh_index_spot_sina）」。
+ *
+ * 兼容口径：
+ * - 同码（去掉 sh/sz 前缀后）以中证行为准，只把新浪行情的涨跌额/涨跌幅/昨收/今开/最高/最低/成交量/成交额补进来，标记「中证+新浪」；
+ * - 仅新浪有的指数追加到列表尾部，保留带前缀的原始代码（新浪日线与详情接口必须带前缀），标记「新浪」；
+ * - 新浪字段映射：代码→指数代码、名称→指数简称、最新价→最新收盘；中证行缺失的行情字段保持 undefined，由表格展示「-」。
+ */
+export const mergeIndexSpotLists = <T extends { 指数代码: string }>(
+  csindexRows: T[] | null | undefined,
+  sinaRows: SinaIndexSpotRow[] | null | undefined,
+): (T & SinaQuoteFields & { 最新收盘?: number; 数据源: IndexSpotSource })[] => {
+  const sinaByCode = new Map<string, SinaIndexSpotRow>();
+  (sinaRows ?? []).forEach(row => {
+    const code = normalizeIndexCode(row?.代码);
+    if (code && !sinaByCode.has(code)) sinaByCode.set(code, row);
+  });
+
+  const merged: (T & SinaQuoteFields & { 最新收盘?: number; 数据源: IndexSpotSource })[] = [];
+  const usedCodes = new Set<string>();
+
+  (csindexRows ?? []).forEach(row => {
+    const code = normalizeIndexCode(row?.['指数代码']);
+    const sina = code ? sinaByCode.get(code) : undefined;
+    if (sina && code) usedCodes.add(code);
+    merged.push({
+      ...row,
+      数据源: sina ? '中证+新浪' : '中证',
+      ...(sina ? pickSinaQuoteFields(sina) : {}),
+    } as T & SinaQuoteFields & { 最新收盘?: number; 数据源: IndexSpotSource });
+  });
+
+  (sinaRows ?? []).forEach(row => {
+    const code = normalizeIndexCode(row?.代码);
+    if (!code || usedCodes.has(code)) return;
+    usedCodes.add(code);
+    merged.push({
+      指数代码: String(row.代码 ?? '').trim(),
+      指数简称: String(row.名称 ?? '').trim(),
+      最新收盘: toFiniteNumber(row.最新价),
+      ...pickSinaQuoteFields(row),
+      数据源: '新浪',
+    } as unknown as T & SinaQuoteFields & { 最新收盘?: number; 数据源: IndexSpotSource });
+  });
+
+  return merged;
+};
+
 /**
  * 查找序列中的局部峰值索引（滚动窗口极值口径）。
  *
@@ -539,6 +658,128 @@ export const mapConfirmedPeakRows = <T>(
       ? []
       : [{ peakIndex, confirmIndex, peakRow, confirmRow }];
   });
+
+/** MACD 柱「连续为负区间的最小柱」标记 */
+export interface MacdBarReboundMark {
+  /** 被标记的最小 MACD 柱索引（前 n 根连续负值柱中的最低柱） */
+  index: number;
+  /** 最小柱的日期 */
+  date: string;
+  /** 最小柱的 MACD 柱值 */
+  bar: number;
+  /** 前 n 根连续负值柱中的最小值（与 bar 相同，保留供展示/调试） */
+  minBar: number;
+  /** 最低柱的下一周期柱索引（该柱值高于 minBar，不标记它） */
+  confirmIndex: number;
+  /** 最低柱的下一周期日期 */
+  confirmDate: string;
+  /** 最低柱的下一周期柱值 */
+  confirmBar: number;
+  /** 连续负值区间长度（根） */
+  runLength: number;
+}
+
+/**
+ * 检测 MACD 柱「连续 n 根为负」的完整负值区间最小柱标记。
+ *
+ * 规则（不含未来数据）：
+ * - 连续负值区间长度至少为 n；取整个区间的最小值（并列时取最早的一根）；
+ * - 最低柱的**下一周期**柱值高于该最小值时，标记该最小值柱（下一周期可以仍为负）；
+ * - 每个连续负值区间最多一条标记；区间内后面的局部低点即使再次高于区间最小值，也不会重复标记；
+ * - 若区间后面出现新的更低点，标记位置跟随新的最小值柱，避免标记偏高柱。
+ *
+ * 该函数只产出标记数据，不参与/不改变「红色峰值买点」的判定。
+ *
+ * @param rows 含日期与 MACD 柱值的数据（按时间升序）
+ * @param negativeCount 连续负值柱根数 n（复用各周期 appConfig.chart.macd.peakWindows：月6 / 季4；仅月/季标记）
+ */
+export const findMacdBarReboundMarks = (
+  rows: { 日期: string; __MACD_BAR__: number }[],
+  negativeCount: number,
+): MacdBarReboundMark[] => {
+  const count = Math.max(1, Math.floor(negativeCount));
+  const marks: MacdBarReboundMark[] = [];
+  if (!rows?.length || rows.length < count + 1) return marks;
+
+  let runLength = 0;
+  let runMinBar = Infinity;
+  let runMinIndex = -1;
+  /** 当前负值区间内、最小值之后的第一个高于最小值的柱（确认柱） */
+  let confirmIndex = -1;
+
+  const flushRun = () => {
+    if (runLength >= count && runMinIndex >= 0 && confirmIndex >= 0) {
+      const confirmBar = rows[confirmIndex].__MACD_BAR__;
+      marks.push({
+        index: runMinIndex,
+        date: rows[runMinIndex].日期,
+        bar: runMinBar,
+        minBar: runMinBar,
+        confirmIndex,
+        confirmDate: rows[confirmIndex].日期,
+        confirmBar,
+        runLength,
+      });
+    }
+    runLength = 0;
+    runMinBar = Infinity;
+    runMinIndex = -1;
+    confirmIndex = -1;
+  };
+
+  for (let i = 0; i < rows.length; i += 1) {
+    const bar = rows[i].__MACD_BAR__;
+    if (!Number.isFinite(bar)) {
+      flushRun();
+      continue;
+    }
+
+    if (bar < 0) {
+      // 严格更小才更新最小值；并列时保留最早的一根
+      if (runMinIndex < 0 || bar < runMinBar) {
+        runMinBar = bar;
+        runMinIndex = i;
+        // 新低之前的确认柱不再属于最终最小值
+        confirmIndex = -1;
+      }
+      runLength += 1;
+      // 至少 n 根负值柱之后，检查「最低柱的下一周期」是否高于最小值
+      if (runLength >= count && runMinIndex >= 0 && runMinIndex + 1 <= i) {
+        const nextBar = rows[runMinIndex + 1].__MACD_BAR__;
+        if (Number.isFinite(nextBar) && nextBar > runMinBar) {
+          confirmIndex = runMinIndex + 1;
+        }
+      }
+      continue;
+    }
+
+    // 非负柱结束当前负值区间；同样检查最低柱的下一周期
+    if (runLength >= count && runMinIndex >= 0 && runMinIndex + 1 <= i) {
+      const nextBar = rows[runMinIndex + 1].__MACD_BAR__;
+      if (Number.isFinite(nextBar) && nextBar > runMinBar) {
+        confirmIndex = runMinIndex + 1;
+      }
+    }
+    flushRun();
+  }
+
+  // 数据结束仍未出现非负柱时，按当前区间状态收尾
+  flushRun();
+
+  return marks;
+};
+
+/**
+ * 按 MACD 预热门槛过滤最低柱标记：最低柱索引必须 ≥ minIndex。
+ * 详情页 MacdFilterMark（月K）与「最低 MACD 柱月K标记」导出共用，保证两处口径一致。
+ */
+export const filterMacdBarMarksByMinIndex = (
+  marks: MacdBarReboundMark[],
+  minIndex: number,
+): MacdBarReboundMark[] => {
+  const threshold = Math.max(0, Math.floor(minIndex));
+  return marks.filter(mark => mark.index >= threshold);
+};
 
 // 周期类型
 export type KLinePeriod = 'weekly' | 'monthly' | 'quarterly';
@@ -1881,6 +2122,12 @@ export interface MonthlyQuarterlyPercentileBuyPoint {
   annualizedReturn?: number | null;
   /** 分批卖出明细（批次 = 1 时为单条，等同一次性卖出） */
   sellTranches?: SellTrancheDetail[];
+  /**
+   * 买入后最大浮盈率（%，正值或 0）：
+   * 买入日 → 首笔卖出信号日（未卖出则至最新交易日）内的最高收益率；
+   * 仅当最高收益率 > 0 时提供，否则无值（导出为空）
+   */
+  maxFavorableReturn?: number;
   /**
    * 最大回撤率（%，正值）：以买入价为基准，买入之后（已配对的至卖出日，未卖出则至最新交易日）
    * 低于买入价的最大跌幅；全程未跌破买入价时无值（展示为 -）

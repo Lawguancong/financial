@@ -1,6 +1,7 @@
 import moment from 'moment';
 import {
   calculateFundRecommendationLevel,
+  calculateHoldingReturnRate,
   calculatePeriodRSI,
   calculateQuarterlyRSI6,
   calculateRSI,
@@ -88,7 +89,7 @@ const formatDate = (date: string): string => moment(date).format('YYYY-MM-DD');
  * @param closeValueType price=价格；cumulativeReturn=累计收益率（先折算成净值和再按价格口径比较）
  * @returns 区间内没有任何收盘价低于买入价时返回 null（即全程未被套）
  */
-const computeHoldingDrawdown = (
+export const computeHoldingDrawdown = (
   dailyData: BuyPointKLineItem[],
   buyDate: string,
   buyClose: number,
@@ -164,6 +165,36 @@ const computeHoldingDrawdown = (
 };
 
 /**
+ * 买入后最大浮盈率（MFE）：买入日 → 首笔卖出信号日（未卖出则至最新交易日）内的最高收益率。
+ * 与最大回撤（MAE）使用同一窗口；**仅当最高收益率 > 0 时返回数值，否则返回 null（不计算/展示空）**。
+ */
+export const computeHoldingMaxFavorable = (
+  dailyData: BuyPointKLineItem[],
+  buyDate: string,
+  buyClose: number,
+  sellDate?: string,
+  closeValueType: 'price' | 'cumulativeReturn' = 'price',
+): number | null => {
+  const buyDateNorm = formatDate(buyDate);
+  const sellDateNorm = sellDate ? formatDate(sellDate) : '';
+  const windowData = dailyData.filter(item => {
+    const dateNorm = formatDate(item.日期);
+    return dateNorm >= buyDateNorm && (!sellDateNorm || dateNorm <= sellDateNorm);
+  });
+  if (windowData.length === 0) return null;
+
+  let maxReturn = 0;
+  windowData.forEach(item => {
+    const close = Number(item.收盘);
+    if (!Number.isFinite(close)) return;
+    const returnRate = calculateHoldingReturnRate(buyClose, close, closeValueType);
+    if (returnRate > maxReturn) maxReturn = returnRate;
+  });
+  // 最高收益率 ≤ 0（全程未高于买入价）时不计算，返回 null（展示为空）
+  return maxReturn > 0 ? Number(maxReturn.toFixed(2)) : null;
+};
+
+/**
  * 个股 / 指数 / 大宗商品买点：日/周/月/季 RSI6 -> 推荐级别 -> 四类买点日期
  * 与各页面原有计算逐行等价，仅去除了网络请求
  */
@@ -196,6 +227,8 @@ const computeKLineBuyPoints = (
 
   // 4.1) 为★5买点补充「被套」口径的最大回撤指标（日线收盘，基准为买入价）
   mqBuyPoints.forEach(point => {
+    const mfe = computeHoldingMaxFavorable(rawData, point.日期, point.收盘, point.sellDate, 'price');
+    if (mfe != null) point.maxFavorableReturn = mfe;
     const drawdown = computeHoldingDrawdown(rawData, point.日期, point.收盘, point.sellDate);
     if (!drawdown) return;
     point.maxDrawdown = drawdown.maxDrawdown;
@@ -312,6 +345,14 @@ const computeFundBuyPoints = (rawData: BuyPointFundItem[]): BuyPointResult => {
 
   // 为★5买点补充「被套」口径的最大回撤指标（累计收益率口径，与股票/商品报告列口径一致）
   mqBuyPoints.forEach(point => {
+    const mfe = computeHoldingMaxFavorable(
+      mappedData,
+      point.日期,
+      point.收盘,
+      point.sellDate,
+      'cumulativeReturn',
+    );
+    if (mfe != null) point.maxFavorableReturn = mfe;
     const drawdown = computeHoldingDrawdown(mappedData, point.日期, point.收盘, point.sellDate, 'cumulativeReturn');
     if (!drawdown) return;
     point.maxDrawdown = drawdown.maxDrawdown;

@@ -33,6 +33,8 @@ export interface RecommendationBatchOptions<T, R = RecommendationPoints> {
   onItemDone: (item: T, result: R) => void;
   /** 并发计算的标的数量，默认 4 */
   concurrency?: number;
+  /** 进度/完成提示中的任务名词，默认「推荐买点」（如「MACD 月K标记」） */
+  taskLabel?: string;
 }
 
 /** 单个失败标的（用于最后汇总弹窗） */
@@ -77,12 +79,13 @@ export const runRecommendationBatchCalculation = async <T, R = RecommendationPoi
   }
 
   const total = targets.length;
+  const taskLabel = options.taskLabel ?? '推荐买点';
   const concurrency = Math.max(1, Math.min(options.concurrency ?? DEFAULT_BATCH_CONCURRENCY, total));
   const failures: BatchFailure[] = [];
 
   let completed = 0;
   const progressKey = 'recommendation-batch-progress';
-  message.loading({ content: `正在计算推荐买点…（已完成 0/${total}）`, key: progressKey, duration: 0 });
+  message.loading({ content: `正在计算${taskLabel}…（已完成 0/${total}）`, key: progressKey, duration: 0 });
 
   // 取数失败重试：首次 + FETCH_RETRY_COUNT 次重试，全部失败才抛出
   const fetchWithRetry = async (item: T): Promise<R> => {
@@ -112,11 +115,11 @@ export const runRecommendationBatchCalculation = async <T, R = RecommendationPoi
         const key = getKey ? getKey(item) : String(index);
         const reason = toFailureReason(error);
         failures.push({ key, name: getName(item), reason });
-        console.error(`计算推荐买点失败 [${key}]（已重试 ${FETCH_RETRY_COUNT} 次）:`, error);
+        console.error(`计算${taskLabel}失败 [${key}]（已重试 ${FETCH_RETRY_COUNT} 次）:`, error);
       } finally {
         completed += 1;
         message.loading({
-          content: `正在计算【${getName(item)}】买点…（已完成 ${completed}/${total}）`,
+          content: `正在计算【${getName(item)}】${taskLabel}…（已完成 ${completed}/${total}）`,
           key: progressKey,
           duration: 0,
         });
@@ -131,7 +134,7 @@ export const runRecommendationBatchCalculation = async <T, R = RecommendationPoi
 
   if (failures.length > 0) {
     message.warning({
-      content: `推荐买点处理完成（成功 ${successCount}/${total}，失败 ${failures.length}）`,
+      content: `${taskLabel}处理完成（成功 ${successCount}/${total}，失败 ${failures.length}）`,
       key: progressKey,
       duration: 3,
     });
@@ -143,6 +146,6 @@ export const runRecommendationBatchCalculation = async <T, R = RecommendationPoi
     return { total, successCount, failures };
   }
 
-  message.success({ content: `推荐买点计算完成（共 ${total} 只）`, key: progressKey, duration: 2 });
+  message.success({ content: `${taskLabel}计算完成（共 ${total} 只）`, key: progressKey, duration: 2 });
   return { total, successCount, failures };
 };

@@ -21,6 +21,7 @@
 ├── Front-End/
 │   ├── src/
 │   │   ├── config/appConfig.ts   # 全局可配置参数中心
+│   │   ├── config/userManualConfig.ts # 使用手册（按 menuKey 维护用户可见功能说明）
 │   │   ├── utils/                # 计算内核、数据请求、Excel 导出
 │   │   ├── components/           # 公共图表/组件
 │   │   ├── pages/                # 各品类页面
@@ -51,7 +52,7 @@ npx tsc --noEmit -p tsconfig.app.json   # 仅类型检查（注意：仓库存�
 ## 开发约定（必须遵守）
 
 1. **配置集中**：跨页面复用 / 影响回测与展示口径的参数统一放在 `Front-End/src/config/appConfig.ts`（`appConfig.rsi` / `batch` / `worker` / `http` / `chart`）。不要在业务文件里新增重复常量；页面内一次性 UI 文案、分页 pageSize、列宽、局部颜色可留在本地。
-2. **技能同步**：任何代码改动（功能、接口、页面、组件、配置、口径）完成后，同步更新 `.trae/skills/` 下对应技能，并检查本文件的「技能索引」是否仍然准确。见技能 `code-change-skill-sync`。
+2. **技能与使用手册同步**：任何代码改动（功能、接口、页面、组件、配置、口径）完成后，同步更新 `.trae/skills/` 下对应技能；**涉及页面/功能/交互/展示/文案的改动，必须同步更新 `Front-End/src/config/userManualConfig.ts` 中对应 `menuKey` 的使用手册条目（新增页面必须新增条目）**；并检查本文件的「技能索引」是否仍然准确。见技能 `code-change-skill-sync`。
 3. **禁止未来函数**：RSI 分位与买卖点必须使用 as-of 口径（只用当期及之前的数据），窗口与最小样本由配置控制。
 4. **注释与文档使用中文**，与现有代码保持一致。
 5. **不轻易新增依赖**：如 Excel 导出由 `src/utils/xlsxExport.ts` 手写零依赖实现，改动时优先扩展它而不是引入 `xlsx` / `exceljs`。
@@ -62,11 +63,11 @@ npx tsc --noEmit -p tsconfig.app.json   # 仅类型检查（注意：仓库存�
 
 | 技能 | 何时使用 | 详文 |
 |------|----------|------|
-| `rsi6-buypoint-report` | 新增/调整 RSI6 买点计算、导出买入&卖出报告或买入计划、修改报告列或买卖规则、调整分位口径/回撤指标/Excel 样式 | [SKILL.md](./.trae/skills/rsi6-buypoint-report/SKILL.md) |
-| `financial-feature` | 按项目约定新增金融数据功能页（菜单/路由/页面/图表/表格 + 可选后端接口），或在已有行情详情页新增技术指标 tab（如 MACD 日/周/月/季多周期图表、DEA-DIF/DEA÷DIF 派生线、as-of 峰值买点表、样本区间、type/visiblePeriods 适配） | [SKILL.md](./.trae/skills/financial-feature/SKILL.md) |
+| `rsi6-buypoint-report` | 新增/调整 RSI6 买点计算、计算完成后自动导出推荐买点 Excel、导出买入&卖出报告 / 买入计划 / 最低 MACD 柱月K标记、修改报告列或买卖规则、调整分位口径/回撤指标/Excel 样式 | [SKILL.md](./.trae/skills/rsi6-buypoint-report/SKILL.md) |
+| `financial-feature` | 按项目约定新增金融数据功能页（菜单/路由/页面/图表/表格 + 可选后端接口），或在已有行情详情页新增技术指标 tab（如 MACD 日/周/月/季多周期图表、DEA-DIF/DEA÷DIF 派生线、as-of 峰值买点表、样本区间、type/visiblePeriods 适配），或合并多数据源指数列表（中证 + 新浪，字段映射/同码去重/详情接口分流） | [SKILL.md](./.trae/skills/financial-feature/SKILL.md) |
 | `g2-crossfreq-tooltip` | G2 v5 DualAxes 跨频率主图、周/月/季低频指标 tooltip 补齐与光滑处理 | [SKILL.md](./.trae/skills/g2-crossfreq-tooltip/SKILL.md) |
 | `market-temp-compare-chart` | 在 `/stock/a/market-temp` 新增/调整双指标对比 tab（指数比值、年化收益率差），复用 `IndexComparisonChart` | [SKILL.md](./.trae/skills/market-temp-compare-chart/SKILL.md) |
-| `code-change-skill-sync` | 每次代码改动收尾、提交前，检查并同步技能、用户可见文案与索引；公共方法/计算内核改动时补测试并跑通 | [SKILL.md](./.trae/skills/code-change-skill-sync/SKILL.md) |
+| `code-change-skill-sync` | 每次代码改动收尾、提交前，检查并同步技能、使用手册、用户可见文案与索引；公共方法/计算内核改动时补测试并跑通 | [SKILL.md](./.trae/skills/code-change-skill-sync/SKILL.md) |
 | `agent-confirm` | 执行中遇到不明确的参数/边界/口径/路径/需求冲突，必须停下来向用户确认，不能猜测 | [SKILL.md](./.trae/skills/agent-confirm/SKILL.md) |
 | `dependency-install-safe` | 安装第三方依赖时严格锁定已有版本号，npm/pnpm/yarn 任何操作后必须 diff 验证，禁止 peerDependencies 被顺手改写 | [SKILL.md](./.trae/skills/dependency-install-safe/SKILL.md) |
 

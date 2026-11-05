@@ -7,9 +7,15 @@ import apiClient from '@/utils/axios';
 import { isRecentDate } from '@/utils/stockUtils';
 import { runRecommendationBatchCalculation } from '@/utils/recommendationBatch';
 import { computeBuyPoints } from '@/utils/buyPointWorker';
-import type { BuyPointResult } from '@/utils/buyPointCompute';
+import type { BuyPointKLineItem, BuyPointResult } from '@/utils/buyPointCompute';
 import { BuyPointActionGroup } from '@/components/BuyPointActionGroup';
-import { exportBuyPlan, exportBuySellReport } from '@/utils/buySellReportExport';
+import {
+  exportBuyPlan,
+  exportBuySellReport,
+  exportRecommendationBuyPoints,
+} from '@/utils/buySellReportExport';
+import type { BuySellReportItem } from '@/utils/buySellReportExport';
+import { exportMacdBarMarker } from '@/utils/macdBarMarkerExport';
 
 const { Link } = Typography;
 const { TabPane } = Tabs;
@@ -116,13 +122,18 @@ const FuturesForeignQuotes: React.FC = () => {
   const handleCalculateRecommendation = async () => {
     // 仅收集结果，全部计算完成后再一次性更新表格与缓存
     const resultMap = new Map<string, { quantitative: string; percentile: string; monthlyPercentile: string; weeklyPercentile: string }>();
-    await runRecommendationBatchCalculation({
+    // 收集本次计算结果，供计算完成后自动导出「推荐买点」Excel（不重复取数）
+    const exportItems: BuySellReportItem[] = [];
+    const batchResult = await runRecommendationBatchCalculation({
       targets: selectedRows,
       getKey: item => String(item.code),
       getName: item => item.symbol || String(item.code),
       emptyWarn: '请选择期货品种',
       fetchBuyPoints: item => fetchFuturesDetailAndCalculate(String(item.code)),
       onItemDone: (item, result) => {
+        const code = String(item.code);
+        const name = item.symbol || code;
+        result.mqBuyPoints.forEach(point => exportItems.push({ code, name, point }));
         resultMap.set(String(item.code), result);
       },
     });
@@ -143,10 +154,21 @@ const FuturesForeignQuotes: React.FC = () => {
           : item;
       });
 
+    // 计算完成后自动导出「推荐买点」Excel（★1/★3/★5 全部买入信号）；
+    // 在写回表格之后执行，避免导出异常影响买点回填
+    const exportBuyPoints = () =>
+      exportRecommendationBuyPoints({
+        items: exportItems,
+        itemLabel: '期货品种',
+        filePrefix: '外盘期货',
+        failureCount: batchResult.failures.length,
+      });
+
     if (activeTab === SELECTED_TAB_KEY) {
       const latest = applyResults(selectedFuturesRef.current);
       setSelectedFutures(latest);
       saveSelectedFutures(latest);
+      exportBuyPoints();
       return;
     }
 
@@ -154,6 +176,7 @@ const FuturesForeignQuotes: React.FC = () => {
     const isCustomTab = customTabs.some(t => t.key === activeTab);
     if (isCustomTab) {
       saveGroupFutures(activeTab, prev => applyResults(prev));
+      exportBuyPoints();
     }
   };
 
@@ -183,8 +206,21 @@ const FuturesForeignQuotes: React.FC = () => {
       filePrefix: '外盘期货',
     });
 
-  // 计算推荐买点（定量 + 百分位 + 月/周 RSI6 百分位策略）
-  const fetchFuturesDetailAndCalculate = async (code: string): Promise<BuyPointResult> => {
+  /** 导出「最低 MACD 柱下一周期月K标记」：月K标记 + 持有/回撤指标 */
+  const handleExportMacdBarMarker = () =>
+    exportMacdBarMarker<FuturesData>({
+      targets: selectedRows,
+      getCode: item => String(item.code),
+      getName: item => item.symbol || String(item.code),
+      getKey: item => String(item.code),
+      fetchDailyData: item => fetchFuturesDailyData(String(item.code)),
+      emptyWarn: '请选择期货品种',
+      itemLabel: '期货品种',
+      filePrefix: '外盘期货',
+    });
+
+  // 取期货品种日K「日期 + 收盘」序列（买点计算与 MACD 月K标记导出共用）
+  const fetchFuturesDailyData = async (code: string): Promise<BuyPointKLineItem[]> => {
     const response = await apiClient.get('/api/public/futures_foreign_hist', {
       params: { symbol: code },
     });
@@ -198,9 +234,12 @@ const FuturesForeignQuotes: React.FC = () => {
 
     // 接口异常（空数据 / 无有效收盘价）需抛出，由批量编排统一重试并汇总提示
     if (stockHistoryList.length === 0) throw new Error('接口返回空数据');
-
-    return computeBuyPoints({ type: 'commodity', rawData: stockHistoryList });
+    return stockHistoryList;
   };
+
+  // 计算推荐买点（定量 + 百分位 + 月/周 RSI6 百分位策略）
+  const fetchFuturesDetailAndCalculate = async (code: string): Promise<BuyPointResult> =>
+    computeBuyPoints({ type: 'commodity', rawData: await fetchFuturesDailyData(code) });
 
   const columns = useMemo<ColumnsType<FuturesData>>(() => [
     {
@@ -260,7 +299,7 @@ const FuturesForeignQuotes: React.FC = () => {
       sorter: stringSorter('code'),
     },
     {
-      title: '推荐买点（百分位）',
+      title: '季&月RSI6百分位策略',
       dataIndex: '__推荐买点百分位__',
       key: '__推荐买点百分位__',
       width: 90,
@@ -275,7 +314,7 @@ const FuturesForeignQuotes: React.FC = () => {
       }),
     },
     {
-      title: '推荐买点（定量）',
+      title: '季&月RSI6 定量策略',
       dataIndex: '__推荐买点定量__',
       key: '__推荐买点定量__',
       width: 90,
@@ -768,6 +807,7 @@ const FuturesForeignQuotes: React.FC = () => {
           onCalculate={handleCalculateRecommendation}
           onExportReport={handleExportBuySellReport}
           onExportPlan={handleExportBuyPlan}
+          onExportMacdBarMarker={handleExportMacdBarMarker}
           itemLabel="期货品种"
         />
         <Table

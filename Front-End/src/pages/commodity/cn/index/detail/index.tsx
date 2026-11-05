@@ -3,11 +3,14 @@ import { Typography, Card, Spin } from 'antd';
 import { useSearchParams } from 'react-router-dom';
 import apiClient from '@/utils/axios';
 import type { KLineData } from '@/utils/stockUtils';
+import { appConfig } from '@/config/appConfig';
 import { message } from 'antd';
 
 
 const IndexMetrics = React.lazy(() => import('@/components/IndexMetrics'));
 const RsiFilterMark = React.lazy(() => import('@/components/RsiFilterMark'));
+const MacdFilterMark = React.lazy(() => import('@/components/MacdFilterMark'));
+const DailyReturnAnalysis = React.lazy(() => import('@/components/DailyReturnAnalysis'));
 
 const { Title } = Typography;
 
@@ -75,6 +78,8 @@ const Detail: React.FC = () => {
       <Spin spinning={loading}>
         {useMemo(() => <IndexMetrics data={data} />, [data])}
         {useMemo(() => <RsiFilterMark data={data} type="commodity" />, [data])}
+        {appConfig.features.macd && <MacdFilterMark data={data} type="commodity" />}
+        {useMemo(() => <DailyReturnAnalysis data={data} />, [data])}
       </Spin>
     </Card>
   );

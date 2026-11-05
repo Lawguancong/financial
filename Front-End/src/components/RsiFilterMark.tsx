@@ -512,7 +512,7 @@ const ruleLevelStyle: React.CSSProperties = {
 };
 
 /**
- * 「推荐买点（定量）」规则说明
+ * 「季&月RSI6 定量策略」规则说明
  * 打分口径直接映射自 stockRsiRecommendationRules / indexRsiRecommendationRules，
  * 与 calculateStockRecommendationLevel / calculateIndexRecommendationLevel 共用同一份规则表，
  * 避免文案与实际计算逻辑不一致。

@@ -4,13 +4,16 @@ import { Radio, Tag, Collapse, Card } from 'antd';
 import { DualAxes } from '@ant-design/plots';
 import apiClient from '@/utils/axios';
 import moment from 'moment';
-import { calculateMaxDrawdown, calculateStartDate, calculatePercentiles, cleanCsindexHistory } from '@/utils';
+import { calculateMaxDrawdown, calculateStartDate, calculatePercentiles, cleanCsindexHistory, normalizeSinaIndexDailyRows } from '@/utils/stockUtils';
+import type { SinaIndexDailyRow } from '@/utils/stockUtils';
 import { appConfig } from '@/config/appConfig';
 import dayjs from 'dayjs';
 import IndexMetrics from '@/components/IndexMetrics';
 
 // RSI·推荐级别：与 /stock/us/index 统一复用同一组件（路由层提供 Suspense 边界）
 const RsiFilterMark = React.lazy(() => import('@/components/RsiFilterMark'));
+const MacdFilterMark = React.lazy(() => import('@/components/MacdFilterMark'));
+const DailyReturnAnalysis = React.lazy(() => import('@/components/DailyReturnAnalysis'));
 export interface IndexDetailData {
   日期: string;
   指数代码: string;
@@ -37,6 +40,10 @@ export interface IndexDetailData {
 const IndexDetail: React.FC = () => {
   const [searchParams] = useSearchParams();
   const code = searchParams.get('code');
+  // source=sina：新浪股票指数（stock_zh_index_spot_sina 列表跳转），日线改走 stock_zh_index_daily
+  const source = searchParams.get('source');
+  // URLSearchParams.get 已自动解码，不能再 decodeURIComponent，否则名称含 % 时会抛 URIError
+  const name = searchParams.get('name') || '';
   const [timeRange, setTimeRange] = useState<string>('上市以来');
   const [rawData, setRawData] = useState<any[]>([]);
   const [dailyData, setDailyData] = useState<any[]>([]);
@@ -64,6 +71,13 @@ const IndexDetail: React.FC = () => {
       return;
     }
     try {
+      // 新浪指数只有日线 OHLCV，统一归一化为「日期 + 收盘」，其余指标组件可直接复用
+      if (source === 'sina') {
+        const response = await apiClient.get(`/api/public/stock_zh_index_daily?symbol=${encodeURIComponent(code)}`);
+        setRawData(normalizeSinaIndexDailyRows(response?.data as SinaIndexDailyRow[] | undefined));
+        return;
+      }
+
       // 从 A 股最早交易日开始查询，覆盖指数全部历史；接口在起始日早于首条真实数据时会补占位行，
       // 由 cleanCsindexHistory 统一剔除，避免远期伪数据点参与指标计算
       const startDate = appConfig.http.indexHistoryStartDate;
@@ -74,11 +88,11 @@ const IndexDetail: React.FC = () => {
     } finally {
       //
     }
-  }, []);
+  }, [code, source]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   const chartConfig = useMemo(() => {
     if (!dataWithDrawdown || dataWithDrawdown.length === 0) {
@@ -164,7 +178,7 @@ const IndexDetail: React.FC = () => {
   return (
     <div style={{ padding: '24px' }}>
       <h1 style={{ marginBottom: '24px' }}>
-        {dataWithDrawdown?.[0]?.指数中文简称} - 指数详情
+        {name || dataWithDrawdown?.[0]?.指数中文简称 || code} - 指数详情
       </h1>
 
       <div style={{ marginBottom: '16px', padding: '16px', background: '#f5f5f5', borderRadius: '8px' }}>
@@ -257,6 +271,20 @@ const IndexDetail: React.FC = () => {
       <Collapse defaultActiveKey={["3"]} style={{ marginTop: 16 }}>
         <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📈📊📉 RSI·推荐级别</span>} key="3">
           <RsiFilterMark data={dailyData} type="index" />
+        </Collapse.Panel>
+      </Collapse>
+
+      {appConfig.features.macd && (
+        <Collapse defaultActiveKey={["4"]} style={{ marginTop: 16 }}>
+          <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📈📊📉 MACD 技术指标</span>} key="4">
+            <MacdFilterMark data={dailyData} type="index" />
+          </Collapse.Panel>
+        </Collapse>
+      )}
+
+      <Collapse defaultActiveKey={["5"]} style={{ marginTop: 16 }}>
+        <Collapse.Panel header={<span style={{ color: '#1890ff', fontWeight: 'bold' }}>📈📊📉 日涨跌幅分析</span>} key="5">
+          <DailyReturnAnalysis data={dailyData} />
         </Collapse.Panel>
       </Collapse>
     </div>

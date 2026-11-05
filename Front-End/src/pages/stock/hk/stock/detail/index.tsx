@@ -2,10 +2,13 @@ import React, { useEffect, useState, useMemo, useCallback, Suspense, memo } from
 import { Spin, Typography, Card, Tabs } from 'antd';
 import apiClient from '@/utils/axios';
 import { useSearchParams } from 'react-router-dom';
+import { appConfig } from '@/config/appConfig';
 
 // 懒加载组件，按需加载
 const HkPriceAndTurnover = React.lazy(() => import('./components/HkPriceAndTurnover'));
 const RsiFilterMark = React.lazy(() => import('../../../../../components/RsiFilterMark'));
+const MacdFilterMark = React.lazy(() => import('../../../../../components/MacdFilterMark'));
+const DailyReturnAnalysis = React.lazy(() => import('../../../../../components/DailyReturnAnalysis'));
 
 const { Title } = Typography;
 
@@ -74,6 +77,18 @@ const HkStockDetail: React.FC = () => {
     </Suspense>
   ), [rawData]);
 
+  const macdFilterMarkComponent = useMemo(() => (
+    <Suspense fallback={<ComponentFallback />}>
+      <MacdFilterMark data={rawData} type="stock" />
+    </Suspense>
+  ), [rawData]);
+
+  const dailyReturnAnalysisComponent = useMemo(() => (
+    <Suspense fallback={<ComponentFallback />}>
+      <DailyReturnAnalysis data={rawData} />
+    </Suspense>
+  ), [rawData]);
+
   // 缓存 Tabs 配置
   const tabItems = useMemo(() => [
     {
@@ -95,7 +110,29 @@ const HkStockDetail: React.FC = () => {
         </Card>
       ),
     },
-  ], [priceAndTurnoverComponent, rsiFilterMarkComponent]);
+    ...(appConfig.features.macd
+      ? [{
+          key: 'macd-filter',
+          label: 'MACD 技术指标',
+          children: (
+            <Card style={cardStyle}>
+              <Title level={5}>MACD 技术指标</Title>
+              {macdFilterMarkComponent}
+            </Card>
+          ),
+        }]
+      : []),
+    {
+      key: 'daily-return-analysis',
+      label: '日涨跌幅分析',
+      children: (
+        <Card style={cardStyle}>
+          <Title level={5}>日涨跌幅分析</Title>
+          {dailyReturnAnalysisComponent}
+        </Card>
+      ),
+    },
+  ], [priceAndTurnoverComponent, rsiFilterMarkComponent, macdFilterMarkComponent, dailyReturnAnalysisComponent]);
 
   return (
     <div style={pageStyle}>

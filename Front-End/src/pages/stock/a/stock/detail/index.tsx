@@ -5,6 +5,7 @@ import apiClient from '@/utils/axios';
 import { useSearchParams } from 'react-router-dom';
 import moment from 'moment';
 import DailyReturnAnalysis from '@/components/DailyReturnAnalysis';
+import { appConfig } from '@/config/appConfig';
 
 // 懒加载组件，按需加载
 const PriceAndTurnover = React.lazy(() => import('./components/PriceAndTurnover'));
@@ -55,7 +56,7 @@ const titleStyle: React.CSSProperties = { margin: 0 };
 const StockDetail: React.FC = () => {
   // const [symbolInfo, setSymbolInfo] = useState<Record<string, string>>({});
   const [rawData, setRawData] = useState<StockDetailData[]>([]);
-  const [activeTab, setActiveTab] = useState<string>('macd-filter');
+  const [activeTab, setActiveTab] = useState<string>('rsi-filter');
 
   const [searchParams] = useSearchParams();
   const symbol = searchParams.get('symbol') || '';
@@ -179,16 +180,18 @@ const StockDetail: React.FC = () => {
           </Card>
       ),
     },
-    {
-      key: 'macd-filter',
-      label: 'MACD 技术指标',
-      children: (
-        <Card style={cardStyle}>
-          <Title level={5}>MACD 技术指标</Title>
-          {macdFilterMarkComponent}
-        </Card>
-      ),
-    },
+    ...(appConfig.features.macd
+      ? [{
+          key: 'macd-filter',
+          label: 'MACD 技术指标',
+          children: (
+            <Card style={cardStyle}>
+              <Title level={5}>MACD 技术指标</Title>
+              {macdFilterMarkComponent}
+            </Card>
+          ),
+        }]
+      : []),
     {
       key: 'daily-return-analysis',
       label: '日涨跌幅分析',
